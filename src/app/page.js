@@ -199,33 +199,38 @@ export default function Home() {
               </span>
             </div>
 
-            {/* Component Scores */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                FAF Component Analysis
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-                {COMPONENTS.map(comp => {
-                  const score = result.component_scores?.[comp] ?? 0;
-                  return (
-                    <div key={comp} className="bg-white rounded-md border border-gray-200 p-3">
-                      <div className="text-xs text-gray-500 mb-1">{COMPONENT_LABELS[comp]}</div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${SCORE_COLORS[score]}`} />
-                        <span className="text-sm font-bold text-gray-900">{score}/3</span>
-                      </div>
-                      <div className="text-xs text-gray-500">{SCORE_LABELS[score]}</div>
-                      <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${SCORE_COLORS[score]}`}
-                          style={{ width: `${(score / 3) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Typology Probabilities */}
+            {result.typology_probabilities && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  Typology Probabilities
+                </h3>
+                <div className="space-y-2">
+                  {Object.entries(result.typology_probabilities)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([typology, prob]) => {
+                      const pct = Math.round(prob * 100);
+                      const isPrimary = typology === result.typology;
+                      const barColor = pct >= 70 ? 'bg-red-500' : pct >= 40 ? 'bg-orange-400' : pct >= 15 ? 'bg-yellow-400' : 'bg-gray-300';
+                      return (
+                        <div key={typology} className="flex items-center gap-3">
+                          <div className={`text-xs font-mono w-28 shrink-0 ${isPrimary ? 'font-bold text-gray-900' : 'text-gray-500'}`}>
+                            {typology}
+                            {isPrimary && <span className="ml-1 text-gray-400 font-normal">★</span>}
+                          </div>
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${barColor}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <div className="text-xs text-gray-500 w-9 text-right shrink-0">{pct}%</div>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Triggered Features */}
             {result.triggered_features?.length > 0 && (
@@ -325,14 +330,4 @@ export default function Home() {
 
 const BRIGHT_LINE_FEATURES_SET = new Set([
   'fake_regulatory_document',
-  'executive_impersonation_payment',
-  'government_impersonation_payment',
-  'family_impersonation_payment',
-  'bank_evasion_script',
-  'bulk_fake_reviews_financial',
-  'detection_evasion_explicit',
-  'structuring_guidance',
-  'money_mule_job_posting',
-]);
-
-const COMPONENTS = ['target', 'lure', 'trust', 'extract', 'evade'];
+  'executive_impersonation_payment'

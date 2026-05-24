@@ -2,7 +2,6 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// FAF Component definitions
 export const COMPONENTS = ['target', 'lure', 'trust', 'extract', 'evade'];
 
 export const TYPOLOGIES = [
@@ -94,10 +93,23 @@ LEGITIMATE USE CARVE-OUTS (lower scores, route to ALLOW or REVIEW):
 - Fiction with no operational application
 - Legitimate financial services content
 
+For typology_probabilities: assign a probability (0.0-1.0) to each typology reflecting how likely the prompt is an instance of that fraud type. Probabilities do not need to sum to 1.0 since multiple typologies can be partially active. NONE should be high when the prompt is clearly legitimate.
+
 Respond ONLY with valid JSON matching this schema exactly:
 {
   "escalation_tier": "ALLOW" | "REVIEW" | "BLOCK",
-  "typology": "<TYPOLOGY>",
+  "typology": "<PRIMARY_TYPOLOGY>",
+  "typology_probabilities": {
+    "ROMANCE": 0.0-1.0,
+    "INVESTMENT": 0.0-1.0,
+    "PHISHING": 0.0-1.0,
+    "IMPERSONATION": 0.0-1.0,
+    "ADVANCE_FEE": 0.0-1.0,
+    "MONEY_MULE": 0.0-1.0,
+    "SYNTHETIC_ID": 0.0-1.0,
+    "RECOVERY": 0.0-1.0,
+    "NONE": 0.0-1.0
+  },
   "bright_line": true | false,
   "bright_line_features": ["feature_name", ...],
   "component_scores": {
