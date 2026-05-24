@@ -1,6 +1,6 @@
 # SafeEval v5 -- Output Schema
 
-**Status:** Round 1 of v5 rollout. Descriptive sections only -- the JSON Schema validators belong to schema-keeper (Round 2).
+**Status:** Round 2 of v5 rollout. JSON Schema validator landed at `tests/schema/v5-envelope.schema.json` (draft 2020-12).
 **Schema version:** 5.0
 **Ontology version:** 5.0
 **Predecessor:** FAF v4.0 (`src/lib/safeeval.js`)
@@ -287,7 +287,7 @@ This is acceptable for the dual-emit window because it lets you A/B the pipeline
 
 ## 6. Validation rules (engine-enforced)
 
-These are the validation behaviors the engine must implement. The corresponding JSON Schema validators are schema-keeper's job (Round 2).
+These are the validation behaviors the engine must implement. The corresponding JSON Schema validator lives at `tests/schema/v5-envelope.schema.json` (draft 2020-12, Round 2). The schema encodes rules 1-9 below as `enum`, `pattern`, and `if/then` constraints; rule 10 (aggregate equals sum) and rule 11's full transitive enforcement that cannot be expressed as a pure JSON Schema invariant are engine-enforced and noted in the schema's `$defs.rule_*` descriptions for discoverability.
 
 1. `classification.l1.value` MUST be in the L1 closed set (spec section 2).
 2. `classification.l2.value` MUST be in the L2 set for the assigned L1 (spec section 7 `L2_BY_L1`).

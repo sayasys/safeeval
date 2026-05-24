@@ -1,0 +1,663 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://safeeval.vercel.app/schemas/v5-envelope.schema.json",
+  "title": "SafeEval v5 Evaluation Envelope",
+  "description": "Authoritative JSON Schema for the SafeEval v5 response envelope. Mirrors closed enums in docs/policy-spec-v5.0.md. Draft 2020-12. Owner: policy-architect (schema hat).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "ontology_version",
+    "evaluated_at",
+    "model_pipeline",
+    "prompt_length",
+    "classification",
+    "disposition",
+    "evidence",
+    "prompt_summary"
+  ],
+  "properties": {
+    "schema_version":   { "const": "5.0" },
+    "ontology_version": { "const": "5.0" },
+    "evaluated_at":     { "type": "string", "format": "date-time" },
+    "model_pipeline": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "prompt_length": { "type": "integer", "minimum": 0 },
+
+    "pipeline_trace": { "$ref": "#/$defs/pipeline_trace" },
+
+    "classification": { "$ref": "#/$defs/classification" },
+    "disposition":    { "$ref": "#/$defs/disposition" },
+    "evidence":       { "$ref": "#/$defs/evidence" },
+    "prompt_summary": { "$ref": "#/$defs/prompt_summary" }
+  },
+
+  "allOf": [
+    { "$ref": "#/$defs/rule_l2_belongs_to_l1" },
+    { "$ref": "#/$defs/rule_bright_line_forces_block" },
+    { "$ref": "#/$defs/rule_aggregate_equals_sum" },
+    { "$ref": "#/$defs/rule_ai_model_impersonation_cooccurrence" },
+    { "$ref": "#/$defs/rule_safe_completion_guidance_presence" }
+  ],
+
+  "$defs": {
+
+    "l1_values": {
+      "type": "string",
+      "enum": [
+        "benign",
+        "security_education",
+        "ambiguous_dual_use",
+        "deceptive_fraud",
+        "privacy_abuse",
+        "platform_abuse",
+        "cyber_intrusion"
+      ]
+    },
+
+    "l2_values_all": {
+      "type": "string",
+      "enum": [
+        "no_risk_pattern",
+        "customer_support_inquiry",
+        "general_information",
+        "creative_writing",
+        "educational_inquiry",
+        "phishing_awareness",
+        "malware_education",
+        "fraud_pattern_research",
+        "defensive_simulation_authorized",
+        "victim_support",
+        "borderline_security_research",
+        "borderline_red_team",
+        "borderline_journalism",
+        "borderline_education_request",
+        "romance_fraud",
+        "investment_fraud",
+        "advance_fee_fraud",
+        "phishing_attack",
+        "impersonation_scam",
+        "recovery_fraud",
+        "fraud_infrastructure",
+        "marketplace_fraud",
+        "refund_payment_fraud",
+        "identity_fraud",
+        "credential_theft",
+        "account_takeover",
+        "private_data_misuse",
+        "doxxing_or_stalking",
+        "promotion_abuse",
+        "multi_accounting",
+        "reputation_manipulation",
+        "automation_botting",
+        "ban_evasion",
+        "credential_harvesting_infra",
+        "malware_distribution",
+        "prompt_injection_attack",
+        "model_jailbreak",
+        "ai_model_impersonation"
+      ]
+    },
+
+    "l2_by_l1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "benign": {
+          "type": "string",
+          "enum": [
+            "no_risk_pattern",
+            "customer_support_inquiry",
+            "general_information",
+            "creative_writing",
+            "educational_inquiry"
+          ]
+        },
+        "security_education": {
+          "type": "string",
+          "enum": [
+            "phishing_awareness",
+            "malware_education",
+            "fraud_pattern_research",
+            "defensive_simulation_authorized",
+            "victim_support"
+          ]
+        },
+        "ambiguous_dual_use": {
+          "type": "string",
+          "enum": [
+            "borderline_security_research",
+            "borderline_red_team",
+            "borderline_journalism",
+            "borderline_education_request"
+          ]
+        },
+        "deceptive_fraud": {
+          "type": "string",
+          "enum": [
+            "romance_fraud",
+            "investment_fraud",
+            "advance_fee_fraud",
+            "phishing_attack",
+            "impersonation_scam",
+            "recovery_fraud",
+            "fraud_infrastructure",
+            "marketplace_fraud",
+            "refund_payment_fraud",
+            "identity_fraud"
+          ]
+        },
+        "privacy_abuse": {
+          "type": "string",
+          "enum": [
+            "credential_theft",
+            "account_takeover",
+            "private_data_misuse",
+            "doxxing_or_stalking"
+          ]
+        },
+        "platform_abuse": {
+          "type": "string",
+          "enum": [
+            "promotion_abuse",
+            "multi_accounting",
+            "reputation_manipulation",
+            "automation_botting",
+            "ban_evasion"
+          ]
+        },
+        "cyber_intrusion": {
+          "type": "string",
+          "enum": [
+            "credential_harvesting_infra",
+            "malware_distribution",
+            "prompt_injection_attack",
+            "model_jailbreak",
+            "ai_model_impersonation"
+          ]
+        }
+      }
+    },
+
+    "l3_pattern": {
+      "type": "string",
+      "pattern": "^(method|tactic|target|context_marker|overlap|risk_marker):[a-z_]+$"
+    },
+
+    "l3_method_values": {
+      "type": "string",
+      "enum": [
+        "phishing",
+        "smishing",
+        "vishing",
+        "credential_harvesting_page",
+        "mfa_intercept",
+        "sim_swap",
+        "deepfake_audio",
+        "deepfake_video",
+        "sock_puppet",
+        "fake_storefront",
+        "prompt_injection",
+        "jailbreak_framing",
+        "synthetic_document_forgery",
+        "pretexting_phone",
+        "pretexting_email",
+        "money_mule_recruitment",
+        "synthetic_identity_construction",
+        "fake_review_generation"
+      ]
+    },
+    "l3_tactic_values": {
+      "type": "string",
+      "enum": [
+        "urgency",
+        "fear",
+        "authority",
+        "trust_love",
+        "greed",
+        "scarcity",
+        "reciprocity",
+        "isolation"
+      ]
+    },
+    "l3_target_values": {
+      "type": "string",
+      "enum": [
+        "enterprise_employee",
+        "enterprise_executive",
+        "enterprise_it_credentials",
+        "enterprise_finance",
+        "financial_account",
+        "payment_card",
+        "crypto_holder",
+        "elderly_individual",
+        "recent_fraud_victim",
+        "public_figure",
+        "lonely_individual",
+        "job_seeker",
+        "consumer_general"
+      ]
+    },
+    "l3_context_marker_values": {
+      "type": "string",
+      "enum": [
+        "security_training",
+        "internal_simulation_claimed",
+        "authorized_pentest_claimed",
+        "journalism_claimed",
+        "fiction_creative",
+        "academic_research",
+        "defensive_analysis",
+        "roleplay_hypothetical"
+      ]
+    },
+    "l3_overlap_values": {
+      "type": "string",
+      "enum": [
+        "account_takeover_enablement",
+        "payment_fraud_enablement",
+        "identity_fraud_enablement",
+        "money_laundering_overlap",
+        "content_moderation_overlap",
+        "extortion_overlap",
+        "csam_adjacency"
+      ]
+    },
+    "l3_risk_marker_values": {
+      "type": "string",
+      "enum": [
+        "deceptive_effectiveness_requested",
+        "anti_detection_requested",
+        "scale_enablement_requested",
+        "specific_victim_targeted",
+        "authorization_unverifiable",
+        "payment_instruction_embedded"
+      ]
+    },
+
+    "l3_tag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "confidence"],
+      "properties": {
+        "value": { "$ref": "#/$defs/l3_pattern" },
+        "confidence": { "type": "number", "minimum": 0.5, "maximum": 1 }
+      },
+      "allOf": [
+        { "if": { "properties": { "value": { "pattern": "^method:" } } },
+          "then": { "properties": { "value": { "pattern": "^method:", "$comment": "value after prefix must match l3_method_values via implementation; engine enforces" } } } }
+      ]
+    },
+
+    "disposition_actions": {
+      "type": "string",
+      "enum": ["allow", "safe_completion", "human_review", "block"]
+    },
+
+    "bright_line_features": {
+      "type": "string",
+      "enum": [
+        "fake_regulatory_document",
+        "executive_impersonation_payment",
+        "government_impersonation_payment",
+        "family_impersonation_payment",
+        "bank_evasion_script",
+        "bulk_fake_reviews_financial",
+        "detection_evasion_explicit",
+        "structuring_guidance",
+        "money_mule_job_posting",
+        "credential_harvesting_page",
+        "account_takeover_script",
+        "ai_model_impersonation",
+        "prompt_injection_payload",
+        "mfa_or_otp_harvesting"
+      ]
+    },
+
+    "process_flag_categories": {
+      "type": "string",
+      "enum": ["Trigger", "Incentive", "Control", "Delivery", "Template"]
+    },
+
+    "relationship_phase_values": {
+      "type": "string",
+      "enum": [
+        "targeting", "contact", "engagement", "conversion",
+        "extraction", "escalation", "evasion"
+      ]
+    },
+
+    "trigger_values": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "fear", "urgency", "authority", "trust_love",
+        "greed", "scarcity", "reciprocity", "isolation",
+        "greed_opportunity", "hope_desperation"
+      ]
+    },
+
+    "disposition_rule_names": {
+      "type": "string",
+      "enum": [
+        "bright_line_forces_block",
+        "high_aggregate_score",
+        "ambiguous_l1_requires_review",
+        "security_education_safe_completion",
+        "multi_risk_marker_review",
+        "low_l2_confidence_review",
+        "low_score_benign_allow",
+        "model_adjudicated",
+        "triage_short_circuit_allow",
+        "validation_fallback",
+        "adversarial_downgrade"
+      ]
+    },
+
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["l1", "l2", "l3"],
+      "properties": {
+        "l1": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "confidence"],
+          "properties": {
+            "value": { "$ref": "#/$defs/l1_values" },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "l2": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "confidence"],
+          "properties": {
+            "value": { "$ref": "#/$defs/l2_values_all" },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "l3": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/l3_tag" }
+        }
+      }
+    },
+
+    "disposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "confidence", "reasoning_summary", "triggered_by", "safe_completion_guidance"],
+      "properties": {
+        "action": { "$ref": "#/$defs/disposition_actions" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reasoning_summary": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "triggered_by": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bright_lines", "thresholds", "rules"],
+          "properties": {
+            "bright_lines": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/bright_line_features" }
+            },
+            "thresholds": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "rules": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/disposition_rule_names" }
+            }
+          }
+        },
+        "safe_completion_guidance": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "faf_nodes",
+        "component_scores",
+        "aggregate_score",
+        "bright_lines",
+        "process_flags",
+        "l2_probabilities"
+      ],
+      "properties": {
+        "faf_nodes": { "$ref": "#/$defs/faf_nodes" },
+        "component_scores": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["target", "lure", "trust", "extract", "evade"],
+          "properties": {
+            "target":  { "type": "integer", "minimum": 0, "maximum": 3 },
+            "lure":    { "type": "integer", "minimum": 0, "maximum": 3 },
+            "trust":   { "type": "integer", "minimum": 0, "maximum": 3 },
+            "extract": { "type": "integer", "minimum": 0, "maximum": 3 },
+            "evade":   { "type": "integer", "minimum": 0, "maximum": 3 }
+          }
+        },
+        "aggregate_score": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "bright_lines": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/bright_line_features" },
+          "uniqueItems": true
+        },
+        "process_flags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["category", "description"],
+            "properties": {
+              "category": { "$ref": "#/$defs/process_flag_categories" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "l2_probabilities": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/l2_values_all" },
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+
+    "faf_nodes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "process", "objective"],
+      "properties": {
+        "context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "persona", "topic", "target", "relationship_phase"],
+          "properties": {
+            "source":  { "type": "string" },
+            "persona": { "type": ["string", "null"] },
+            "topic":   { "type": "string" },
+            "target":  { "type": ["string", "null"] },
+            "relationship_phase": { "$ref": "#/$defs/relationship_phase_values" }
+          }
+        },
+        "process": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["execution", "psychological"],
+          "properties": {
+            "execution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["delivery_method", "delivery_template", "referenced_entities"],
+              "properties": {
+                "delivery_method":     { "type": ["string", "null"] },
+                "delivery_template":   { "type": ["string", "null"] },
+                "referenced_entities": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "psychological": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["trigger", "incentive", "control"],
+              "properties": {
+                "trigger":   { "$ref": "#/$defs/trigger_values" },
+                "incentive": { "type": ["string", "null"] },
+                "control":   { "type": ["string", "null"] }
+              }
+            }
+          }
+        },
+        "objective": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objective"],
+          "properties": {
+            "objective": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "prompt_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["persona", "topic", "target", "objective", "pretext"],
+      "properties": {
+        "persona":   { "type": ["string", "null"] },
+        "topic":     { "type": "string" },
+        "target":    { "type": ["string", "null"] },
+        "objective": { "type": ["string", "null"] },
+        "pretext":   { "type": ["string", "null"] }
+      }
+    },
+
+    "pipeline_trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage_1", "stage_2", "stage_3", "stage_4", "stage_5", "short_circuited_at", "errors"],
+      "properties": {
+        "stage_1": { "$ref": "#/$defs/stage_trace_or_null" },
+        "stage_2": { "$ref": "#/$defs/stage_trace_or_null" },
+        "stage_3": { "$ref": "#/$defs/stage_trace_or_null" },
+        "stage_4": { "$ref": "#/$defs/stage_trace_or_null" },
+        "stage_5": { "$ref": "#/$defs/stage_trace_or_null" },
+        "short_circuited_at": {
+          "type": ["string", "null"],
+          "enum": [null, "stage_1", "stage_2", "stage_3", "stage_4"]
+        },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "stage_trace_or_null": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["model", "duration_ms"],
+          "properties": {
+            "ok": { "type": "boolean" },
+            "model": { "type": "string" },
+            "duration_ms": { "type": "integer", "minimum": 0 },
+            "input_tokens":  { "type": ["integer", "null"], "minimum": 0 },
+            "output_tokens": { "type": ["integer", "null"], "minimum": 0 },
+            "output": {},
+            "error": { "type": "string" }
+          }
+        }
+      ]
+    },
+
+    "rule_l2_belongs_to_l1": {
+      "description": "classification.l2.value MUST be valid under classification.l1.value (policy-spec-v5.0.md section 7).",
+      "type": "object",
+      "allOf": [
+        { "if": { "properties": { "classification": { "properties": { "l1": { "properties": { "value": { "const": "benign" } } } } } } },
+          "then": { "properties": { "classification": { "properties": { "l2": { "properties": { "value": { "$ref": "#/$defs/l2_by_l1/properties/benign" } } } } } } } },
+        { "if": { "properties": { "classification": { "properties": { "l1": { "properties": { "value": { "const": "security_education" } } } } } } },
+          "then": { "properties": { "classification": { "properties": { "l2": { "properties": { "value": { "$ref": "#/$defs/l2_by_l1/properties/security_education" } } } } } } } },
+        { "if": { "properties": { "classification": { "properties": { "l1": { "properties": { "value": { "const": "ambiguous_dual_use" } } } } } } },
+          "then": { "properties": { "classification": { "properties": { "l2": { "properties": { "value": { "$ref": "#/$defs/l2_by_l1/properties/ambiguous_dual_use" } } } } } } } },
+        { "if": { "properties": { "classification": { "properties": { "l1": { "properties": { "value": { "const": "deceptive_fraud" } } } } } } },
+          "then": { "properties": { "classification": { "properties": { "l2": { "properties": { "value": { "$ref": "#/$defs/l2_by_l1/properties/deceptive_fraud" } } } } } } } },
+        { "if": { "properties": { "classification": { "properties": { "l1": { "properties": { "value": { "const": "privacy_abuse" } } } } } } },
+          "then": { "properties": { "classification": { "properties": { "l2": { "properties": { "value": { "$ref": "#/$defs/l2_by_l1/properties/privacy_abuse" } } } } } } } },
+        { "if": { "properties": { "classification": { "properties": { "l1": { "properties": { "value": { "const": "platform_abuse" } } } } } } },
+          "then": { "properties": { "classification": { "properties": { "l2": { "properties": { "value": { "$ref": "#/$defs/l2_by_l1/properties/platform_abuse" } } } } } } } },
+        { "if": { "properties": { "classification": { "properties": { "l1": { "properties": { "value": { "const": "cyber_intrusion" } } } } } } },
+          "then": { "properties": { "classification": { "properties": { "l2": { "properties": { "value": { "$ref": "#/$defs/l2_by_l1/properties/cyber_intrusion" } } } } } } } }
+      ]
+    },
+
+    "rule_bright_line_forces_block": {
+      "description": "Any non-empty evidence.bright_lines MUST force disposition.action = 'block' (policy-spec-v5.0.md section 6.1 rule 1).",
+      "type": "object",
+      "if": {
+        "properties": {
+          "evidence": {
+            "properties": { "bright_lines": { "type": "array", "minItems": 1 } }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "disposition": { "properties": { "action": { "const": "block" } } }
+        }
+      }
+    },
+
+    "rule_aggregate_equals_sum": {
+      "description": "evidence.aggregate_score MUST equal the sum of evidence.component_scores. JSON Schema cannot express addition; engine enforces. This $def is a no-op placeholder so the rule's existence is discoverable from the schema.",
+      "type": "object"
+    },
+
+    "rule_ai_model_impersonation_cooccurrence": {
+      "description": "When bright_line 'ai_model_impersonation' is present, classification.l2.value MUST be 'ai_model_impersonation' and classification.l1.value MUST be 'cyber_intrusion' (Decision 9).",
+      "type": "object",
+      "if": {
+        "properties": {
+          "evidence": {
+            "properties": {
+              "bright_lines": {
+                "type": "array",
+                "contains": { "const": "ai_model_impersonation" }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "classification": {
+            "properties": {
+              "l1": { "properties": { "value": { "const": "cyber_intrusion" } } },
+              "l2": { "properties": { "value": { "const": "ai_model_impersonation" } } }
+            }
+          }
+        }
+      }
+    },
+
+    "rule_safe_completion_guidance_presence": {
+      "description": "When disposition.action = 'safe_completion', safe_completion_guidance MUST be a non-empty string. Otherwise it MUST be null.",
+      "type": "object",
+      "allOf": [
+        { "if": { "properties": { "disposition": { "properties": { "action": { "const": "safe_completion" } } } } },
+          "then": { "properties": { "disposition": { "properties": { "safe_completion_guidance": { "type": "string", "minLength": 1 } } } } } },
+        { "if": { "properties": { "disposition": { "properties": { "action": { "enum": ["allow", "human_review", "block"] } } } } },
+          "then": { "properties": { "disposition": { "properties": { "safe_completion_guidance": { "type": "null" } } } } } }
+      ]
+    }
+
+  }
+}
