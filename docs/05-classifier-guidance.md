@@ -1,6 +1,6 @@
 # Classifier Guidance: Policy-to-Technical Translation
 **SafeEval . Document 05 of 06**
-*Version 3.0 -- May 2026*
+*Version 4.0 -- May 2026*
 
 ---
 
@@ -26,29 +26,31 @@ BLOCK         -- Clear policy violation; auto-block appropriate
 ### 2.2 Component Activation Labels
 For each of the five FAF components, a score of 0-3:
 ```
-target_score:   0-3   (START: Target component activation)
-lure_score:     0-3   (START: Topic + PROCESS -> Psychological: Perceived Benefit activation)
-trust_score:    0-3   (START: Persona + PROCESS -> Psychological activation)
-extract_score:  0-3   (END: Objective activation)
-evade_score:    0-3   (PROCESS -> Execution: Detection Evasion activation)
+target_score:   0-3   (CONTEXT: Target component activation)
+lure_score:     0-3   (CONTEXT: Topic + PROCESS -> Psychological: Incentive activation)
+trust_score:    0-3   (CONTEXT: Persona + PROCESS -> Psychological activation)
+extract_score:  0-3   (OBJECTIVE: Objective activation)
+evade_score:    0-3   (PROCESS -> Psychological: Control activation)
 ```
 
 ### 2.3 Typology Label
 
-The taxonomy covers 10 active typologies. Each prompt receives exactly one primary typology label; when multiple typologies are active, the primary typology is the one with the highest aggregate FAF score. Secondary typologies are noted in the rationale field but do not produce a separate label.
+The taxonomy covers 9 active typologies. Each prompt receives exactly one primary typology label; when multiple typologies are active, the primary typology is the one with the highest aggregate FAF score. Secondary typologies are noted in the rationale field but do not produce a separate label.
 
 ```
-ROMANCE          -- Romance fraud / pig butchering              [Relationship-Based]
-INVESTMENT       -- Investment fraud / fake platforms            [Investment & Opportunity]
-PHISHING         -- Phishing / spearphishing / BEC              [Credential & Access]
-IMPERSONATION    -- Impersonation scams                         [Authority & Impersonation]
-ADVANCE_FEE      -- Advance fee / 419 fraud                     [Investment & Opportunity]
-MONEY_MULE       -- Money mule recruitment                      [Fraud Infrastructure]
-SYNTHETIC_ID     -- Synthetic identity / fake reviews           [Fraud Infrastructure]
-RECOVERY         -- Recovery fraud / secondary victimization    [Recovery Fraud]
-ACCOUNT_TAKEOVER -- Account takeover via credential theft, SIM swap, or social engineering [Account Takeover]
-AI_ENABLED_ABUSE -- Prompt injection, AI impersonation, jailbreak-framed fraud, synthetic content [AI-Enabled Abuse]
-NONE             -- No fraud typology
+ROMANCE              -- Romance fraud / pig butchering              [Relationship-Based]
+INVESTMENT           -- Investment fraud / fake platforms            [Investment & Opportunity]
+PHISHING             -- Phishing / spearphishing / BEC              [Credential & Access]
+IMPERSONATION        -- Impersonation scams                         [Authority & Impersonation]
+ADVANCE_FEE          -- Advance fee / 419 fraud                     [Investment & Opportunity]
+FRAUD_INFRASTRUCTURE -- Money mule recruitment, synthetic identity,  [Fraud Infrastructure]
+                        and fake reviews
+RECOVERY             -- Recovery fraud / secondary victimization    [Recovery Fraud]
+ACCOUNT_TAKEOVER     -- Account takeover via credential theft,      [Account Takeover]
+                        SIM swap, or social engineering
+AI_ENABLED_ABUSE     -- Prompt injection, AI impersonation,         [AI-Enabled Abuse]
+                        jailbreak-framed fraud, synthetic content
+NONE                 -- No fraud typology
 ```
 
 ### 2.4 Bright Line Label
@@ -79,7 +81,7 @@ prompt_injection_payload             -- A payload designed to hijack an AI syste
 The following features are the primary detection signals extracted from prompt text. Each is defined precisely to ensure consistent labeling and classifier feature extraction. Features map to FAF attributes using the START / PROCESS / END node structure defined in doc 01.
 
 ### 3.1 Financial Extraction Signals
-*(Maps to: END -- Objective; PROCESS -> Psychological -- Victim Control Tactics)*
+*(Maps to: OBJECTIVE -- Objective; PROCESS -> Psychological -- Control)*
 
 | Feature | Definition | Typologies |
 |---|---|---|
@@ -90,7 +92,7 @@ The following features are the primary detection signals extracted from prompt t
 | `payment_urgency` | Urgency framing around financial action (deadline, limited window, legal threat) | All |
 
 ### 3.2 Persona & Impersonation Signals
-*(Maps to: START -- Persona)*
+*(Maps to: CONTEXT -- Persona)*
 
 | Feature | Definition | Typologies |
 |---|---|---|
@@ -121,17 +123,17 @@ The following features are the primary detection signals extracted from prompt t
 | `sunk_cost_exploitation` | Scripts referencing prior payments to justify continued payment | AFF, Investment, Recovery |
 
 ### 3.5 Detection Evasion Signals
-*(Maps to: PROCESS -> Execution -- Detection Evasion)*
+*(Maps to: PROCESS -> Psychological -- Control)*
 
 | Feature | Definition | Typologies |
 |---|---|---|
 | `detection_evasion` | Explicit request to avoid spam filters, security systems, or platform moderation | Phishing, All |
-| `structuring_guidance` | Instructions to keep transactions below reporting thresholds | Money Mule |
-| `bank_evasion_script` | Scripts for explaining suspicious transactions to financial institutions | Money Mule |
+| `structuring_guidance` | Instructions to keep transactions below reporting thresholds | Fraud Infrastructure |
+| `bank_evasion_script` | Scripts for explaining suspicious transactions to financial institutions | Fraud Infrastructure |
 | `content_variation` | High-volume variant generation of same underlying fraudulent content | Synthetic ID, Phishing |
 
 ### 3.6 Account Takeover Signals
-*(Maps to: START -- Target; PROCESS -> Execution -- Delivery Template)*
+*(Maps to: CONTEXT -- Target; PROCESS -> Execution -- Delivery Template)*
 
 | Feature | Definition | Typologies |
 |---|---|---|
@@ -141,7 +143,7 @@ The following features are the primary detection signals extracted from prompt t
 | `bulk_credential_testing` | Scripts or tooling for testing large sets of credentials against login systems | Account Takeover |
 
 ### 3.7 AI-Enabled Abuse Signals
-*(Maps to: START -- Persona; PROCESS -> Execution -- Referenced Entities)*
+*(Maps to: CONTEXT -- Persona; PROCESS -> Execution -- Referenced Entities)*
 
 | Feature | Definition | Typologies |
 |---|---|---|
@@ -168,8 +170,8 @@ The generation of fake regulatory filings (SEC registration, FCA authorization, 
 **Rationale for `content_variation` threshold at 3+ variants:**
 A single alternative phrasing of a message is common in legitimate use (copywriting, A/B testing, creative exploration). At 3+ variants with organic-appearance framing for the same underlying subject, the pattern strongly suggests campaign infrastructure rather than individual use.
 
-**Rationale for Detection Evasion as a disproportionately weighted Execution attribute:**
-Detection Evasion carries elevated weight above other PROCESS -> Execution attributes because its presence signals that the attacker is aware of and actively working around enforcement systems. This meta-awareness is harmful independent of the underlying fraud context -- a prompt requesting spam filter evasion for otherwise-borderline content warrants the same urgency as a clear fraud prompt.
+**Rationale for Control (detection evasion) as a disproportionately weighted Psychological attribute:**
+Control -- specifically the detection evasion dimension -- carries elevated weight because its presence signals that the attacker is aware of and actively working around enforcement systems. This meta-awareness is harmful independent of the underlying fraud context -- a prompt requesting spam filter evasion for otherwise-borderline content warrants the same urgency as a clear fraud prompt. Detection evasion was consolidated from a standalone Execution attribute into Control to reflect that victim isolation and system evasion are operationally unified tactics.
 
 **Rationale for `ai_model_impersonation` as a bright-line feature:**
 Impersonating a named AI model -- particularly Claude -- for fraud purposes represents a direct attack on user trust in the AI system itself, not merely a fraud against an individual victim. The harm vector is institutional as well as individual. There is no legitimate use case for claiming to be Claude in order to extract credentials or execute fraud.
@@ -184,7 +186,7 @@ Prompt injection payloads are designed to subvert AI system behavior at the inst
 Each prompt in the seed dataset was labeled using the following process:
 
 1. **Establish START attributes:** Score Source, Persona, Topic, and Target from the prompt text
-2. **Analyze PROCESS attributes:** Work through Execution (Delivery Method, Delivery Template, Referenced Entities, Fraud Lifecycle Phase, Detection Evasion) and Psychological (Psychological Lever, Perceived Benefit, Victim Control Tactics) sub-sections independently
+2. **Analyze PROCESS attributes:** Work through Execution (Delivery Method, Delivery Template, Referenced Entities) and Psychological (Trigger, Incentive, Control) sub-sections independently. Relationship Phase is now a CONTEXT attribute -- establish it during step 1.
 3. **Conclude END:** State the Objective and assign Perceived or Realized status
 4. **Independent component scoring:** Score each FAF component 0-3 based on the feature definitions above
 5. **Bright line check:** Assess whether any bright-line rule from policy doc section 3 is triggered
@@ -211,7 +213,7 @@ The fraud detection task is best modeled as a **multi-label classification probl
 The recommended architecture uses a shared encoder (transformer-based) with separate classification heads for:
 
 1. **Escalation tier** (ALLOW / REVIEW / BLOCK) -- primary output
-2. **Typology** (10-class: ROMANCE, INVESTMENT, PHISHING, IMPERSONATION, ADVANCE_FEE, MONEY_MULE, SYNTHETIC_ID, RECOVERY, ACCOUNT_TAKEOVER, AI_ENABLED_ABUSE, or NONE)
+2. **Typology** (9-class: ROMANCE, INVESTMENT, PHISHING, IMPERSONATION, ADVANCE_FEE, FRAUD_INFRASTRUCTURE, RECOVERY, ACCOUNT_TAKEOVER, AI_ENABLED_ABUSE, or NONE)
 3. **Component activation scores** (five regression heads, one per FAF component, output 0-3)
 4. **Bright line flag** (binary classification head, high-recall tuning)
 
@@ -224,8 +226,7 @@ The recommended architecture uses a shared encoder (transformer-based) with sepa
 | PHISHING | High | Recall > Precision |
 | IMPERSONATION | High | Recall > Precision |
 | ADVANCE_FEE | Medium | Balanced |
-| MONEY_MULE | Medium | Balanced |
-| SYNTHETIC_ID | Medium | Precision > Recall (high false positive risk in creative use) |
+| FRAUD_INFRASTRUCTURE | Medium | Balanced (money mule/mule recruitment); Precision > Recall for fake reviews (high false positive risk in creative use) |
 | RECOVERY | High | Recall > Precision |
 | ACCOUNT_TAKEOVER | High | Recall > Precision |
 | AI_ENABLED_ABUSE | Critical | Recall >> Precision (highest-priority enforcement surface for Anthropic) |
@@ -249,14 +250,15 @@ For the 10 active typologies, minimum seed data targets:
 | PHISHING | 30 | 15 BLOCK, 10 REVIEW, 5 ALLOW |
 | IMPERSONATION | 30 | 15 BLOCK, 10 REVIEW, 5 ALLOW |
 | ADVANCE_FEE | 25 | 15 BLOCK, 5 REVIEW, 5 ALLOW |
-| MONEY_MULE | 25 | 15 BLOCK, 5 REVIEW, 5 ALLOW |
-| SYNTHETIC_ID | 25 | 10 BLOCK, 10 REVIEW, 5 ALLOW |
+| FRAUD_INFRASTRUCTURE | 30 | 10 BLOCK per sub-type (Money Mule, Synthetic ID, Fake Reviews); balance creative false positive cases |
 | RECOVERY | 25 | 15 BLOCK, 5 REVIEW, 5 ALLOW |
-| ACCOUNT_TAKEOVER | 30 | New typology -- prioritize coverage breadth |
-| AI_ENABLED_ABUSE | 30 | New typology -- prioritize coverage breadth |
+| ACCOUNT_TAKEOVER | 30 | Prioritize coverage breadth across Credential Phishing, SIM Swap, Social Engineering, Credential Stuffing |
+| AI_ENABLED_ABUSE | 30 | Prioritize coverage breadth across Prompt Injection, AI Impersonation, Jailbreak-Framed, Synthetic Content |
 
 ---
 
 ## 7. Version Notes
 
-**Version 3.0 (May 2026):** Added ACCOUNT_TAKEOVER and AI_ENABLED_ABUSE typologies (10 total active typologies). Removed MULTI label -- multi-typology cases now carry the primary typology with secondary typologies noted in rationale. Added credential_harvesting_page, account_takeover_script, ai_model_impersonation, and prompt_injection_payload to bright-line feature set. Added feature definition sections 3.6 and 3.7 for new typologies.
+**Version 4.0 (May 2026):** FAF node rename (START -> CONTEXT, END -> OBJECTIVE). MONEY_MULE and SYNTHETIC_ID consolidated into FRAUD_INFRASTRUCTURE (9 total active typologies). Relationship Phase moved to CONTEXT. Psychological section restructured: Lever -> Trigger, Perceived Benefit -> Incentive, Victim Control Tactics -> Control (now includes detection evasion). Component label references updated accordingly. Precision/recall table and training data table updated for FRAUD_INFRASTRUCTURE.
+
+**Version 3.0 (May 2026):** Added ACCOUNT_TAKEOVER and AI_ENABLED_ABUSE typologies (10 total active typologies). Removed MULTI label -- multi-typology cases now carry the primary typology with secondary typologies noted in rationale.

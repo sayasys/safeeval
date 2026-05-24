@@ -1,6 +1,6 @@
 # Fraud Analysis Framework
 **SafeEval . Document 01 of 06**
-*Version 3.0 -- May 2026*
+*Version 4.0 -- May 2026*
 
 ---
 
@@ -20,28 +20,26 @@ For AI platforms specifically, this matters because **the threat surface evolves
 
 ```
 +----------------------------------------------------------------------+
-|  START               |  PROCESS                        |  END        |
+|  CONTEXT             |  PROCESS                        |  OBJECTIVE  |
 |  ----------------    |  -----------------------------  |  ---------  |
 |  Source              |  EXECUTION                      |  Objective  |
-|  Persona             |    Delivery Method              |  [Perceived |
-|  Topic               |    Delivery Template            |   Realized] |
+|  Persona             |    Delivery Method              |             |
+|  Topic               |    Delivery Template            |             |
 |  Target              |    Referenced Entities          |             |
-|                      |    Fraud Lifecycle Phase        |             |
-|                      |    Detection Evasion            |             |
-|                      |  PSYCHOLOGICAL                  |             |
-|                      |    Psychological Lever          |             |
-|                      |    Perceived Benefit            |             |
-|                      |    Victim Control Tactics       |             |
+|  Relationship Phase  |  PSYCHOLOGICAL                  |             |
+|                      |    Trigger                      |             |
+|                      |    Incentive                    |             |
+|                      |    Control                      |             |
 +----------------------------------------------------------------------+
 ```
 
 ---
 
-## START
+## CONTEXT
 
-START establishes the scene before analysis of execution begins. It answers: *where did this come from, who is behind it, what is it about on the surface, and who is being harmed?*
+CONTEXT establishes the scene before analysis of execution begins. It answers: *where did this come from, who is behind it, what is it about on the surface, who is being harmed, and where in the fraud lifecycle does it sit?*
 
-START attributes are the foundation of typology classification. Two fraud schemes with identical process attributes but different START attributes represent different policy and enforcement problems.
+CONTEXT attributes are the foundation of typology classification. Two fraud schemes with identical process attributes but different CONTEXT attributes represent different policy and enforcement problems.
 
 ### Source
 Where the flagged content originates. Source is the most surface-level attribute -- it is established before reading a word of the content itself.
@@ -52,7 +50,7 @@ Source dimensions:
 - **Account context** -- Free user, paid subscriber, API key holder, enterprise deployment
 - **Conversation context** -- Single-turn request, multi-turn conversation, continuation of prior session
 
-Source is analytically significant because the same prompt carries different risk profiles depending on its origin. A raw API request with no system prompt is a different context from the same request embedded in an operator's fraud-training platform. Source also determines which enforcement mechanisms are available -- operator system prompts, account-level controls, product-level restrictions.
+Source is analytically significant because the same prompt carries different risk profiles depending on its origin. A raw API request with no system prompt is a different context from the same request embedded in an operator's fraud-training platform.
 
 ### Persona
 Who the attacker claims or implies they are. This is the identity constructed to make the fraud plausible. Persona is the primary trust anchor: its credibility determines how much additional trust-building effort is required.
@@ -66,28 +64,24 @@ Persona types vary by typology:
 - **Celebrity or influencer** -- Investment fraud, charity fraud, fan exploitation
 - **Recovery specialist or attorney** -- Recovery fraud
 - **Named AI model** -- AI-enabled abuse (impersonating Claude, GPT, Gemini, or equivalent)
-- **No explicit persona** -- Some phishing and synthetic identity fraud operates without a named persona, relying on implied authority or platform mimicry
-
-A government official persona may require minimal additional trust-building because institutional authority is assumed by the target. A romantic persona requires sustained investment over time. The persona determines the opening cost of trust.
+- **No explicit persona** -- Some phishing and synthetic identity fraud operates without a named persona
 
 ### Topic
-The surface-level subject matter of the content. Topic is directly observable from the text -- it requires no inference, only reading. It is distinct from Objective (which requires analytical conclusion about attacker intent) precisely because it captures what the content *appears* to be about before analysis begins.
+The surface-level subject matter of the content. Topic is directly observable from the text -- it requires no inference, only reading.
 
 Topic examples by typology:
 - **IRS debt collection** -- Impersonation
 - **Cryptocurrency investment opportunity** -- Investment fraud
 - **Romantic relationship** -- Romance fraud
-- **Job opportunity / work-from-home role** -- Money mule recruitment
+- **Job opportunity / work-from-home role** -- Fraud infrastructure (money mule)
 - **IT password reset** -- Phishing
 - **Inheritance / estate claim** -- Advance fee fraud
 - **Fraud fund recovery** -- Recovery fraud
 - **Account security alert** -- Account takeover
 - **AI assistant interaction** -- AI-enabled abuse
 
-The same Topic can serve multiple typologies. "Cryptocurrency investment" is the Topic of both legitimate investment education requests and pig butchering conversion scripts -- Topic alone does not determine typology, but it is the first filter applied.
-
 ### Target
-Who or what is being victimized, and what vulnerability is being exploited. Target is not only a demographic description -- it includes why that vulnerability makes this person or entity the right victim for this particular fraud.
+Who or what is being victimized, and what vulnerability is being exploited.
 
 Target dimensions:
 - **Individual profile** -- Age, financial situation, emotional state, technical literacy, relationship status
@@ -96,63 +90,12 @@ Target dimensions:
 - **Platform position** -- Seller, buyer, reviewer, new account holder (marketplace contexts)
 - **Access value** -- What credentials, funds, or permissions does this target hold?
 
-Target vulnerability is the mechanism that connects the attacker's Persona and Topic to the Target's decision to comply. A recently widowed individual targeted by a romantic persona is being exploited via grief and loneliness. An AP team member targeted by an executive persona is being exploited via institutional authority and urgency.
-
----
-
-## PROCESS
-
-PROCESS describes how the fraud is executed. It is divided into two parallel sub-sections: Execution (what is directly observable about the operational mechanics) and Psychological (what analysis reveals about the manipulation strategy).
-
-Unlike START, PROCESS attributes are often shared across typologies. The same delivery method and psychological lever appear across phishing, impersonation, and advance fee fraud. What differs is how those mechanics combine with the START attributes.
-
-### Execution
-
-Execution attributes are directly extractable from the content -- they describe the operational choices made about how the fraud is delivered and what format it takes.
-
-**Delivery Method**
-The channel or medium used to reach the target.
-
-- **Direct messaging** -- Dating apps, WhatsApp, Telegram, Instagram DMs (relationship-based fraud)
-- **Email** -- Phishing, BEC, advance fee, corporate impersonation
-- **Phone / voice** -- Vishing, government impersonation, tech support
-- **SMS** -- Smishing
-- **Job platforms** -- Money mule recruitment (Indeed, LinkedIn, ZipRecruiter)
-- **Social media** -- Investment fraud, celebrity impersonation, fake review seeding
-- **Platform notifications** -- Spoofed platform emails, fake account alerts
-- **In-product** -- Fraudulent content generated within an AI assistant conversation
-
-**Delivery Template**
-The artifact format being produced or requested. Delivery Template is analytically distinct from Delivery Method: Method describes the channel, Template describes the form the content takes. The same channel can carry many different templates; the template signals operational readiness and maps directly to typology.
-
-- **Message / outreach script** -- Cold contact, relationship-building dialogue
-- **Email template** -- Phishing, BEC wire transfer request, advance fee solicitation
-- **Phone script** -- Vishing, government impersonation call flow
-- **Document** -- Fake invoice, fake regulatory filing, fake legal instrument, prospectus
-- **Job posting** -- Money mule recruitment copy
-- **Bulk reviews / testimonials** -- Synthetic identity, fake social proof
-- **Persona / profile** -- Synthetic user account bio, posting history
-- **Credential harvesting page** -- Account takeover, phishing
-- **Prompt injection payload** -- AI-enabled abuse
-
-**Referenced Entities**
-Real people, organizations, platforms, or institutions invoked to add legitimacy. Referenced entities are authority anchors -- they borrow credibility from entities the target already trusts.
-
-- **Government agencies** -- IRS, SSA, FBI, FTC, FINRA, SEC, immigration authorities
-- **Financial institutions** -- Named banks, payment platforms, investment firms
-- **Technology companies** -- Named platforms, software companies, cloud services
-- **Named individuals** -- Real executives, celebrities, public figures
-- **AI models** -- Claude, GPT, Gemini, or other named AI systems (AI-enabled abuse)
-- **Prior fraud** -- In recovery fraud, the original fraud is explicitly referenced as proof of the recovery agent's standing
-
-The presence of named real entities is one of the highest-weight enforcement signals -- it indicates both impersonation intent and the specific harm surface being exploited.
-
-**Fraud Lifecycle Phase**
-Where in the attack chain a given prompt or piece of content sits. This attribute is critical for enforcement calibration -- the same typology requires different detection logic at different phases.
+### Relationship Phase
+Where in the fraud lifecycle a given prompt or piece of content sits. This attribute is critical for enforcement calibration -- the same typology requires different detection logic at different phases.
 
 1. **Targeting** -- Identifying, profiling, and selecting victims
 2. **Contact** -- Initial outreach; the first interaction
-3. **Engagement** -- Building rapport, credibility, or relationship (compressed or absent in some typologies)
+3. **Engagement** -- Building rapport, credibility, or relationship
 4. **Conversion** -- The transition from relationship to the fraud ask
 5. **Extraction** -- The actual transfer of money, credentials, or access
 6. **Escalation** -- Follow-up extraction after initial success; handling victim resistance
@@ -160,106 +103,113 @@ Where in the attack chain a given prompt or piece of content sits. This attribut
 
 Not all typologies traverse all phases. Phishing may move directly from Contact to Extraction. Recovery fraud typically enters at Contact or Engagement, inheriting the targeting work from the prior fraud.
 
-**Detection Evasion**
-Whether the prompt requests assistance avoiding detection -- by automated systems, human reviewers, financial institutions, or law enforcement. Detection evasion is an operational choice the attacker makes about how to run the scheme, and is directly observable from the content.
+---
 
-- **Platform evasion** -- Requests to rewrite content to bypass spam filters, email security systems, or platform moderation
-- **Financial evasion** -- Structuring guidance to keep transactions below regulatory reporting thresholds; scripts for explaining suspicious transactions to banks or compliance teams
-- **Variation for detection defeat** -- High-volume content variation explicitly framed to avoid pattern-based clustering or detection
-- **Victim-facing evasion** -- Instructions designed to prevent the target from reporting or independently verifying (note: victim-facing evasion also activates Victim Control Tactics in the Psychological sub-section)
+## PROCESS
 
-Detection Evasion carries disproportionate enforcement weight relative to other Execution attributes. Its presence elevates the escalation tier independently of aggregate scores across other attributes, because evasion assistance is harmful regardless of the underlying fraud context it accompanies.
+PROCESS describes how the fraud is executed. It is divided into two parallel sub-sections: Execution (directly observable operational mechanics) and Psychological (the inferred manipulation strategy).
+
+### Execution
+
+Execution attributes are directly extractable from the content.
+
+**Delivery Method**
+The channel or medium used to reach the target.
+- Direct messaging, email, phone/voice, SMS, job platforms, social media, platform notifications, in-product
+
+**Delivery Template**
+The artifact format being produced or requested.
+- Message/outreach script, email template, phone script, document, job posting, bulk reviews, persona/profile, credential harvesting page, prompt injection payload
+
+**Referenced Entities**
+Real people, organizations, platforms, or institutions invoked to add legitimacy. Their presence is one of the highest-weight enforcement signals.
+- Government agencies, financial institutions, technology companies, named individuals, AI models, prior fraud schemes (in recovery fraud)
 
 ---
 
 ### Psychological
 
-Psychological attributes require analytical interpretation -- they describe *how the manipulation is designed to work*, not just what form it takes.
+Psychological attributes require analytical interpretation -- they describe *how the manipulation is designed to work*.
 
-**Psychological Lever**
-The emotional mechanism used to obtain victim compliance. This is the force that moves the target from receiving the fraud to acting on it.
-
+**Trigger**
+The emotional mechanism used to obtain victim compliance.
 - **Fear** -- Threat of arrest, account closure, legal action, deportation, embarrassment
 - **Urgency** -- Time-limited opportunity, deadline, immediate action required
 - **Authority** -- Compliance with perceived institutional or official power
 - **Trust / Love** -- Compliance based on established or simulated emotional bond
 - **Greed / Opportunity** -- Financial gain, exclusive access, exceptional returns
-- **Hope / Desperation** -- The victim's desire to believe recovery is possible; specific to recovery fraud and secondary victimization scenarios
+- **Hope / Desperation** -- The victim's desire to believe recovery is possible
 
-Multiple levers can be active simultaneously. Pig butchering runs on trust/love in early phases and transitions to greed/opportunity at conversion. IRS impersonation uses fear and authority together. Recovery fraud pairs hope and desperation in a way unique to secondary victimization.
+Multiple triggers can be active simultaneously. Pig butchering runs on trust/love in early phases and transitions to greed/opportunity at conversion. Recovery fraud pairs hope and desperation in a way unique to secondary victimization.
 
-**Perceived Benefit**
-What the target believes they are receiving or participating in. Perceived Benefit is the narrative vehicle that makes the Psychological Lever work -- it gives the lever a specific content to attach to. The gap between Perceived Benefit and actual Objective is the operational space fraud occupies.
+**Incentive**
+What the target is falsely promised or believes they will receive. Incentive is the narrative vehicle that makes the Trigger work -- the gap between Incentive and actual Objective is the operational space fraud occupies.
+- Financial return, relationship, resolution (recovery of losses), employment, security
 
-- **Financial return** -- Investment gains, lottery prize, inheritance, business opportunity
-- **Relationship** -- Love, friendship, emotional connection, belonging
-- **Resolution** -- Recovery of prior losses, clearance of a legal threat, restoration of account access
-- **Employment** -- Legitimate income from a remote or flexible role
-- **Security** -- Protection of an account, device, or legal standing from a stated threat
+**Control**
+The operational methods used to maintain the fraud relationship, prevent the target from exiting, and avoid detection. Combines victim-facing manipulation and system-facing evasion.
 
-Perceived Benefit is what makes the fraud coherent to the target. The analyst's task is to name it precisely: not just "financial" but "recovery of prior fraud losses" -- because the specificity determines which psychological lever is load-bearing.
-
-**Victim Control Tactics**
-The operational methods used to maintain the fraud relationship and prevent the target from exiting. Control tactics activate late in the Fraud Lifecycle (Extraction, Escalation, Evasion phases) and are distinct from the initial Psychological Lever used to draw the target in.
-
+Victim control:
 - **Isolation** -- Instructions not to consult family, friends, bank, or law enforcement
 - **Sunk cost framing** -- "You've already paid so much, stopping now means losing everything"
-- **False urgency** -- "You must act in the next 24 hours or the opportunity is gone"
+- **False urgency** -- Time-pressured compliance
 - **Incremental commitment** -- Each small step makes the next step feel smaller
-- **Threat escalation** -- Legal threats, deportation threats, account freeze threats used to compel additional payment
-- **Complicity framing** -- "You signed the agreement; if you go to the authorities you will be implicated"
+- **Threat escalation** -- Legal threats, deportation threats, account freeze threats
+- **Complicity framing** -- Implicating the victim to prevent reporting
 
-Victim Control Tactics overlap with Detection Evasion when they explicitly instruct the target not to report to authorities. Isolation instructions specifically activate both Psychological (control) and Execution (evasion) attributes simultaneously.
+Detection evasion:
+- **Platform evasion** -- Bypassing spam filters, email security, or platform moderation
+- **Financial evasion** -- Structuring guidance; scripts for explaining suspicious transactions
+- **Variation for detection defeat** -- Content variation to avoid pattern-based clustering
+
+Control carries disproportionate enforcement weight -- evasion assistance and isolation instructions elevate the escalation tier independently of aggregate scores elsewhere.
 
 ---
 
-## END
+## OBJECTIVE
 
-END is the conclusion of the analytical process. It states what the fraud was actually designed to achieve, independent of what the target believed they were receiving.
+OBJECTIVE states what the fraud was actually designed to achieve, independent of what the target believed they were receiving.
 
 ### Objective
-The attacker's actual goal. Objectives are named at the most specific level the evidence supports.
-
-- **Financial transfer** -- Direct movement of money (wire, crypto, gift card, ACH)
-- **Credential theft** -- Capture of login credentials for later account takeover or resale
-- **Account access** -- Direct unauthorized access to an account (financial, social, email)
-- **Identity data** -- Collection of PII for synthetic identity fraud or further targeting
+The attacker's actual goal:
+- **Financial transfer** -- Wire, crypto, gift card, ACH
+- **Credential theft** -- Login credentials for account takeover or resale
+- **Account access** -- Direct unauthorized access to a financial, social, or email account
+- **Identity data** -- PII for synthetic identity fraud or further targeting
 - **Infrastructure recruitment** -- Recruiting a victim into the fraud operation (money mule)
-- **Platform manipulation** -- Distorting platform reputation or content signals (fake reviews, synthetic engagement)
-- **AI system subversion** -- Hijacking an AI system's behavior to act against user or operator interests
-
-**Perceived vs. Realized**
-The Objective is marked as:
-- **Perceived** -- The fraud has not yet reached extraction; the attacker's intent is inferred from the content and context
-- **Realized** -- The extraction has occurred or the content describes a completed transaction
-
-In the classifier training context, most prompts will be evaluated at the Perceived stage -- the analyst is determining whether a prompt is designed to facilitate fraud, not documenting a completed crime. The Perceived/Realized distinction matters for enforcement calibration: Realized cases warrant different escalation logic and may require different response pathways (e.g., victim support resources, reporting prompts).
+- **Platform manipulation** -- Fake reviews, synthetic engagement
+- **AI system subversion** -- Hijacking AI behavior against user or operator interests
 
 ---
 
 ## Typology Reference
 
-The FAF supports 10 active fraud typologies. The typology label is the *output* of FAF analysis, not the input. Analysts apply the START -> PROCESS -> END structure first; the typology emerges from the attribute profile.
+The FAF supports 9 active fraud typologies. The typology label is the *output* of FAF analysis, not the input.
 
 ```
-ROMANCE          -- Romance fraud / pig butchering              [Relationship-Based]
-INVESTMENT       -- Investment fraud / fake platforms            [Investment & Opportunity]
-PHISHING         -- Phishing / spearphishing / BEC              [Credential & Access]
-IMPERSONATION    -- Impersonation scams                         [Authority & Impersonation]
-ADVANCE_FEE      -- Advance fee / 419 fraud                     [Investment & Opportunity]
-MONEY_MULE       -- Money mule recruitment                      [Fraud Infrastructure]
-SYNTHETIC_ID     -- Synthetic identity / fake reviews           [Fraud Infrastructure]
-RECOVERY         -- Recovery fraud / secondary victimization    [Recovery Fraud]
-ACCOUNT_TAKEOVER -- Account takeover via credential theft, SIM swap, or social engineering [Account Takeover]
-AI_ENABLED_ABUSE -- Prompt injection, AI impersonation, jailbreak-framed fraud, synthetic content [AI-Enabled Abuse]
+ROMANCE              -- Romance fraud / pig butchering              [Relationship-Based]
+INVESTMENT           -- Investment fraud / fake platforms            [Investment & Opportunity]
+PHISHING             -- Phishing / spearphishing / BEC              [Credential & Access]
+IMPERSONATION        -- Impersonation scams                         [Authority & Impersonation]
+ADVANCE_FEE          -- Advance fee / 419 fraud                     [Investment & Opportunity]
+FRAUD_INFRASTRUCTURE -- Money mule recruitment, synthetic identity,  [Fraud Infrastructure]
+                        and fake reviews -- operational scaffolding
+                        that enables other fraud typologies
+RECOVERY             -- Recovery fraud / secondary victimization    [Recovery Fraud]
+ACCOUNT_TAKEOVER     -- Account takeover via credential theft,      [Account Takeover]
+                        SIM swap, or social engineering
+AI_ENABLED_ABUSE     -- Prompt injection, AI impersonation,         [AI-Enabled Abuse]
+                        jailbreak-framed fraud, synthetic content
 ```
 
-When multiple typologies are active in a single prompt, the analyst identifies the **primary typology** -- the one with the highest aggregate FAF score and the clearest operational pattern -- and notes secondary typologies in the rationale field. The primary typology drives escalation tier assignment.
+**Note on FRAUD_INFRASTRUCTURE:** This typology captures the operational layer that makes other fraud typologies possible. Money mule networks move illicit funds; synthetic identities create the fake personas and false social proof that make fraud plausible at scale. These are not victim-facing schemes in themselves -- they are the infrastructure on which victim-facing schemes run.
 
-**Note on AI_ENABLED_ABUSE:** This typology is specifically relevant to Anthropic as a platform operator. Attacks that target Claude by name, attempt to inject instructions into Claude's behavior, or weaponize Claude against its users represent the highest-priority enforcement surface. The FAF attribute most distinctive to this typology is Referenced Entities (AI model names) in combination with a subversion Objective.
+**Note on AI_ENABLED_ABUSE:** This typology is specifically relevant to Anthropic as a platform operator. Attacks that target Claude by name, attempt to inject instructions into Claude's behavior, or weaponize Claude against its users represent the highest-priority enforcement surface.
 
 ---
 
 ## Version Notes
 
-**Version 3.0 (May 2026):** Added ACCOUNT_TAKEOVER and AI_ENABLED_ABUSE as the 9th and 10th active typologies. Removed MULTI as a typology label -- multi-typology cases are now handled by primary typology assignment with secondary typologies noted in rationale. Added "Named AI model" to Persona types, "Account security alert" and "AI assistant interaction" to Topic examples, "Credential harvesting page" and "Prompt injection payload" to Delivery Template, and "AI models" to Referenced Entities. Added "AI system subversion" to END Objectives.
+**Version 4.0 (May 2026):** CONTEXT/OBJECTIVE rename (was START/END). Relationship Phase moved from PROCESS Execution into CONTEXT. Detection Evasion consolidated into Control under PROCESS Psychological. Psychological section restructured: Lever -> Trigger, Perceived Benefit -> Incentive, Victim Control Tactics -> Control (now includes detection evasion). MONEY_MULE and SYNTHETIC_ID consolidated into FRAUD_INFRASTRUCTURE primary typology with three sub-types: Money Mule Recruitment, Synthetic Identity Fraud, Fake Reviews.
+
+**Version 3.0 (May 2026):** Added ACCOUNT_TAKEOVER and AI_ENABLED_ABUSE. Removed MULTI as a typology label.
