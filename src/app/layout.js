@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'SafeEval — AI Fraud Detection Framework',
+  title: 'SafeEval -- AI Fraud Detection Framework',
   description: 'A policy-driven fraud and scam evaluation framework for AI platforms, built on the Universal Fraud Analysis Framework (UFAF).',
 };
 
