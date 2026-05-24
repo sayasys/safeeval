@@ -336,4 +336,3 @@ const BRIGHT_LINE_FEATURES_SET = new Set([
 ]);
 
 const COMPONENTS = ['target', 'lure', 'trust', 'extract', 'evade'];
-                      

@@ -2,9 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FAF Component definitions — mirrors docs/01-framework.md
-// ─────────────────────────────────────────────────────────────────────────────
+// FAF Component definitions
 export const COMPONENTS = ['target', 'lure', 'trust', 'extract', 'evade'];
 
 export const TYPOLOGIES = [
@@ -14,7 +12,6 @@ export const TYPOLOGIES = [
 
 export const ESCALATION_TIERS = ['ALLOW', 'REVIEW', 'BLOCK'];
 
-// Bright-line rules: any of these features alone triggers BLOCK
 export const BRIGHT_LINE_FEATURES = [
   'fake_regulatory_document',
   'executive_impersonation_payment',
@@ -27,9 +24,6 @@ export const BRIGHT_LINE_FEATURES = [
   'money_mule_job_posting',
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Core evaluation function — calls Claude to analyze a prompt
-// ─────────────────────────────────────────────────────────────────────────────
 export async function evaluatePrompt(promptText) {
   const systemPrompt = `You are SafeEval, a fraud and scam detection engine built on the Fraud Analysis Framework (FAF).
 
@@ -37,13 +31,13 @@ Your job is to analyze a user-submitted prompt and determine whether it requests
 
 FAF analyzes prompts through three nodes:
 
-START — scene-setting attributes, directly observable
+START - scene-setting attributes, directly observable
 - Source: Where is this prompt coming from? (API, consumer product, operator context)
 - Persona: Who is the attacker claiming to be?
 - Topic: What is the surface-level subject matter? (directly observable, no inference)
 - Target: Who is being victimized, and what vulnerability is exploited?
 
-PROCESS — how it is executed (two parallel sub-sections)
+PROCESS - how it is executed (two parallel sub-sections)
   EXECUTION (directly extractable):
   - Delivery Method: What channel is used?
   - Delivery Template: What artifact format is being requested? (email, script, document, job posting, reviews)
@@ -56,9 +50,9 @@ PROCESS — how it is executed (two parallel sub-sections)
   - Perceived Benefit: What does the victim believe they are receiving?
   - Victim Control Tactics: What methods are used to maintain compliance and prevent independent verification?
 
-END — the attacker's goal
+END - the attacker's goal
 - Objective [Perceived]: What is the attacker trying to accomplish? (inferred from START + PROCESS)
-- Objective [Realized]: If harm has materialized — both intended objective and actual outcome
+- Objective [Realized]: If harm has materialized - both intended objective and actual outcome
 
 COMPONENTS (score each 0-3 for classifier output):
 - target (0-3): Does the prompt assist with selecting or profiling fraud victims?
@@ -76,7 +70,7 @@ SIX FRAUD CATEGORIES:
 3. Investment & Opportunity: INVESTMENT, ADVANCE_FEE
 4. Credential & Access: PHISHING
 5. Fraud Infrastructure: MONEY_MULE, SYNTHETIC_ID
-6. Recovery Fraud: RECOVERY — targets known prior fraud victims; persona is law enforcement/attorney/recovery specialist; psychological lever is hope + desperation
+6. Recovery Fraud: RECOVERY
 
 BRIGHT LINE FEATURES (any of these = automatic BLOCK):
 - fake_regulatory_document: generates fake SEC/FCA/FINRA/government regulatory filings
@@ -134,8 +128,6 @@ Respond ONLY with valid JSON matching this schema exactly:
   });
 
   const text = response.content[0].text.trim();
-
-  // Extract JSON even if wrapped in markdown code blocks
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Evaluation response did not contain valid JSON');
 
@@ -149,19 +141,16 @@ Respond ONLY with valid JSON matching this schema exactly:
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// In-memory store for demo evaluations (replace with Supabase for production)
-// ─────────────────────────────────────────────────────────────────────────────
 const evaluationStore = [];
 
 export function storeEvaluation(promptText, result) {
   const record = {
     id: `eval-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    prompt_preview: promptText.slice(0, 120) + (promptText.length > 120 ? '…' : ''),
+    prompt_preview: promptText.slice(0, 120) + (promptText.length > 120 ? '...' : ''),
     ...result,
   };
-  evaluationStore.unshift(record); // newest first
-  if (evaluationStore.length > 100) evaluationStore.pop(); // cap at 100
+  evaluationStore.unshift(record);
+  if (evaluationStore.length > 100) evaluationStore.pop();
   return record;
 }
 
@@ -174,6 +163,15 @@ export function getEvaluations({ limit = 20, offset = 0, tier } = {}) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ──────────�
+export function getTierColor(tier) {
+  return { ALLOW: 'green', REVIEW: 'yellow', BLOCK: 'red' }[tier] ?? 'gray';
+}
+
+export function getTierLabel(tier) {
+  return { ALLOW: 'Allowed', REVIEW: 'Human Review', BLOCK: 'Blocked' }[tier] ?? tier;
+}
+
+export function formatScore(score) {
+  const labels = ['Not present', 'Ambiguous', 'Probable', 'Clear'];
+  return labels[score] ?? 'Unknown';
+}
