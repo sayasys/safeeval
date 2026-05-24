@@ -107,7 +107,7 @@ export default function Home() {
             <p className="text-sm text-gray-500 mt-0.5">AI Fraud &amp; Scam Detection · Universal Fraud Analysis Framework</p>
           </div>
           <a
-            href="https://github.com/stevensayasy/safeeval"
+            href="https://github.com/sayasys/safeeval"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1.5"
@@ -126,8 +126,8 @@ export default function Home() {
           <h2 className="font-semibold text-gray-900 mb-2">About this tool</h2>
           <p className="text-sm text-gray-600 leading-relaxed">
             SafeEval evaluates prompts against Anthropic's Fraud &amp; Scams policy using the{' '}
-            <strong>Universal Fraud Analysis Framework (UFAF)</strong> — a five-component decomposition model
-            (Target → Lure → Trust → Extract → Evade) that applies to any fraud typology. Enter a prompt below
+            <strong>Fraud Analysis Framework (FAF)</strong> — a structured decomposition model that analyzes
+            prompts through START, PROCESS, and END nodes across five scored components. Enter a prompt below
             to see a full component-level analysis, typology classification, escalation decision, and policy rationale.
           </p>
           <p className="text-sm text-gray-500 mt-2">
@@ -202,7 +202,7 @@ export default function Home() {
             {/* Component Scores */}
             <div>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                UFAF Component Analysis
+                FAF Component Analysis
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                 {COMPONENTS.map(comp => {
@@ -292,7 +292,7 @@ export default function Home() {
 
         {/* Framework overview */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Universal Fraud Analysis Framework</h2>
+          <h2 className="font-semibold text-gray-900 mb-4">Fraud Analysis Framework (FAF)</h2>
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 text-center text-sm">
             {[
               { name: 'Target', desc: 'Victim selection & profiling' },
@@ -312,8 +312,8 @@ export default function Home() {
             ))}
           </div>
           <p className="text-xs text-gray-500 mt-5 leading-relaxed">
-            UFAF decomposes every fraud typology into five structural phases — the mechanics that make fraud work regardless of surface. This allows consistent analysis of novel AI-enabled fraud variants before they've been formally classified.{' '}
-            <a href="https://github.com/stevensayasy/safeeval/blob/main/docs/01-framework.md" className="underline hover:text-gray-800">
+            FAF decomposes every fraud typology into five structural components — the mechanics that make fraud work regardless of surface. This allows consistent analysis of novel AI-enabled fraud variants before they've been formally classified.{' '}
+            <a href="https://github.com/sayasys/safeeval/blob/main/docs/01-framework.md" className="underline hover:text-gray-800">
               Read the full framework →
             </a>
           </p>
@@ -336,3 +336,4 @@ const BRIGHT_LINE_FEATURES_SET = new Set([
 ]);
 
 const COMPONENTS = ['target', 'lure', 'trust', 'extract', 'evade'];
+                      
