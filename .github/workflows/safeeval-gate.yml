@@ -1,0 +1,57 @@
+name: safeeval-gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ascii-check:
+    name: ASCII-only JS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify every .js / .jsx opens as pure ASCII
+        run: |
+          set -e
+          fail=0
+          while IFS= read -r f; do
+            if ! python3 -c "open('$f','r',encoding='ascii').read()" 2>/dev/null; then
+              echo "FAIL: $f contains non-ASCII characters"
+              fail=1
+            fi
+          done < <(find src -type f \( -name '*.js' -o -name '*.jsx' \))
+          if [ "$fail" = "1" ]; then
+            echo ""
+            echo "Non-ASCII characters in .js files are silently corrupted by the Windows mount."
+            echo "Replace em dashes, arrows, smart quotes, curly apostrophes with ASCII equivalents."
+            exit 1
+          fi
+          echo "All .js / .jsx files are ASCII-clean."
+
+  lockstep-check:
+    name: FAF lockstep
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify every typology in safeeval.js appears in the FAF docs
+        run: node scripts/check-lockstep.js
+
+  next-build:
+    name: Next.js build dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Build (without API key -- compile only)
+        env:
+          ANTHROPIC_API_KEY: dummy-build-only-key
+        run: npm run build
