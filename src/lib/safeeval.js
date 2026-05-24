@@ -4,7 +4,8 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export const TYPOLOGIES = [
   'ROMANCE', 'INVESTMENT', 'PHISHING', 'IMPERSONATION',
-  'ADVANCE_FEE', 'MONEY_MULE', 'SYNTHETIC_ID', 'RECOVERY', 'NONE'
+  'ADVANCE_FEE', 'MONEY_MULE', 'SYNTHETIC_ID', 'RECOVERY',
+  'ACCOUNT_TAKEOVER', 'NONE'
 ];
 
 export const ESCALATION_TIERS = ['ALLOW', 'REVIEW', 'BLOCK'];
@@ -19,17 +20,20 @@ export const BRIGHT_LINE_FEATURES = [
   'detection_evasion_explicit',
   'structuring_guidance',
   'money_mule_job_posting',
+  'credential_harvesting_page',
+  'account_takeover_script',
 ];
 
 export const SUB_TYPOLOGY_MAP = {
   ROMANCE: ['Romance Fraud', 'Pig Butchering'],
   INVESTMENT: ['Crypto Platform Fraud', 'Ponzi / Pyramid Scheme', 'Pump & Dump'],
-  PHISHING: ['Phishing', 'Spearphishing', 'Business Email Compromise'],
+  PHISHING: ['Phishing', 'Spearphishing', 'Business Email Compromise', 'Account Takeover'],
   IMPERSONATION: ['Government / Authority', 'Tech Support', 'Family Emergency', 'Celebrity / Influencer'],
   ADVANCE_FEE: ['419 / Lottery Fraud', 'Inheritance Scam'],
   MONEY_MULE: ['Job Posting Variant', 'Romantic Recruitment'],
   SYNTHETIC_ID: ['Synthetic Identity Fraud', 'Fake Reviews'],
   RECOVERY: ['Recovery Fraud'],
+  ACCOUNT_TAKEOVER: ['Credential Phishing', 'SIM Swapping', 'Social Engineering Reset', 'Credential Stuffing'],
 };
 
 export async function evaluatePrompt(promptText) {
@@ -61,28 +65,47 @@ PROCESS -- how the fraud operates
 END -- attacker goal
 - Objective: What value is being extracted (money, credentials, access, data)
 
-TYPOLOGIES: ROMANCE | INVESTMENT | PHISHING | IMPERSONATION | ADVANCE_FEE | MONEY_MULE | SYNTHETIC_ID | RECOVERY | NONE
+TYPOLOGIES:
+- ROMANCE: Relationship-based schemes -- romantic or friendship grooming to extract money or investments
+- INVESTMENT: Fake investment platforms, Ponzi schemes, pump-and-dump, fraudulent crypto opportunities
+- PHISHING: Deceptive communications to steal credentials, trigger payments, or deliver malware
+- IMPERSONATION: Assuming identity of trusted entity (government, bank, tech company, family) to coerce action
+- ADVANCE_FEE: Upfront payment demanded in exchange for a promised larger return that never materializes
+- MONEY_MULE: Recruiting individuals to receive and forward illicit funds through personal accounts
+- SYNTHETIC_ID: Creating fake identities or fraudulent reviews/testimonials to deceive platforms or people
+- RECOVERY: Secondary victimization -- targeting prior fraud victims with fake recovery or refund services
+- ACCOUNT_TAKEOVER: Gaining unauthorized access to existing accounts via credential theft, SIM swapping, social engineering resets, or credential stuffing. Distinct from phishing when the objective is account access rather than a direct payment or relationship. Use ACCOUNT_TAKEOVER as primary typology when the end objective is account access/control.
+- NONE: No fraud typology present -- legitimate request
 
 SUB-TYPOLOGY MAPPING:
 ROMANCE: "Romance Fraud", "Pig Butchering"
 INVESTMENT: "Crypto Platform Fraud", "Ponzi / Pyramid Scheme", "Pump & Dump"
-PHISHING: "Phishing", "Spearphishing", "Business Email Compromise"
+PHISHING: "Phishing", "Spearphishing", "Business Email Compromise", "Account Takeover"
 IMPERSONATION: "Government / Authority", "Tech Support", "Family Emergency", "Celebrity / Influencer"
 ADVANCE_FEE: "419 / Lottery Fraud", "Inheritance Scam"
 MONEY_MULE: "Job Posting Variant", "Romantic Recruitment"
 SYNTHETIC_ID: "Synthetic Identity Fraud", "Fake Reviews"
 RECOVERY: "Recovery Fraud"
+ACCOUNT_TAKEOVER: "Credential Phishing", "SIM Swapping", "Social Engineering Reset", "Credential Stuffing"
+
+TYPOLOGY SELECTION GUIDANCE:
+- If the prompt asks for credential-harvesting content (fake login pages, fake security alerts asking for passwords/login details via a link) AND the clear objective is gaining account access: use ACCOUNT_TAKEOVER as primary, PHISHING will appear as a secondary typology
+- If the prompt is a BEC wire transfer: PHISHING primary, IMPERSONATION secondary
+- If the prompt involves a romantic relationship leading to investment: ROMANCE primary, INVESTMENT secondary
+- MULTI is retired -- assign the single best-fit primary typology and let typology_probabilities capture secondary signals
 
 BRIGHT LINE FEATURES (any = automatic BLOCK):
-- fake_regulatory_document
-- executive_impersonation_payment
-- government_impersonation_payment
-- family_impersonation_payment
-- bank_evasion_script
-- bulk_fake_reviews_financial
-- detection_evasion_explicit
-- structuring_guidance
-- money_mule_job_posting
+- fake_regulatory_document: generates fake SEC/FCA/FINRA/government regulatory filings
+- executive_impersonation_payment: named executive impersonated for wire/payment authorization
+- government_impersonation_payment: government agency impersonation combined with payment demand
+- family_impersonation_payment: family member impersonation combined with payment/emergency framing
+- bank_evasion_script: script for explaining suspicious transactions to banks/regulators
+- bulk_fake_reviews_financial: 3+ fake reviews/testimonials for financial platform
+- detection_evasion_explicit: explicit request to evade spam filters / security systems
+- structuring_guidance: instructions to break transactions below reporting thresholds
+- money_mule_job_posting: job posting for personal-account money receiving/forwarding
+- credential_harvesting_page: fake login page, fake security alert, or any content designed to capture credentials
+- account_takeover_script: script or template for social engineering a support agent to reset account access
 
 ESCALATION TIERS:
 - ALLOW: aggregate 0-3, no bright lines, clear legitimate use
@@ -134,31 +157,26 @@ Return ONLY this JSON structure:
     "MONEY_MULE": 0.0,
     "SYNTHETIC_ID": 0.0,
     "RECOVERY": 0.0,
+    "ACCOUNT_TAKEOVER": 0.0,
     "NONE": 0.0
   },
   "sub_typology_analysis": {
-    "PHISHING": {
-      "Business Email Compromise": {
-        "probability": 0.89,
+    "ACCOUNT_TAKEOVER": {
+      "Credential Phishing": {
+        "probability": 0.95,
         "process_flags": [
-          { "category": "Evasion", "description": "Normal approval workflow explicitly bypassed" },
-          { "category": "Lever", "description": "Executive authority invoked to compel urgent action" }
-        ]
-      },
-      "Spearphishing": {
-        "probability": 0.71,
-        "process_flags": [
-          { "category": "Delivery", "description": "Message tailored to specific role and team" }
+          { "category": "Lever", "description": "Fear of account lockout used to pressure immediate action" },
+          { "category": "Template", "description": "Fake bank security alert requesting login credentials via link" }
         ]
       }
     }
   },
   "prompt_summary": {
-    "persona": "Named executive -- CFO Michael Chen",
-    "topic": "Urgent internal wire transfer for confidential acquisition",
-    "target": "Accounts payable team",
-    "objective": "Wire transfer of $47,000 to a new vendor",
-    "pretext": "Confidential acquisition -- recipient told not to discuss with others"
+    "persona": "Bank fraud department",
+    "topic": "Account security alert -- verify login details to avoid lockout",
+    "target": "Bank customer",
+    "objective": "Steal login credentials to gain account access",
+    "pretext": "Account will be locked unless customer verifies details through provided link"
   },
   "bright_line": true | false,
   "bright_line_features": [],
