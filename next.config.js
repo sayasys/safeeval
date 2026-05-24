@@ -1,4 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
-    ignoreDuringBu
+    ignoreDuringBuilds: true,
+  },
+  serverExternalPackages: ['@anthropic-ai/sdk'],
+}
+
+module.exports = nextConfig
