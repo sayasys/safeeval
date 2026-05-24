@@ -1,34 +1,67 @@
-# dependencies
+# Dependencies
 node_modules/
 .pnp
 .pnp.js
 
-# environment
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Testing
+coverage/
 
-# next.js
+# Next.js build output
 .next/
 out/
-
-# production
 build/
+dist/
 
-# misc
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
-*.pem
+
+# OS
+Thumbs.db
+
+# Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# vercel
-.vercel
-
-# secrets -- the PAT lives at the workspace root (one level above the repo), but
-# this guard ensures it can never be committed even if accidentally placed inside.
+# Internal Claude documentation - DO NOT COMMIT
+HANDOFF.md
+CLAUDE.md
 .pat
-.pat.*
 PAT-SETUP.md
+
+# Subagent and orchestration files
+subagents/
+subagent-architecture.md
+orchestration-poa.md
+
+# Internal review and planning documents
+*-review*.md
+*-audit*.md
+*-brief.md
+*-memo.md
+drift-audit-*.md
+ui-review-*.md
+
+# Internal version prototypes and scratch work
+v*-*/
+v*-*.md
+
+# Session and temporary files
+*-session*.md
+.session/
+
+# Local development overrides
+.env.development.local
+.env.test.local
+.env.production.local
