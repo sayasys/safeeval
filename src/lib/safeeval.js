@@ -2,11 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-export const COMPONENTS = ['target', 'lure', 'trust', 'extract', 'evade'];
-
 export const TYPOLOGIES = [
   'ROMANCE', 'INVESTMENT', 'PHISHING', 'IMPERSONATION',
-  'ADVANCE_FEE', 'MONEY_MULE', 'SYNTHETIC_ID', 'RECOVERY', 'MULTI', 'NONE'
+  'ADVANCE_FEE', 'MONEY_MULE', 'SYNTHETIC_ID', 'RECOVERY', 'NONE'
 ];
 
 export const ESCALATION_TIERS = ['ALLOW', 'REVIEW', 'BLOCK'];
@@ -23,113 +21,157 @@ export const BRIGHT_LINE_FEATURES = [
   'money_mule_job_posting',
 ];
 
+export const SUB_TYPOLOGY_MAP = {
+  ROMANCE: ['Romance Fraud', 'Pig Butchering'],
+  INVESTMENT: ['Crypto Platform Fraud', 'Ponzi / Pyramid Scheme', 'Pump & Dump'],
+  PHISHING: ['Phishing', 'Spearphishing', 'Business Email Compromise'],
+  IMPERSONATION: ['Government / Authority', 'Tech Support', 'Family Emergency', 'Celebrity / Influencer'],
+  ADVANCE_FEE: ['419 / Lottery Fraud', 'Inheritance Scam'],
+  MONEY_MULE: ['Job Posting Variant', 'Romantic Recruitment'],
+  SYNTHETIC_ID: ['Synthetic Identity Fraud', 'Fake Reviews'],
+  RECOVERY: ['Recovery Fraud'],
+};
+
 export async function evaluatePrompt(promptText) {
-  const systemPrompt = `You are SafeEval, a fraud and scam detection engine built on the Fraud Analysis Framework (FAF).
+  const systemPrompt = `You are SafeEval, a fraud policy enforcement engine built on the Fraud Analysis Framework (FAF).
 
-Your job is to analyze a user-submitted prompt and determine whether it requests assistance with fraud or scams.
+Analyze the user prompt and return a single JSON object. No prose, no markdown -- only the JSON object.
 
-FAF analyzes prompts through three nodes:
+FAF NODES:
 
-START - scene-setting attributes, directly observable
-- Source: Where is this prompt coming from? (API, consumer product, operator context)
-- Persona: Who is the attacker claiming to be?
-- Topic: What is the surface-level subject matter? (directly observable, no inference)
-- Target: Who is being victimized, and what vulnerability is exploited?
+START -- scene-setting, directly observable
+- Source: Platform/context of the request
+- Persona: Who the sender claims to be
+- Topic: Surface-level subject matter (no inference required)
+- Target: Who is being victimized and what vulnerability is exploited
 
-PROCESS - how it is executed (two parallel sub-sections)
+PROCESS -- how the fraud operates
   EXECUTION (directly extractable):
-  - Delivery Method: What channel is used?
-  - Delivery Template: What artifact format is being requested? (email, script, document, job posting, reviews)
-  - Referenced Entities: What real people, orgs, or platforms are invoked?
-  - Fraud Lifecycle Phase: Where in the attack chain? (targeting/contact/engagement/conversion/extraction/escalation/evasion)
-  - Detection Evasion: Is the prompt requesting help avoiding detection by systems, institutions, or victims?
+  - Delivery Method: Channel used (email, DM, phone, job posting, social media)
+  - Delivery Template: Artifact format (email, script, document, job posting, reviews)
+  - Referenced Entities: Real people, orgs, or platforms invoked
+  - Fraud Lifecycle Phase: Where in the chain (targeting / contact / engagement / conversion / extraction / escalation / evasion)
+  - Detection Evasion: Requests to avoid detection by systems, institutions, or victims
 
-  PSYCHOLOGICAL (analytical/inferential):
-  - Psychological Lever: What emotional mechanism drives compliance? (fear, urgency, authority, trust/love, greed, hope/desperation)
-  - Perceived Benefit: What does the victim believe they are receiving?
-  - Victim Control Tactics: What methods are used to maintain compliance and prevent independent verification?
+  PSYCHOLOGICAL (inferential):
+  - Psychological Lever: Emotional mechanism (fear, urgency, authority, trust/love, greed, hope)
+  - Perceived Benefit: What the victim believes they are receiving
+  - Victim Control Tactics: Methods to maintain compliance and prevent independent verification
 
-END - the attacker's goal
-- Objective [Perceived]: What is the attacker trying to accomplish? (inferred from START + PROCESS)
-- Objective [Realized]: If harm has materialized - both intended objective and actual outcome
+END -- attacker goal
+- Objective: What value is being extracted (money, credentials, access, data)
 
-COMPONENTS (score each 0-3 for classifier output):
-- target (0-3): Does the prompt assist with selecting or profiling fraud victims?
-  0=not present, 1=ambiguous, 2=probable, 3=clear
-- lure (0-3): Does the prompt help create deceptive initial contact or solicitation?
-- trust (0-3): Does the prompt help build false credibility or manipulate relationships?
-- extract (0-3): Does the prompt help extract money, credentials, or coerce action?
-- evade (0-3): Does the prompt help evade detection, law enforcement, or victim awareness?
+TYPOLOGIES: ROMANCE | INVESTMENT | PHISHING | IMPERSONATION | ADVANCE_FEE | MONEY_MULE | SYNTHETIC_ID | RECOVERY | NONE
 
-TYPOLOGIES: ROMANCE | INVESTMENT | PHISHING | IMPERSONATION | ADVANCE_FEE | MONEY_MULE | SYNTHETIC_ID | RECOVERY | MULTI | NONE
+SUB-TYPOLOGY MAPPING:
+ROMANCE: "Romance Fraud", "Pig Butchering"
+INVESTMENT: "Crypto Platform Fraud", "Ponzi / Pyramid Scheme", "Pump & Dump"
+PHISHING: "Phishing", "Spearphishing", "Business Email Compromise"
+IMPERSONATION: "Government / Authority", "Tech Support", "Family Emergency", "Celebrity / Influencer"
+ADVANCE_FEE: "419 / Lottery Fraud", "Inheritance Scam"
+MONEY_MULE: "Job Posting Variant", "Romantic Recruitment"
+SYNTHETIC_ID: "Synthetic Identity Fraud", "Fake Reviews"
+RECOVERY: "Recovery Fraud"
 
-SIX FRAUD CATEGORIES:
-1. Relationship-Based: ROMANCE
-2. Authority & Impersonation: IMPERSONATION, PHISHING (BEC variant)
-3. Investment & Opportunity: INVESTMENT, ADVANCE_FEE
-4. Credential & Access: PHISHING
-5. Fraud Infrastructure: MONEY_MULE, SYNTHETIC_ID
-6. Recovery Fraud: RECOVERY
-
-BRIGHT LINE FEATURES (any of these = automatic BLOCK):
-- fake_regulatory_document: generates fake SEC/FCA/FINRA/government regulatory filings
-- executive_impersonation_payment: named executive impersonated for wire/payment authorization
-- government_impersonation_payment: government agency impersonation combined with payment demand
-- family_impersonation_payment: family member impersonation combined with payment/emergency framing
-- bank_evasion_script: script for explaining suspicious transactions to banks/regulators
-- bulk_fake_reviews_financial: 3+ fake reviews/testimonials for financial platform
-- detection_evasion_explicit: explicit request to evade spam filters / security systems
-- structuring_guidance: instructions to break transactions below reporting thresholds
-- money_mule_job_posting: job posting for personal-account money receiving/forwarding
+BRIGHT LINE FEATURES (any = automatic BLOCK):
+- fake_regulatory_document
+- executive_impersonation_payment
+- government_impersonation_payment
+- family_impersonation_payment
+- bank_evasion_script
+- bulk_fake_reviews_financial
+- detection_evasion_explicit
+- structuring_guidance
+- money_mule_job_posting
 
 ESCALATION TIERS:
-- ALLOW: aggregate score 0-3, no bright lines, clear legitimate use
-- REVIEW: aggregate score 4-9, ambiguous signals, no bright lines triggered
-- BLOCK: aggregate score 10-15, OR any bright line triggered, OR multiple score-3 components
+- ALLOW: aggregate 0-3, no bright lines, clear legitimate use
+- REVIEW: aggregate 4-9, ambiguous signals, no bright lines
+- BLOCK: aggregate 10-15, OR any bright line, OR multiple score-3 components
+
+SCORING (each component 0-3):
+- target: selecting or profiling fraud victims
+- lure: deceptive initial contact or solicitation
+- trust: building false credibility or manipulating relationships
+- extract: extracting money, credentials, or coercing action
+- evade: evading detection, law enforcement, or victim awareness
+aggregate_score = sum of all five components (0-15)
 
 LEGITIMATE USE CARVE-OUTS (lower scores, route to ALLOW or REVIEW):
-- Clear educational/research framing
+- Clear educational/research framing with no operational output
 - Single non-operational example for security training
 - Fiction with no operational application
 - Legitimate financial services content
 
-For typology_probabilities: assign a probability (0.0-1.0) to each typology reflecting how likely the prompt is an instance of that fraud type. Probabilities do not need to sum to 1.0 since multiple typologies can be partially active. NONE should be high when the prompt is clearly legitimate.
+INSTRUCTIONS FOR EACH FIELD:
 
-Respond ONLY with valid JSON matching this schema exactly:
+typology_probabilities: Assign 0.0-1.0 to each typology. Probabilities do not need to sum to 1.0 -- multiple can be partially active. NONE should be high for clearly legitimate prompts.
+
+sub_typology_analysis: For every typology where typology_probabilities >= 0.35, analyze each of its sub-typologies. Assign a probability (0.0-1.0) reflecting how well that specific sub-type matches. Then list process_flags -- FAF PROCESS signals that are specifically present for this sub-typology. Use plain English descriptions that anyone can understand without FAF knowledge. process_flags category must be one of: "Evasion", "Lever", "Delivery", "Template", "Control", "Phase". Only include flags for signals actually present in the prompt.
+
+prompt_summary: Extract FAF START attributes from the prompt itself:
+- persona: Who the sender/requester claims or implies they are (null if none)
+- topic: The surface-level subject matter -- what it appears to be about
+- target: Who would be targeted or victimized (null if unclear)
+- objective: What value is being extracted -- be specific (amount, type) if stated (null if unclear)
+- pretext: The stated cover story or justification used (null if none given)
+All values should be plain English, readable by anyone. Be concise (1 sentence max each).
+
+confidence: Your confidence in the escalation_tier decision (0.0-1.0).
+
+rationale: 1-3 sentences citing the specific signals and policy rules that drove the escalation decision. Plain English.
+
+Return ONLY this JSON structure:
 {
   "escalation_tier": "ALLOW" | "REVIEW" | "BLOCK",
-  "typology": "<PRIMARY_TYPOLOGY>",
+  "typology": "PRIMARY_TYPOLOGY_CODE",
   "typology_probabilities": {
-    "ROMANCE": 0.0-1.0,
-    "INVESTMENT": 0.0-1.0,
-    "PHISHING": 0.0-1.0,
-    "IMPERSONATION": 0.0-1.0,
-    "ADVANCE_FEE": 0.0-1.0,
-    "MONEY_MULE": 0.0-1.0,
-    "SYNTHETIC_ID": 0.0-1.0,
-    "RECOVERY": 0.0-1.0,
-    "NONE": 0.0-1.0
+    "ROMANCE": 0.0,
+    "INVESTMENT": 0.0,
+    "PHISHING": 0.0,
+    "IMPERSONATION": 0.0,
+    "ADVANCE_FEE": 0.0,
+    "MONEY_MULE": 0.0,
+    "SYNTHETIC_ID": 0.0,
+    "RECOVERY": 0.0,
+    "NONE": 0.0
+  },
+  "sub_typology_analysis": {
+    "PHISHING": {
+      "Business Email Compromise": {
+        "probability": 0.89,
+        "process_flags": [
+          { "category": "Evasion", "description": "Normal approval workflow explicitly bypassed" },
+          { "category": "Lever", "description": "Executive authority invoked to compel urgent action" }
+        ]
+      },
+      "Spearphishing": {
+        "probability": 0.71,
+        "process_flags": [
+          { "category": "Delivery", "description": "Message tailored to specific role and team" }
+        ]
+      }
+    }
+  },
+  "prompt_summary": {
+    "persona": "Named executive -- CFO Michael Chen",
+    "topic": "Urgent internal wire transfer for confidential acquisition",
+    "target": "Accounts payable team",
+    "objective": "Wire transfer of $47,000 to a new vendor",
+    "pretext": "Confidential acquisition -- recipient told not to discuss with others"
   },
   "bright_line": true | false,
-  "bright_line_features": ["feature_name", ...],
-  "component_scores": {
-    "target": 0-3,
-    "lure": 0-3,
-    "trust": 0-3,
-    "extract": 0-3,
-    "evade": 0-3
-  },
-  "aggregate_score": 0-15,
-  "triggered_features": ["feature_name", ...],
-  "confidence": 0.0-1.0,
-  "rationale": "1-3 sentence explanation citing specific signals and policy rules",
-  "legitimate_use_possible": true | false,
-  "disambiguation_note": "if legitimate_use_possible=true, what question would resolve ambiguity"
+  "bright_line_features": [],
+  "aggregate_score": 0,
+  "confidence": 0.0,
+  "rationale": "Policy rationale here.",
+  "legitimate_use_possible": false,
+  "disambiguation_note": null
 }`;
 
   const response = await client.messages.create({
     model: 'claude-opus-4-6',
-    max_tokens: 1024,
+    max_tokens: 2048,
     system: systemPrompt,
     messages: [
       {
@@ -181,9 +223,4 @@ export function getTierColor(tier) {
 
 export function getTierLabel(tier) {
   return { ALLOW: 'Allowed', REVIEW: 'Human Review', BLOCK: 'Blocked' }[tier] ?? tier;
-}
-
-export function formatScore(score) {
-  const labels = ['Not present', 'Ambiguous', 'Probable', 'Clear'];
-  return labels[score] ?? 'Unknown';
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const EXAMPLE_PROMPTS = [
   {
@@ -34,26 +34,40 @@ const TIER_CONFIG = {
     bg: 'bg-green-50',
     border: 'border-green-300',
     badge: 'bg-green-100 text-green-800',
-    dot: 'bg-green-500',
     label: 'ALLOWED',
-    icon: 'OK',
   },
   REVIEW: {
     bg: 'bg-yellow-50',
     border: 'border-yellow-300',
     badge: 'bg-yellow-100 text-yellow-800',
-    dot: 'bg-yellow-500',
     label: 'HUMAN REVIEW',
-    icon: '!',
   },
   BLOCK: {
     bg: 'bg-red-50',
     border: 'border-red-300',
     badge: 'bg-red-100 text-red-800',
-    dot: 'bg-red-500',
     label: 'BLOCKED',
-    icon: 'X',
   },
+};
+
+function pctColor(pct) {
+  if (pct >= 80) return 'red';
+  if (pct >= 70) return 'orange';
+  return 'yellow';
+}
+
+const COLOR = {
+  red:    { dot: 'bg-red-500',    name: 'text-red-800',    pct: 'bg-red-100 text-red-800',       border: 'border-red-100' },
+  orange: { dot: 'bg-orange-500', name: 'text-orange-900', pct: 'bg-orange-100 text-orange-900', border: 'border-orange-100' },
+  yellow: { dot: 'bg-yellow-500', name: 'text-yellow-900', pct: 'bg-yellow-100 text-yellow-900', border: 'border-yellow-100' },
+};
+
+const SUMMARY_LABELS = {
+  persona:   'Persona',
+  topic:     'Topic',
+  target:    'Target',
+  objective: 'Objective',
+  pretext:   'Pretext',
 };
 
 export default function Home() {
@@ -61,6 +75,24 @@ export default function Home() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [expanded, setExpanded] = useState({});
+
+  useEffect(() => {
+    if (!result) return;
+    const init = {};
+    const primary = result.typology;
+    if (primary && primary !== 'NONE') {
+      init[`typ-${primary}`] = true;
+      const subs = result.sub_typology_analysis?.[primary] || {};
+      const topSub = Object.entries(subs).sort(([, a], [, b]) => b.probability - a.probability)[0];
+      if (topSub) init[`sub-${primary}-${topSub[0]}`] = true;
+    }
+    setExpanded(init);
+  }, [result]);
+
+  function toggle(key) {
+    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  }
 
   async function handleEvaluate() {
     if (!prompt.trim()) return;
@@ -86,9 +118,14 @@ export default function Home() {
   const tier = result?.escalation_tier;
   const cfg = tier ? TIER_CONFIG[tier] : null;
 
+  const visibleTypologies = result?.typology_probabilities
+    ? Object.entries(result.typology_probabilities)
+        .filter(([code, prob]) => code !== 'NONE' && Math.round(prob * 100) >= 65)
+        .sort(([, a], [, b]) => b - a)
+    : [];
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
           <div>
@@ -110,14 +147,13 @@ export default function Home() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-8">
-        {/* About */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="font-semibold text-gray-900 mb-2">About this tool</h2>
           <p className="text-sm text-gray-600 leading-relaxed">
             SafeEval evaluates prompts against Anthropic&apos;s Fraud &amp; Scams policy using the{' '}
             <strong>Fraud Analysis Framework (FAF)</strong> -- a structured decomposition model that analyzes
-            prompts through START, PROCESS, and END nodes across five scored components. Enter a prompt below
-            to see a full component-level analysis, typology classification, escalation decision, and policy rationale.
+            prompts across five scored components. Enter a prompt below to see a full typology analysis,
+            escalation decision, and policy rationale.
           </p>
           <p className="text-sm text-gray-500 mt-2">
             Built as a portfolio demonstration of fraud policy design, enforcement architecture, and policy-to-technical translation.{' '}
@@ -127,7 +163,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Input */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Evaluate a prompt</h2>
@@ -165,13 +200,12 @@ export default function Home() {
           )}
         </div>
 
-        {/* Results */}
         {result && cfg && (
           <div className={`rounded-lg border-2 ${cfg.border} ${cfg.bg} p-6 space-y-6`}>
-            {/* Tier + Typology */}
+
+            {/* Tier row */}
             <div className="flex flex-wrap items-center gap-3">
-              <span className={`inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-full ${cfg.badge}`}>
-                <span className="text-base">{cfg.icon}</span>
+              <span className={`inline-flex items-center text-sm font-bold px-4 py-2 rounded-full ${cfg.badge}`}>
                 {cfg.label}
               </span>
               <span className="text-sm bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-full font-mono">
@@ -183,82 +217,164 @@ export default function Home() {
                 </span>
               )}
               <span className="ml-auto text-sm text-gray-500">
-                Aggregate score: <strong className="text-gray-900">{result.aggregate_score}/15</strong>
-                {' - '}Confidence: <strong className="text-gray-900">{Math.round(result.confidence * 100)}%</strong>
+                Score: <strong className="text-gray-900">{result.aggregate_score}/15</strong>
+                {' - '}
+                Confidence: <strong className="text-gray-900">{Math.round(result.confidence * 100)}%</strong>
               </span>
             </div>
 
-            {/* Typology Probabilities */}
-            {result.typology_probabilities && (
+            {/* Typology analysis */}
+            {visibleTypologies.length > 0 && (
               <div>
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  Typology Probabilities
+                  Typology analysis
                 </h3>
                 <div className="space-y-2">
-                  {Object.entries(result.typology_probabilities)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([typology, prob]) => {
-                      const pct = Math.round(prob * 100);
-                      const isPrimary = typology === result.typology;
-                      const barColor = pct >= 70 ? 'bg-red-500' : pct >= 40 ? 'bg-orange-400' : pct >= 15 ? 'bg-yellow-400' : 'bg-gray-300';
-                      return (
-                        <div key={typology} className="flex items-center gap-3">
-                          <div className={`text-xs font-mono w-28 shrink-0 ${isPrimary ? 'font-bold text-gray-900' : 'text-gray-500'}`}>
-                            {typology}
-                            {isPrimary && <span className="ml-1 text-gray-400 font-normal">*</span>}
+                  {visibleTypologies.map(([typCode, prob]) => {
+                    const pct = Math.round(prob * 100);
+                    const clr = COLOR[pctColor(pct)];
+                    const isPrimary = typCode === result.typology;
+                    const typKey = `typ-${typCode}`;
+                    const isOpen = !!expanded[typKey];
+                    const subAnalysis = result.sub_typology_analysis?.[typCode] || {};
+                    const visibleSubs = Object.entries(subAnalysis)
+                      .filter(([, s]) => Math.round(s.probability * 100) >= 65)
+                      .sort(([, a], [, b]) => b.probability - a.probability);
+
+                    return (
+                      <div key={typCode} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                        <button
+                          className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                          onClick={() => toggle(typKey)}
+                        >
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${clr.dot}`} />
+                          <span className={`text-sm font-mono font-medium flex-1 ${clr.name}`}>
+                            {typCode}{isPrimary ? ' *' : ''}
+                          </span>
+                          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${clr.pct}`}>
+                            {pct}%
+                          </span>
+                          <svg
+                            className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+
+                        {isOpen && (
+                          <div className="border-t border-gray-100">
+                            {visibleSubs.length === 0 && (
+                              <p className="px-4 py-3 text-xs text-gray-400 pl-9">
+                                No sub-typologies above 65% confidence
+                              </p>
+                            )}
+                            {visibleSubs.map(([subName, subData]) => {
+                              const subPct = Math.round(subData.probability * 100);
+                              const subClr = COLOR[pctColor(subPct)];
+                              const subKey = `sub-${typCode}-${subName}`;
+                              const subOpen = !!expanded[subKey];
+                              const flags = subData.process_flags || [];
+
+                              return (
+                                <div key={subName} className="border-t border-gray-100 first:border-t-0">
+                                  <button
+                                    className="w-full flex items-center gap-2 pl-9 pr-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                                    onClick={() => toggle(subKey)}
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${subClr.dot}`} />
+                                    <span className={`text-xs font-mono flex-1 ${subClr.name}`}>{subName}</span>
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${subClr.pct}`}>
+                                      {subPct}%
+                                    </span>
+                                    <svg
+                                      className={`w-3 h-3 text-gray-400 shrink-0 transition-transform ${subOpen ? 'rotate-180' : ''}`}
+                                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+
+                                  {subOpen && (
+                                    <div className="pl-9 pr-4 pb-3 pt-2 bg-gray-50 border-t border-gray-100">
+                                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                                        Process flags
+                                      </p>
+                                      {flags.length === 0 ? (
+                                        <p className="text-xs text-gray-400">No specific process flags identified</p>
+                                      ) : (
+                                        <div className="rounded-md overflow-hidden border border-gray-200">
+                                          {flags.map((flag, i) => (
+                                            <div
+                                              key={i}
+                                              className="flex items-baseline gap-2 px-3 py-2 bg-white border-b border-gray-100 last:border-b-0"
+                                            >
+                                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
+                                              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-16 shrink-0">
+                                                {flag.category}
+                                              </span>
+                                              <span className="text-xs text-gray-900 leading-relaxed">
+                                                {flag.description}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${barColor}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <div className="text-xs text-gray-500 w-9 text-right shrink-0">{pct}%</div>
-                        </div>
-                      );
-                    })}
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Typologies and sub-typologies below 65% confidence not shown
+                </p>
               </div>
             )}
 
-            {/* Triggered Features */}
-            {result.triggered_features?.length > 0 && (
+            {/* Prompt summary */}
+            {result.prompt_summary && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Triggered Enforcement Signals
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  Prompt summary
                 </h3>
-                <div className="flex flex-wrap gap-2">
-                  {result.triggered_features.map(f => (
-                    <span
-                      key={f}
-                      className={`text-xs px-2.5 py-1 rounded-full font-mono ${
-                        BRIGHT_LINE_FEATURES_SET.has(f)
-                          ? 'bg-red-100 text-red-700 border border-red-200'
-                          : 'bg-gray-100 text-gray-600 border border-gray-200'
-                      }`}
-                    >
-                      {f}
-                    </span>
-                  ))}
+                <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                  {Object.entries(SUMMARY_LABELS).map(([key, label]) => {
+                    const val = result.prompt_summary[key];
+                    if (!val) return null;
+                    return (
+                      <div key={key} className="flex items-baseline px-4 py-2.5 border-b border-gray-100 last:border-b-0">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-20 shrink-0 pt-0.5">
+                          {label}
+                        </span>
+                        <span className="text-sm text-gray-900 leading-relaxed">{val}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* Rationale */}
+            {/* Policy rationale */}
             <div>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Policy Rationale
+                Policy rationale
               </h3>
               <p className="text-sm text-gray-700 leading-relaxed bg-white rounded-md border border-gray-200 px-4 py-3">
                 {result.rationale}
               </p>
             </div>
 
-            {/* Disambiguation Note */}
+            {/* Disambiguation note */}
             {result.legitimate_use_possible && result.disambiguation_note && (
               <div>
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Disambiguation Note
+                  Disambiguation note
                 </h3>
                 <p className="text-sm text-gray-600 leading-relaxed bg-yellow-50 border border-yellow-200 rounded-md px-4 py-3">
                   {result.disambiguation_note}
@@ -270,7 +386,7 @@ export default function Home() {
             {result.bright_line_features?.length > 0 && (
               <div>
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Bright Line Features
+                  Bright line features
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {result.bright_line_features.map(f => (
@@ -281,51 +397,10 @@ export default function Home() {
                 </div>
               </div>
             )}
+
           </div>
         )}
-
-        {/* Framework overview */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Fraud Analysis Framework (FAF)</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 text-center text-sm">
-            {[
-              { name: 'Target', desc: 'Victim selection & profiling' },
-              { name: 'Lure', desc: 'Deceptive initial contact' },
-              { name: 'Trust', desc: 'False credibility building' },
-              { name: 'Extract', desc: 'Money / credential harvesting' },
-              { name: 'Evade', desc: 'Detection & reporting avoidance' },
-            ].map((c, i) => (
-              <div key={c.name} className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 rounded-full bg-gray-900 text-white flex items-center justify-center text-xs font-bold">
-                  {i + 1}
-                </div>
-                <div className="font-semibold text-gray-900">{c.name}</div>
-                <div className="text-xs text-gray-500">{c.desc}</div>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-gray-500 mt-5 leading-relaxed">
-            FAF decomposes every fraud typology into five structural components -- the mechanics that make fraud work regardless of surface. This allows consistent analysis of novel AI-enabled fraud variants before they have been formally classified.{' '}
-            <a href="https://github.com/sayasys/safeeval/blob/main/docs/01-framework.md" className="underline hover:text-gray-800">
-              Read the full framework -&gt;
-            </a>
-          </p>
-        </div>
       </main>
     </div>
   );
 }
-
-const BRIGHT_LINE_FEATURES_SET = new Set([
-  'fake_regulatory_document',
-  'executive_impersonation_payment',
-  'government_impersonation_payment',
-  'family_impersonation_payment',
-  'bank_evasion_script',
-  'bulk_fake_reviews_financial',
-  'detection_evasion_explicit',
-  'structuring_guidance',
-  'money_mule_job_posting',
-]);
-
-const COMPONENTS = ['target', 'lure', 'trust', 'extract', 'evade'];
