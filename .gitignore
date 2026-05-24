@@ -26,3 +26,9 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# secrets -- the PAT lives at the workspace root (one level above the repo), but
+# this guard ensures it can never be committed even if accidentally placed inside.
+.pat
+.pat.*
+PAT-SETUP.md
