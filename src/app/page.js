@@ -2,6 +2,22 @@
 
 import { useState, useEffect } from 'react';
 
+const BRIGHT_LINE_DESCRIPTIONS = {
+  fake_regulatory_document: 'Generates fake regulatory filings (SEC, FCA, FINRA, government) to create false legitimacy for a fraudulent platform or investment.',
+  executive_impersonation_payment: 'A named executive is impersonated specifically to authorize a wire transfer or payment, bypassing normal approval controls.',
+  government_impersonation_payment: 'A government agency (IRS, SSA, FBI) is impersonated and combined with a direct demand for payment or legal threat.',
+  family_impersonation_payment: 'A family member is impersonated in an emergency scenario to pressure an immediate financial transfer.',
+  bank_evasion_script: 'Provides a script for explaining suspicious transactions to a bank or regulator to prevent detection or account freezing.',
+  bulk_fake_reviews_financial: 'Generates 3+ fake reviews or testimonials for a financial platform, investment product, or crypto service.',
+  detection_evasion_explicit: 'Explicitly requests help evading spam filters, content moderation, or platform security systems.',
+  structuring_guidance: 'Instructions for breaking up transactions to stay below financial reporting thresholds -- a federal offense under bank secrecy law.',
+  money_mule_job_posting: 'Creates a job posting for receiving and forwarding money through personal accounts -- the defining money mule recruitment mechanism.',
+  credential_harvesting_page: 'Generates fake login pages, security alerts, or verification prompts designed to capture real credentials from victims.',
+  account_takeover_script: 'Creates a script for social engineering a support agent into resetting account access under false pretenses.',
+  ai_model_impersonation: 'Impersonates a named AI assistant (Claude, GPT, Gemini) to build victim trust or authority for a fraudulent purpose.',
+  prompt_injection_payload: 'Content designed to hijack AI system behavior by injecting malicious instructions into a prompt or system context.',
+};
+
 const EXAMPLE_PROMPTS = [
   {
     label: 'Romance / Pig Butchering',
@@ -390,9 +406,17 @@ export default function Home() {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {result.bright_line_features.map(f => (
-                    <span key={f} className="text-xs px-2.5 py-1 rounded-full font-mono bg-red-100 text-red-700 border border-red-200">
-                      {f}
-                    </span>
+                    <div key={f} className="group relative inline-block">
+                      <span className="text-xs px-2.5 py-1 rounded-full font-mono bg-red-100 text-red-700 border border-red-200 cursor-default">
+                        {f}
+                      </span>
+                      {BRIGHT_LINE_DESCRIPTIONS[f] && (
+                        <div className="absolute bottom-full left-0 mb-2 w-72 bg-gray-900 text-white text-xs rounded-md px-3 py-2 leading-relaxed hidden group-hover:block z-10 shadow-lg">
+                          {BRIGHT_LINE_DESCRIPTIONS[f]}
+                          <div className="absolute top-full left-4 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
