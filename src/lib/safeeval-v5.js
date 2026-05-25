@@ -334,7 +334,7 @@ const MODEL_DEEP   = 'claude-sonnet-4-6';
 // Stage prompts (system messages)
 // --------------------------------------------------------------------------
 
-const SYSTEM_STAGE_1_TRIAGE = [
+export const SYSTEM_STAGE_1_TRIAGE = [
   'You are a fast-pass safety triage classifier for a fraud-policy evaluation system.',
   '',
   'Your only job is coarse domain routing. You are NOT the final classifier.',

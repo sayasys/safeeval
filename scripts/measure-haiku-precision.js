@@ -109,21 +109,8 @@ async function main() {
   const POLICY_CONFIG = engine.POLICY_CONFIG;
   const floor = POLICY_CONFIG.TRIAGE_BENIGN_PRECISION_MIN;
 
-  // We need the same system prompt the engine uses. Import is not enough
-  // because SYSTEM_STAGE_1_TRIAGE is not exported. We recreate it here from
-  // the engine source. Simpler: export it. For now, read it from the file.
-  const engineSrc = fs.readFileSync(path.resolve(__dirname, '..', 'src', 'lib', 'safeeval-v5.js'), 'utf-8');
-  const promptMatch = engineSrc.match(/const SYSTEM_STAGE_1_TRIAGE = \[([\s\S]*?)\]\.join\('\\n'\);/);
-  if (!promptMatch) {
-    console.error('Could not locate SYSTEM_STAGE_1_TRIAGE in safeeval-v5.js');
-    process.exit(2);
-  }
-  const lines = promptMatch[1]
-    .split('\n')
-    .map(function (s) { return s.trim(); })
-    .filter(function (s) { return s.startsWith("'") || s.startsWith('"'); })
-    .map(function (s) { return s.replace(/^['"]|['"],?\s*$/g, ''); });
-  const systemPrompt = lines.join('\n');
+  const systemPrompt = engine.SYSTEM_STAGE_1_TRIAGE;
+  if (typeof systemPrompt !== 'string' || systemPrompt.length === 0) { console.error('SYSTEM_STAGE_1_TRIAGE not exported from safeeval-v5.js'); process.exit(2); }
 
   // Anthropic SDK.
   const Anthropic = (await import('@anthropic-ai/sdk')).default;
