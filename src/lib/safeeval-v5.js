@@ -785,22 +785,55 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
     args.l1.confidence = clamp01(args.l1.confidence);
     args.l2.confidence = clamp01(args.l2.confidence);
 
-    // Schema rule 12: L2 / l2_probabilities co-occurrence invariant.
-    // MUST: classification.l2.value must appear as a key in evidence.l2_probabilities.
-    // SHOULD: its probability there should be within L2_PICK_PROBABILITY_TOLERANCE
-    // of the maximum. Skip enforcement when l2_probabilities is empty (Stage 2
-    // failure fallback case -- no probability evidence to enforce against).
+    // Pre-compute l2_probabilities snapshot once (used by both the bright-line
+    // forcer and the rule-12 enforcement that follows).
     const probs = (evidence && evidence.l2_probabilities) || {};
     const probKeys = Object.keys(probs);
+
+    // Apply bright-line L2 forcing (Decision 9 enforced: ai_model_impersonation
+    // bright-line forces L1=cyber_intrusion / L2=ai_model_impersonation).
+    // When the bright-line allows multiple L2s, prefer the one with the highest
+    // probability in evidence.l2_probabilities -- this keeps the forced pick
+    // consistent with rule 12 instead of always defaulting to forced[0].
+    if (evidence && Array.isArray(evidence.bright_lines) && evidence.bright_lines.length > 0) {
+      for (const bl of evidence.bright_lines) {
+        const forced = BRIGHT_LINE_FORCED_L2[bl];
+        if (forced && forced.length > 0 && !forced.includes(args.l2.value)) {
+          // Pick the forced L2 with the highest probability in the map; fall back
+          // to forced[0] when none of the forced candidates appear in the map.
+          let newL2 = forced[0];
+          let bestProb = -1;
+          for (const candidate of forced) {
+            const p = probs[candidate];
+            if (typeof p === 'number' && p > bestProb) {
+              bestProb = p;
+              newL2 = candidate;
+            }
+          }
+          for (const l1 of L1_VALUES) {
+            if (L2_BY_L1[l1].includes(newL2)) {
+              args.l1 = { value: l1, confidence: Math.max(args.l1.confidence, 0.9) };
+              args.l2 = { value: newL2, confidence: Math.max(args.l2.confidence, 0.9) };
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Schema rule 12: L2 / l2_probabilities co-occurrence invariant.
+    // Runs AFTER bright-line forcing so the final L1/L2 pair (post-forcing) is
+    // what gets checked. MUST: classification.l2.value must appear as a key in
+    // evidence.l2_probabilities. SHOULD: its probability there should be within
+    // L2_PICK_PROBABILITY_TOLERANCE of the argmax-within-L1. Skip enforcement
+    // when l2_probabilities is empty (Stage 2 failure fallback case).
     if (probKeys.length > 0) {
-      // Find argmax over l2_probabilities filtered to L2s valid for the chosen L1.
-      const eligibleKeys = probKeys.filter(function (k) { return allowedL2.includes(k); });
+      const finalAllowedL2 = L2_BY_L1[args.l1.value];
+      const eligibleKeys = probKeys.filter(function (k) { return finalAllowedL2.includes(k); });
       let argmaxKey = null; let argmaxProb = -1;
       eligibleKeys.forEach(function (k) {
         if (probs[k] > argmaxProb) { argmaxProb = probs[k]; argmaxKey = k; }
       });
-      // Overall argmax (across all keys, even those not allowed for the chosen L1)
-      // is used for the MUST-violation message.
       let overallMaxKey = null; let overallMax = -1;
       probKeys.forEach(function (k) {
         if (probs[k] > overallMax) { overallMax = probs[k]; overallMaxKey = k; }
@@ -815,12 +848,11 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
           ' max_prob=' + (overallMax >= 0 ? overallMax.toFixed(2) : 'none')
         );
         mustFallback = true;
-        // Best-effort substitute to the argmax-within-L1 if one exists, otherwise
-        // overall argmax (may force an L1 change too).
+        // Best-effort substitute to the argmax-within-L1 if one exists,
+        // otherwise overall argmax (may force an L1 change too).
         if (argmaxKey) {
           args.l2 = { value: argmaxKey, confidence: argmaxProb };
         } else if (overallMaxKey) {
-          // Re-resolve L1 to one that contains overallMaxKey.
           for (const l1Cand of L1_VALUES) {
             if (L2_BY_L1[l1Cand].includes(overallMaxKey)) {
               args.l1 = { value: l1Cand, confidence: Math.max(args.l1.confidence, 0.6) };
@@ -830,7 +862,6 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
           }
         }
       } else if (argmaxKey && argmaxKey !== args.l2.value) {
-        // SHOULD-bound check on the picked L2 vs the argmax-within-L1.
         const delta = argmaxProb - pickedProb;
         if (delta > POLICY_CONFIG.L2_PICK_PROBABILITY_TOLERANCE) {
           validationErrors.push(
@@ -839,26 +870,6 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
             ' delta=' + delta.toFixed(3)
           );
           args.l2 = { value: argmaxKey, confidence: argmaxProb };
-        }
-      }
-    }
-
-
-    // Apply bright-line L2 forcing (Decision 9 enforced: ai_model_impersonation
-    // bright-line forces L1=cyber_intrusion / L2=ai_model_impersonation).
-    if (evidence && Array.isArray(evidence.bright_lines) && evidence.bright_lines.length > 0) {
-      for (const bl of evidence.bright_lines) {
-        const forced = BRIGHT_LINE_FORCED_L2[bl];
-        if (forced && forced.length > 0 && !forced.includes(args.l2.value)) {
-          // Find an L1 that contains the first forced L2 value.
-          const newL2 = forced[0];
-          for (const l1 of L1_VALUES) {
-            if (L2_BY_L1[l1].includes(newL2)) {
-              args.l1 = { value: l1, confidence: Math.max(args.l1.confidence, 0.9) };
-              args.l2 = { value: newL2, confidence: Math.max(args.l2.confidence, 0.9) };
-              break;
-            }
-          }
         }
       }
     }
