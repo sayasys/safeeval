@@ -1,23 +1,30 @@
 // src/lib/safeeval-v5.js
-// SafeEval v5 engine: 4-stage pipeline (Triage -> FAF -> Classify -> Disposition)
-// with an optional Stage 5 adversarial review.
+// SafeEval v5 engine: 4-stage pipeline (Triage -> FAF -> Classify -> Disposition).
+// v5.0.1: Stage 5 adversarial review removed (Decision 11); narrative_summary +
+// confidence_path added to disposition (Decision 13); safe_completion_guidance
+// branched by L1 (Decision 14); bright-line policy_note added to triggered_by.
 //
 // Authoritative spec: docs/policy-spec-v5.0.md.
-// Companion docs:    docs/07-v5-schema.md (envelope), docs/08-v5-ontology.md (vocabulary).
+// Companion docs:    docs/07-v5-schema.md  (envelope),
+//                    docs/08-v5-ontology.md (vocabulary),
+//                    docs/02-faf-to-l1l2l3-mapping.md (classification rules),
+//                    docs/04-enforcement-design.md (pipeline rationale).
 //
 // Pipeline:
 //   Stage 1: Triage          (Haiku)  -- coarse L1 + short-circuit on obvious benigns.
+//                                        Short-circuit is gated on a measured Haiku precision
+//                                        floor (TRIAGE_BENIGN_PRECISION_MIN) and a fraction of
+//                                        short-circuited ALLOWs is sampled for offline re-eval.
 //   Stage 2: FAF Analysis    (Sonnet) -- evidence object (nodes, scores, bright lines, L2 probs).
 //   Stage 3: Classification  (Sonnet, tool-use enum enforcement) -- L1/L2/L3.
-//   Stage 4: Disposition     (rules-first, model writes reasoning_summary) -- action.
-//   Stage 5: Adversarial     (optional, borderline only) -- calibration insurance.
+//   Stage 4: Disposition     (rules-first, model writes summaries; disposition is final here).
 //
 // Constraints:
 //   - This file is ASCII-only on purpose. Em dashes, smart quotes, arrows, and
 //     curly apostrophes will silently corrupt on the Windows-mounted clone path
-//     and break Vercel build with "Unexpected eof". See HANDOFF section 3.
+//     and break Vercel build with "Unexpected eof".
 //   - This module is parallel to src/lib/safeeval.js (v4). v4 is untouched.
-//   - Dual-emit is wired in src/app/api/evaluate/route.js (?v5=1 opt-in) by api-builder.
+//   - Dual-emit is wired in src/app/api/evaluate/route.js (?v5=1 opt-in).
 //   - All thresholds live in POLICY_CONFIG -- changing a number here does NOT
 //     require touching engine logic. (Decision 4.)
 
@@ -41,15 +48,26 @@ export const POLICY_CONFIG = {
   TRIAGE_BENIGN_CONFIDENCE_MIN:     0.92,
   TRIAGE_RISK_MARKERS_MAX:          0,
 
+  // Triage precision gate (Stage 1) -- Decision 12.
+  // Stage 1 short-circuit is permitted only when Haiku's measured benign
+  // precision is at least this threshold. The measurement is in
+  // scripts/measure-haiku-precision.js; the seed dataset is in
+  // data/haiku-precision-seed.jsonl. The engine does NOT enforce this at
+  // runtime; the gate is documentary + a precondition for shipping changes
+  // that touch SYSTEM_STAGE_1_TRIAGE or the short-circuit logic.
+  TRIAGE_BENIGN_PRECISION_MIN:      0.98,
+
+  // Triage observability (Stage 1) -- Decision 12.
+  // Fraction of Stage 1 short-circuited ALLOW outputs that are flagged in the
+  // trace for offline re-evaluation. Sampling is deterministic on a stable
+  // prompt hash so the same prompt always samples the same way.
+  TRIAGE_OBSERVABILITY_SAMPLE_RATE: 0.10,
+
   // Classifier confidences (Stage 3)
   L1_CONFIDENCE_MIN:                0.50,
   L2_CONFIDENCE_MIN:                0.50,
   L3_EMIT_CONFIDENCE_MIN:           0.50,
   L2_HUMAN_REVIEW_THRESHOLD:        0.60,
-
-  // Adversarial review trigger thresholds (Stage 5)
-  ADVERSARIAL_HUMAN_REVIEW_CONF_MAX: 0.75,
-  ADVERSARIAL_CONF_SHIFT_MIN:        0.15,
 
   // Sub-typology / L2-prob display
   SUB_TYPOLOGY_API_THRESHOLD:       0.60,
@@ -60,12 +78,49 @@ export const POLICY_CONFIG = {
 
   // Validation
   REASONING_SUMMARY_MAX_CHARS:      280,
+  NARRATIVE_SUMMARY_MAX_CHARS:      600,   // Decision 13: stakeholder-readable prose cap.
   PROMPT_LENGTH_MIN:                10,
   PROMPT_LENGTH_MAX:                5000,
 
   // Pipeline trace exposure
   PIPELINE_TRACE_DEFAULT:           'off',
 };
+
+// --------------------------------------------------------------------------
+// DISPOSITION_SEMANTICS (Decision 14)
+// Named operational semantics for each disposition verb. Downstream consumers
+// (UI, reviewer queue, dual-emit translator) read from this object instead of
+// inferring meaning from the verb. See policy-spec-v5.0.md Section 6.2.
+// --------------------------------------------------------------------------
+
+export const DISPOSITION_SEMANTICS = {
+  allow: {
+    description: 'Grant request. No constraints.',
+    guidance:    null,
+  },
+  safe_completion: {
+    description: 'Grant request with framing constraints. Respond defensively.',
+    // The actual guidance string is branched by L1 at runtime in
+    // buildSafeCompletionGuidance(). The strings below are the templates.
+    guidance: {
+      security_education: 'Security-education context: assume authorized defensive use. Respond pedagogically with explicit defender framing; describe the attack pattern so a defender or potential victim can recognize it.',
+      dual_use:           'Dual-use context: respond defensively. Discuss dynamics without producing a directly weaponizable artifact (no working template, page, or script).',
+    },
+  },
+  human_review: {
+    description: 'Route to abuse review queue. Human decides. Reviewer reads reasoning_summary, narrative_summary, and triggered_by.',
+    guidance:    null,
+  },
+  block: {
+    description: 'Deny request. Return policy explanation. When triggered_by names bright_lines, the block is non-negotiable.',
+    guidance:    null,
+  },
+};
+
+function buildSafeCompletionGuidance(l1Value) {
+  if (l1Value === 'security_education') return DISPOSITION_SEMANTICS.safe_completion.guidance.security_education;
+  return DISPOSITION_SEMANTICS.safe_completion.guidance.dual_use;
+}
 
 // --------------------------------------------------------------------------
 // Closed enums (mirrored verbatim from policy-spec-v5.0.md sections 2-6)
@@ -410,21 +465,24 @@ const SYSTEM_STAGE_4_DISPOSITION = [
   'You are the disposition stage of a fraud-policy evaluation system.',
   '',
   'You will receive: the classification, the FAF evidence, and which deterministic rules',
-  'have already fired. Your job is to fill in reasoning_summary (1 to 3 sentences, <= 280 chars)',
-  'that justifies the action. The action itself has already been decided by deterministic rules',
-  'in most cases; emit it back unchanged.',
+  'have already fired. Your job is to fill in two summary fields:',
+  '  reasoning_summary  -- 1 to 3 sentences, <= 280 chars. Audit-grade short justification.',
+  '                        Cite the specific rule (e.g., "bright_line_forces_block") and the',
+  '                        evidence (e.g., "credential_harvesting_page bright line matched").',
+  '  narrative_summary  -- 1 to 2 paragraphs, <= 600 chars. Stakeholder-readable prose. Tell',
+  '                        the story: what the prompt is asking for, what evidence the system',
+  '                        saw, what classification followed, and why the action is what it is.',
+  '                        Plain language, no JSON, no field references in prose.',
   '',
-  'For cases marked model_adjudicated where no deterministic rule fired, you decide the action.',
+  'In most cases the action has already been decided by a deterministic rule; emit it back',
+  'unchanged. The "deterministic rule outcome" block in the user message tells you whether a',
+  'rule decided and which one. When the rule has decided, your summaries justify the decision;',
+  'when the rule says model_adjudicated, you choose among allow / safe_completion / human_review / block',
+  'and your summaries explain the choice.',
+  '',
   'Allowed actions: allow, safe_completion, human_review, block.',
   '',
   'Emit by calling the emit_disposition tool exactly once.',
-].join('\n');
-
-const SYSTEM_STAGE_5_ADVERSARIAL = [
-  'You are an adversarial reviewer. Argue the strongest case that the proposed disposition is',
-  'wrong. Be specific: cite which evidence or classification is mis-weighted, and what action',
-  'you would emit instead. Be brief. Output JSON:',
-  '{ "counter_action": "allow|safe_completion|human_review|block", "counter_confidence": 0..1, "argument": "1-3 sentences" }',
 ].join('\n');
 
 // --------------------------------------------------------------------------
@@ -478,16 +536,16 @@ function buildClassifyTool() {
 function buildDispositionTool() {
   return {
     name: 'emit_disposition',
-    description: 'Emit the final disposition.',
+    description: 'Emit the final disposition. safe_completion_guidance is NOT set by the model -- the engine computes it from L1. Do not include it.',
     input_schema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: DISPOSITION_ACTIONS },
-        confidence: { type: 'number', minimum: 0, maximum: 1 },
-        reasoning_summary: { type: 'string', maxLength: POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS },
-        safe_completion_guidance: { type: ['string', 'null'] },
+        action:             { type: 'string', enum: DISPOSITION_ACTIONS },
+        confidence:         { type: 'number', minimum: 0, maximum: 1 },
+        reasoning_summary:  { type: 'string', maxLength: POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS },
+        narrative_summary:  { type: 'string', maxLength: POLICY_CONFIG.NARRATIVE_SUMMARY_MAX_CHARS },
       },
-      required: ['action', 'confidence', 'reasoning_summary'],
+      required: ['action', 'confidence', 'reasoning_summary', 'narrative_summary'],
     },
   };
 }
@@ -722,11 +780,21 @@ function countRiskMarkerL3(classification) {
 }
 
 function applyDeterministicRules(evidence, classification) {
-  const triggered = { bright_lines: [], thresholds: [], rules: [] };
+  // triggered carries: bright_lines (matched feature names), thresholds (string
+  // descriptions of the threshold checks that fired), rules (the named rule that
+  // fired, or 'model_adjudicated' if none did), and policy_note (set when a
+  // non-negotiable rule fired). See policy-spec-v5.0.md Section 6.1.
+  const triggered = { bright_lines: [], thresholds: [], rules: [], policy_note: null };
 
   if (evidence && Array.isArray(evidence.bright_lines) && evidence.bright_lines.length > 0) {
     triggered.bright_lines = evidence.bright_lines.slice();
     triggered.rules.push('bright_line_forces_block');
+    // Decision 11 / HP-3: bright-line blocks are non-negotiable. The policy_note
+    // exists so any consumer reading the disposition output sees the
+    // non-negotiability explicitly, rather than inferring it from the bright_lines
+    // array being non-empty. This is the audit-trail evidence that no downstream
+    // stage may downgrade this block.
+    triggered.policy_note = 'Bright-line match: non-negotiable. No downstream stage may downgrade this disposition. Matched features: ' + triggered.bright_lines.join(', ') + '.';
     return { action: 'block', confidence: 1.0, triggered, decided: true };
   }
   if (evidence && evidence.aggregate_score >= POLICY_CONFIG.AGGREGATE_BLOCK_THRESHOLD) {
@@ -769,8 +837,13 @@ async function stage4Disposition(prompt, evidence, classification) {
   const t0 = Date.now();
   const ruleResult = applyDeterministicRules(evidence, classification);
 
-  // Always run the model to fill in reasoning_summary, even when a rule decided
-  // the action. If a rule decided, we lock the action after the model returns.
+  // HP-1 / Decision 13: decoupling.
+  // When a deterministic rule has already decided the action, the model's job
+  // is to write reasoning_summary + narrative_summary -- NOT to "decide and
+  // then have its decision ignored." The user message reflects this clearly,
+  // and the action / confidence is locked from the rule result regardless of
+  // what the model returns.
+  // When no rule fired (model_adjudicated), the model's action choice is used.
   const tool = buildDispositionTool();
   const userMsg = [
     'PROMPT:',
@@ -781,23 +854,28 @@ async function stage4Disposition(prompt, evidence, classification) {
     '',
     'EVIDENCE SUMMARY:',
     JSON.stringify({
-      aggregate_score: evidence && evidence.aggregate_score,
-      bright_lines: evidence && evidence.bright_lines,
+      aggregate_score:  evidence && evidence.aggregate_score,
+      bright_lines:     evidence && evidence.bright_lines,
       l2_probabilities: evidence && evidence.l2_probabilities,
     }),
     '',
     'DETERMINISTIC RULE OUTCOME:',
-    JSON.stringify({ action: ruleResult.action, rules: ruleResult.triggered.rules }),
+    JSON.stringify({
+      action: ruleResult.action,
+      rules:  ruleResult.triggered.rules,
+      policy_note: ruleResult.triggered.policy_note,
+      decided: ruleResult.decided,
+    }),
     '',
     ruleResult.decided
-      ? 'A rule has already decided the action. Emit that action verbatim. Your only job is to write reasoning_summary.'
-      : 'No deterministic rule fired. You decide the action. Allowed: allow, safe_completion, human_review, block.',
+      ? 'A deterministic rule has decided the action. The action is LOCKED. Your only job is to write reasoning_summary (audit-grade, <= 280 chars) and narrative_summary (stakeholder-readable prose, <= 600 chars) that justify the locked decision against the evidence. Do not re-argue the action.'
+      : 'No deterministic rule fired (model_adjudicated). You choose the action AND write both summaries. Allowed actions: allow, safe_completion, human_review, block.',
   ].join('\n');
 
   try {
     const resp = await anthropic.messages.create({
       model: MODEL_DEEP,
-      max_tokens: 400,
+      max_tokens: 700,
       temperature: 0.0,
       tools: [tool],
       tool_choice: { type: 'tool', name: 'emit_disposition' },
@@ -812,20 +890,27 @@ async function stage4Disposition(prompt, evidence, classification) {
     let confidence = clamp01(args.confidence);
     if (!DISPOSITION_ACTIONS.includes(action)) action = 'human_review';
 
-    // If a rule decided, lock the action. Model's reasoning_summary is kept.
+    // Lock action / confidence to the rule result when a rule decided.
     if (ruleResult.decided) {
       action = ruleResult.action;
       confidence = ruleResult.confidence;
     }
 
+    // Decision 14 / HP-2: safe_completion_guidance is computed from L1, not
+    // chosen by the model. This makes the policy difference between
+    // security_education and dual_use auditable and consistent across calls.
+    const l1Value = classification && classification.l1 && classification.l1.value;
+    const safeCompletionGuidance = action === 'safe_completion'
+      ? buildSafeCompletionGuidance(l1Value)
+      : null;
+
     const disposition = {
-      action: action,
-      confidence: confidence,
-      reasoning_summary: String(args.reasoning_summary || '').slice(0, POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS),
-      triggered_by: ruleResult.triggered,
-      safe_completion_guidance: action === 'safe_completion'
-        ? (args.safe_completion_guidance || 'Respond defensively. Do not produce a directly weaponizable artifact.')
-        : null,
+      action:                   action,
+      confidence:               confidence,
+      reasoning_summary:        String(args.reasoning_summary || '').slice(0, POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS),
+      narrative_summary:        String(args.narrative_summary || '').slice(0, POLICY_CONFIG.NARRATIVE_SUMMARY_MAX_CHARS),
+      triggered_by:             ruleResult.triggered,
+      safe_completion_guidance: safeCompletionGuidance,
     };
 
     return {
@@ -837,18 +922,25 @@ async function stage4Disposition(prompt, evidence, classification) {
       model: MODEL_DEEP,
     };
   } catch (err) {
-    // Model failed -- emit deterministic-only disposition (validation_fallback rule).
+    // Model failed. Emit deterministic-only disposition.
+    // - Rule-decided cases keep their rule action; reasoning_summary explains the failure.
+    // - Model-adjudicated cases fall back to human_review with the validation_fallback rule
+    //   appended to triggered_by.rules.
+    const fallbackTriggered = ruleResult.decided
+      ? ruleResult.triggered
+      : { bright_lines: [], thresholds: [], rules: ['model_adjudicated', 'validation_fallback'], policy_note: null };
+    const fallbackAction = ruleResult.decided ? ruleResult.action : 'human_review';
+    const fallbackL1 = classification && classification.l1 && classification.l1.value;
     return {
       ok: false,
       error: String((err && err.message) || err),
       output: {
-        action: ruleResult.decided ? ruleResult.action : 'human_review',
-        confidence: ruleResult.decided ? ruleResult.confidence : 0.5,
-        reasoning_summary: 'Model unavailable; rule-derived disposition.',
-        triggered_by: ruleResult.decided
-          ? ruleResult.triggered
-          : { bright_lines: [], thresholds: [], rules: ['validation_fallback'] },
-        safe_completion_guidance: null,
+        action:                   fallbackAction,
+        confidence:               ruleResult.decided ? ruleResult.confidence : 0.5,
+        reasoning_summary:        'Model unavailable; rule-derived disposition.',
+        narrative_summary:        'The disposition model failed during this evaluation. The deterministic rule cascade produced the action above; no model-written narrative is available for this case. A reviewer reading this trace should treat the disposition as best-effort and consult the triggered_by artifact for the underlying signals.',
+        triggered_by:             fallbackTriggered,
+        safe_completion_guidance: fallbackAction === 'safe_completion' ? buildSafeCompletionGuidance(fallbackL1) : null,
       },
       duration_ms: Date.now() - t0,
       model: MODEL_DEEP,
@@ -857,74 +949,52 @@ async function stage4Disposition(prompt, evidence, classification) {
 }
 
 // --------------------------------------------------------------------------
-// Stage 5: Adversarial Review (optional, borderline only)
+// Stage 5 was removed in v5.0.1 (policy-spec Decision 11). The calibration
+// role it filled is now covered deterministically by:
+//   - rule 5: multi_risk_marker_review   (>= 2 risk-marker L3 tags -> human_review)
+//   - rule 6: low_l2_confidence_review   (L2 confidence < threshold -> human_review)
+// Both fire in applyDeterministicRules() above, without a second model call.
+// See docs/04-enforcement-design.md Section 6 for the full rationale.
 // --------------------------------------------------------------------------
 
-function shouldRunAdversarial(classification, disposition) {
-  if (!classification || !disposition) return false;
-  if (disposition.action === 'human_review' &&
-      disposition.confidence < POLICY_CONFIG.ADVERSARIAL_HUMAN_REVIEW_CONF_MAX) return true;
-  if (disposition.action === 'block' &&
-      classification.l1 && (classification.l1.value === 'security_education' || classification.l1.value === 'ambiguous_dual_use')) return true;
-  if (classification.l1 && classification.l1.value === 'ambiguous_dual_use' && disposition.action !== 'human_review') return true;
-  return false;
+// Deterministic sampling helper for the Stage 1 observability hook (Decision 12).
+// Returns true for approximately TRIAGE_OBSERVABILITY_SAMPLE_RATE of prompts,
+// deterministic on a stable hash of the prompt -- the same prompt always samples
+// the same way. This means re-running the harness on the same input does not
+// drift the sampling decision.
+function sampleForOfflineReview(prompt) {
+  if (typeof prompt !== 'string' || prompt.length === 0) return false;
+  // Simple deterministic hash. djb2-style; sufficient for sampling (not cryptographic).
+  let h = 5381;
+  for (let i = 0; i < prompt.length; i++) {
+    h = ((h * 33) ^ prompt.charCodeAt(i)) >>> 0;
+  }
+  const bucket = (h % 10000) / 10000;
+  return bucket < POLICY_CONFIG.TRIAGE_OBSERVABILITY_SAMPLE_RATE;
 }
 
-async function stage5Adversarial(prompt, evidence, classification, disposition) {
-  const t0 = Date.now();
-  try {
-    const resp = await anthropic.messages.create({
-      model: MODEL_DEEP,
-      max_tokens: 400,
-      temperature: 0.3,
-      system: SYSTEM_STAGE_5_ADVERSARIAL,
-      messages: [{ role: 'user', content: [
-        'PROMPT:', prompt,
-        'CLASSIFICATION:', JSON.stringify(classification),
-        'DISPOSITION:', JSON.stringify(disposition),
-        'EVIDENCE BRIGHT_LINES:', JSON.stringify((evidence && evidence.bright_lines) || []),
-      ].join('\n') }],
-    });
-    const text = (resp.content[0] && resp.content[0].text) || '';
-    const parsed = parseJsonObject(text);
-    if (!parsed) throw new Error('adversarial_invalid_json');
-    if (!DISPOSITION_ACTIONS.includes(parsed.counter_action)) parsed.counter_action = disposition.action;
-    parsed.counter_confidence = clamp01(parsed.counter_confidence);
-    return {
-      ok: true,
-      output: parsed,
-      duration_ms: Date.now() - t0,
-      model: MODEL_DEEP,
-    };
-  } catch (err) {
-    return { ok: false, error: String((err && err.message) || err), duration_ms: Date.now() - t0, model: MODEL_DEEP };
+// Build the confidence_path string surfaced in disposition output (Decision 13).
+// Stages that did not run (e.g., short-circuit at Stage 1) are omitted from the path.
+function buildConfidencePath(s1, s2, s3, dispositionConfidence) {
+  const parts = [];
+  if (s1 && s1.ok && typeof s1.output.l1_confidence === 'number') {
+    parts.push('triage:' + s1.output.l1_confidence.toFixed(2));
   }
-}
-
-// Adversarial result application: downgrade action one level when the counter
-// argument materially shifts the recommendation (counter_confidence >=
-// ADVERSARIAL_HUMAN_REVIEW_CONF_MAX - ADVERSARIAL_CONF_SHIFT_MIN).
-function applyAdversarialResult(disposition, adversarial) {
-  if (!adversarial || !adversarial.ok) return disposition;
-  const adv = adversarial.output;
-  const downgrade = { block: 'human_review', human_review: 'safe_completion', safe_completion: 'allow', allow: 'allow' };
-  const materialThreshold = POLICY_CONFIG.ADVERSARIAL_HUMAN_REVIEW_CONF_MAX - POLICY_CONFIG.ADVERSARIAL_CONF_SHIFT_MIN;
-  if (adv.counter_action !== disposition.action && adv.counter_confidence >= materialThreshold) {
-    const newAction = downgrade[disposition.action] || disposition.action;
-    return {
-      action: newAction,
-      confidence: Math.max(0.5, disposition.confidence - POLICY_CONFIG.ADVERSARIAL_CONF_SHIFT_MIN),
-      reasoning_summary: (disposition.reasoning_summary + ' Adversarial review: ' + adv.argument)
-        .slice(0, POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS),
-      triggered_by: Object.assign({}, disposition.triggered_by, {
-        rules: (disposition.triggered_by.rules || []).concat(['adversarial_downgrade']),
-      }),
-      safe_completion_guidance: newAction === 'safe_completion'
-        ? 'Adversarial review downgraded; respond cautiously.'
-        : null,
-    };
+  if (s2 && s2.ok) {
+    // FAF stage does not emit an explicit confidence; derive a proxy from
+    // the top L2 probability, falling back to 0 when no probabilities exist.
+    const probs = (s2.output && s2.output.l2_probabilities) || {};
+    let top = 0;
+    Object.keys(probs).forEach(function (k) { if (probs[k] > top) top = probs[k]; });
+    parts.push('faf:' + top.toFixed(2));
   }
-  return disposition;
+  if (s3 && s3.ok && s3.output && s3.output.l2 && typeof s3.output.l2.confidence === 'number') {
+    parts.push('classify:' + s3.output.l2.confidence.toFixed(2));
+  }
+  if (typeof dispositionConfidence === 'number') {
+    parts.push('disposition:' + dispositionConfidence.toFixed(2));
+  }
+  return parts.join(' -> ');
 }
 
 // --------------------------------------------------------------------------
@@ -934,10 +1004,12 @@ function applyAdversarialResult(disposition, adversarial) {
 export async function evaluatePromptV5(prompt, opts) {
   opts = opts || {};
   const debug = !!opts.debug;
-  const enableAdversarial = opts.adversarial !== false; // default on
 
+  // v5.0.1: stage_5 removed from the trace shape. Clients written against v5.0
+  // that defensively read trace.stage_5 will see undefined and should treat
+  // disposition as final at Stage 4.
   const trace = {
-    stage_1: null, stage_2: null, stage_3: null, stage_4: null, stage_5: null,
+    stage_1: null, stage_2: null, stage_3: null, stage_4: null,
     short_circuited_at: null,
     errors: [],
   };
@@ -950,26 +1022,37 @@ export async function evaluatePromptV5(prompt, opts) {
   if (!s1.ok) trace.errors.push('stage_1: ' + s1.error);
 
   // Short-circuit: clearly benign.
+  // Decision 12: this path is gated on the documented Haiku precision floor.
+  // The engine does not block the short-circuit at runtime, but the trace
+  // records whether this case was sampled for offline re-evaluation so an
+  // out-of-band batch job can find and re-run the sampled prompts.
   if (s1.ok &&
       s1.output.l1_candidate === 'benign' &&
       s1.output.l1_confidence >= POLICY_CONFIG.TRIAGE_BENIGN_CONFIDENCE_MIN &&
       (s1.output.coarse_context.risk_markers || []).length <= POLICY_CONFIG.TRIAGE_RISK_MARKERS_MAX) {
     trace.short_circuited_at = 'stage_1';
+    trace.stage_1.sampled_for_offline_review = sampleForOfflineReview(prompt);
+
+    const shortCircuitConfidence = s1.output.l1_confidence;
+    const shortCircuitDisposition = {
+      action:                   'allow',
+      confidence:               shortCircuitConfidence,
+      reasoning_summary:        'Triage short-circuit: Stage 1 classified the prompt as clearly benign with confidence above the gate threshold and no risk markers in coarse context.',
+      narrative_summary:        'The triage stage classified this prompt as clearly benign with high confidence (' + shortCircuitConfidence.toFixed(2) + ') and no risk markers in the coarse context. The pipeline short-circuited to ALLOW without invoking the deeper analysis stages. This path is gated on the documented Haiku precision floor; a fraction of short-circuited cases (' + Math.round(POLICY_CONFIG.TRIAGE_OBSERVABILITY_SAMPLE_RATE * 100) + '%) are sampled for offline re-evaluation against the full pipeline.',
+      confidence_path:          buildConfidencePath(s1, null, null, shortCircuitConfidence),
+      triggered_by:             { bright_lines: [], thresholds: [], rules: ['triage_short_circuit_allow'], policy_note: null },
+      safe_completion_guidance: null,
+    };
+
     return assembleEnvelope({
       prompt,
       classification: {
-        l1: { value: 'benign', confidence: s1.output.l1_confidence },
-        l2: { value: 'no_risk_pattern', confidence: s1.output.l1_confidence },
+        l1: { value: 'benign', confidence: shortCircuitConfidence },
+        l2: { value: 'no_risk_pattern', confidence: shortCircuitConfidence },
         l3: [],
       },
-      evidence: stubEvidence(s1.output),
-      disposition: {
-        action: 'allow',
-        confidence: s1.output.l1_confidence,
-        reasoning_summary: 'Triage short-circuit: clearly benign with high confidence.',
-        triggered_by: { bright_lines: [], thresholds: [], rules: ['triage_short_circuit_allow'] },
-        safe_completion_guidance: null,
-      },
+      evidence:    stubEvidence(s1.output),
+      disposition: shortCircuitDisposition,
       modelsUsed, trace, debug,
     });
   }
@@ -989,20 +1072,16 @@ export async function evaluatePromptV5(prompt, opts) {
   const classification = s3.ok ? s3.output : deriveClassificationFromEvidence(evidence);
 
   // Stage 4: disposition. Always returns an output (model fail -> rule-only fallback).
+  // Disposition is FINAL at Stage 4 in v5.0.1; no Stage 5 follows.
   const s4 = await stage4Disposition(prompt, evidence, classification);
   trace.stage_4 = s4;
   if (s4.model) modelsUsed.push(s4.model);
   if (!s4.ok) trace.errors.push('stage_4: ' + s4.error);
-  let disposition = s4.output;
+  const disposition = s4.output;
 
-  // Stage 5: adversarial review (optional, borderline only).
-  if (enableAdversarial && shouldRunAdversarial(classification, disposition)) {
-    const s5 = await stage5Adversarial(prompt, evidence, classification, disposition);
-    trace.stage_5 = s5;
-    if (s5.model) modelsUsed.push(s5.model);
-    if (!s5.ok) trace.errors.push('stage_5: ' + s5.error);
-    disposition = applyAdversarialResult(disposition, s5);
-  }
+  // Attach the confidence_path (Decision 13). This is computed from per-stage
+  // confidences after all stages complete, NOT asked of the model.
+  disposition.confidence_path = buildConfidencePath(s1, s2, s3, disposition.confidence);
 
   return assembleEnvelope({ prompt, classification, evidence, disposition, modelsUsed, trace, debug });
 }
@@ -1013,19 +1092,19 @@ export async function evaluatePromptV5(prompt, opts) {
 
 function assembleEnvelope(p) {
   const envelope = {
-    schema_version: '5.0',
+    schema_version:   '5.0.1',
     ontology_version: '5.0',
-    evaluated_at: new Date().toISOString(),
-    model_pipeline: p.modelsUsed,
-    prompt_length: p.prompt.length,
-    classification: p.classification,
-    disposition: p.disposition,
+    evaluated_at:     new Date().toISOString(),
+    model_pipeline:   p.modelsUsed,
+    prompt_length:    p.prompt.length,
+    classification:   p.classification,
+    disposition:      p.disposition,
     evidence: {
-      faf_nodes: (p.evidence && p.evidence.faf_nodes) || stubFafNodes(),
+      faf_nodes:        (p.evidence && p.evidence.faf_nodes) || stubFafNodes(),
       component_scores: (p.evidence && p.evidence.component_scores) || { target: 0, lure: 0, trust: 0, extract: 0, evade: 0 },
-      aggregate_score: (p.evidence && p.evidence.aggregate_score) || 0,
-      bright_lines: (p.evidence && p.evidence.bright_lines) || [],
-      process_flags: (p.evidence && p.evidence.process_flags) || [],
+      aggregate_score:  (p.evidence && p.evidence.aggregate_score) || 0,
+      bright_lines:     (p.evidence && p.evidence.bright_lines) || [],
+      process_flags:    (p.evidence && p.evidence.process_flags) || [],
       l2_probabilities: (p.evidence && p.evidence.l2_probabilities) || {},
     },
     prompt_summary: (p.evidence && p.evidence.prompt_summary) || { persona: null, topic: '', target: null, objective: null, pretext: null },
@@ -1039,7 +1118,7 @@ function stubFafNodes() {
   return {
     context: { source: 'user', persona: null, topic: '', target: null, relationship_phase: 'targeting' },
     process: {
-      execution: { delivery_method: null, delivery_template: null, referenced_entities: [] },
+      execution:     { delivery_method: null, delivery_template: null, referenced_entities: [] },
       psychological: { trigger: null, incentive: null, control: null },
     },
     objective: { objective: '' },
@@ -1051,29 +1130,29 @@ function stubEvidence(triageOutput) {
   return {
     faf_nodes: {
       context: {
-        source: 'user',
-        persona: coarse.persona || null,
-        topic: coarse.topic || '',
-        target: coarse.target || null,
+        source:             'user',
+        persona:            coarse.persona || null,
+        topic:              coarse.topic || '',
+        target:             coarse.target || null,
         relationship_phase: 'targeting',
       },
       process: {
-        execution: { delivery_method: null, delivery_template: null, referenced_entities: [] },
+        execution:     { delivery_method: null, delivery_template: null, referenced_entities: [] },
         psychological: { trigger: null, incentive: null, control: null },
       },
       objective: { objective: '' },
     },
     component_scores: { target: 0, lure: 0, trust: 0, extract: 0, evade: 0 },
-    aggregate_score: 0,
-    bright_lines: [],
-    process_flags: [],
+    aggregate_score:  0,
+    bright_lines:     [],
+    process_flags:    [],
     l2_probabilities: {},
     prompt_summary: {
-      persona: coarse.persona || null,
-      topic: coarse.topic || '',
-      target: coarse.target || null,
+      persona:   coarse.persona || null,
+      topic:     coarse.topic || '',
+      target:    coarse.target || null,
       objective: null,
-      pretext: null,
+      pretext:   null,
     },
   };
 }
@@ -1151,21 +1230,21 @@ export function deriveV4Legacy(v5) {
   });
 
   return {
-    escalation_tier: tier,
-    typology: typology,
+    escalation_tier:        tier,
+    typology:               typology,
     typology_probabilities: v4Probs,
-    sub_typology_analysis: {},
-    prompt_summary: v5.prompt_summary,
-    bright_line: (v5.evidence.bright_lines || []).length > 0,
-    bright_line_features: v5.evidence.bright_lines || [],
-    aggregate_score: v5.evidence.aggregate_score,
-    component_scores: v5.evidence.component_scores,
-    confidence: v5.disposition.confidence,
-    rationale: v5.disposition.reasoning_summary,
-    legitimate_use_possible: v5.disposition.action === 'safe_completion' || v5.classification.l1.value === 'security_education',
-    disambiguation_note: v5.disposition.safe_completion_guidance,
-    evaluated_at: v5.evaluated_at,
-    model: MODEL_DEEP,
-    prompt_length: v5.prompt_length,
+    sub_typology_analysis:  {},
+    prompt_summary:         v5.prompt_summary,
+    bright_line:            (v5.evidence.bright_lines || []).length > 0,
+    bright_line_features:   v5.evidence.bright_lines || [],
+    aggregate_score:        v5.evidence.aggregate_score,
+    component_scores:       v5.evidence.component_scores,
+    confidence:             v5.disposition.confidence,
+    rationale:              v5.disposition.reasoning_summary,
+    legitimate_use_possible: v5.disposition.action === 'safe_completion' || (v5.classification.l1 && v5.classification.l1.value === 'security_education'),
+    disambiguation_note:    v5.disposition.safe_completion_guidance,
+    evaluated_at:           v5.evaluated_at,
+    model:                  MODEL_DEEP,
+    prompt_length:          v5.prompt_length,
   };
 }
