@@ -248,7 +248,7 @@ export default function Home() {
             escalation decision, and policy rationale.
           </p>
           <p className="text-sm text-gray-500 mt-2">
-            Built as a portfolio demonstration of fraud policy design, enforcement architecture, and policy-to-technical translation.{' '}
+            A reference implementation of fraud policy design, enforcement architecture, and policy-to-technical translation.{' '}
             <a href="https://github.com/sayasys/safeeval/tree/main/docs" className="underline hover:text-gray-800">
               Read the full policy framework -&gt;
             </a>

@@ -1,7 +1,7 @@
 # SafeEval v5 -- Output Schema
 
-**Status:** Round 2 of v5 rollout. JSON Schema validator landed at `tests/schema/v5-envelope.schema.json` (draft 2020-12).
-**Schema version:** 5.0
+**Status:** v5.0.1 patch. Schema additions: `disposition.narrative_summary`, `disposition.confidence_path`, `disposition.triggered_by.policy_note`. Stage 5 trace slot removed.
+**Schema version:** 5.0.1
 **Ontology version:** 5.0
 **Predecessor:** FAF v4.0 (`src/lib/safeeval.js`)
 **Companion docs:** `docs/policy-spec-v5.0.md` (authoritative spec), `docs/08-v5-ontology.md` (vocabulary reference).
@@ -55,10 +55,13 @@ v5 separates the three. Each lives in its own object: `classification`, `evidenc
     "action":             "block",
     "confidence":         0.97,
     "reasoning_summary":  "Prompt requests a credential-and-MFA harvest page impersonating enterprise IT. Direct account takeover enablement.",
+    "narrative_summary":  "This prompt requests a working credential-harvesting page impersonating enterprise IT, paired with MFA-code capture. The combined target/extract/evade pattern triggers two bright-line features (credential_harvesting_page, mfa_or_otp_harvesting) and routes to a non-negotiable block. The classifier's confidence climbed from 0.87 at triage to 0.97 at disposition as each stage added signal -- the system is narrowing in, not wavering.",
+    "confidence_path":    "triage:0.87 -> faf:0.94 -> classify:0.93 -> disposition:0.97",
     "triggered_by": {
       "bright_lines": ["credential_harvesting_page", "mfa_or_otp_harvesting"],
       "thresholds":   [],
-      "rules":        ["bright_line_forces_block"]
+      "rules":        ["bright_line_forces_block"],
+      "policy_note":  "Bright-line match: non-negotiable. No downstream stage may downgrade this disposition. See policy-spec-v5.0.md Section 6.1 rule 1."
     },
     "safe_completion_guidance": null
   },
@@ -152,16 +155,19 @@ v5 separates the three. Each lives in its own object: `classification`, `evidenc
 
 | Field | Type | Notes |
 |---|---|---|
-| `action` | string | One of: `allow`, `safe_completion`, `human_review`, `block`. |
-| `confidence` | float [0,1] | Confidence in the action. Set to 1.0 when a deterministic rule fired (e.g., bright line). |
-| `reasoning_summary` | string | 1-3 sentences, max 280 chars (`REASONING_SUMMARY_MAX_CHARS`). Audit-grade natural-language justification. |
+| `action` | string | One of: `allow`, `safe_completion`, `human_review`, `block`. Operational semantics in `policy-spec-v5.0.md` Section 6.2. |
+| `confidence` | float [0,1] | Confidence in the action. Set to 1.0 when a bright-line rule fires; rule-decided non-bright-line actions use the per-rule confidence in `applyDeterministicRules()`. |
+| `reasoning_summary` | string | 1-3 sentences, max 280 chars (`REASONING_SUMMARY_MAX_CHARS`). Audit-grade short justification, intended for reviewer queues and structured logs. |
+| `narrative_summary` | string | 1-2 paragraphs, max 600 chars (`NARRATIVE_SUMMARY_MAX_CHARS`). Stakeholder-readable prose explaining the call. Tells the story (triage -> evidence -> classification -> decision) in English; sits alongside the structured `triggered_by` artifact rather than replacing it. (Decision 13.) |
+| `confidence_path` | string | The per-stage confidence trajectory formatted as `"triage:<c1> -> faf:<c2> -> classify:<c3> -> disposition:<c4>"`. Shows how the system's confidence evolved through the pipeline. Stages that did not run (e.g., short-circuit at Stage 1) are omitted from the path. (Decision 13.) |
 | `triggered_by` | object | Explainability artifact. |
 | `triggered_by.bright_lines` | array of strings | Which bright-line features (from `evidence.bright_lines`) drove the action. Empty if none. |
 | `triggered_by.thresholds` | array of strings | Which score thresholds fired. E.g., `"aggregate_score>=10"`. |
-| `triggered_by.rules` | array of strings | Which deterministic rules fired. See spec section 6.1. |
-| `safe_completion_guidance` | string or null | When `action = "safe_completion"`, a short note describing how the response should be framed (e.g., "Frame defensively; do not produce a working artifact"). Null otherwise. |
+| `triggered_by.rules` | array of strings | Which deterministic rules fired. See `policy-spec-v5.0.md` section 6.1. |
+| `triggered_by.policy_note` | string or null | When a non-negotiable rule fired (currently: `bright_line_forces_block`), a short string flagging the non-negotiability to reviewers and to any downstream stage that might otherwise consider downgrading. Null otherwise. (Decision 11.) |
+| `safe_completion_guidance` | string or null | When `action = "safe_completion"`, the framing constraint string. Branched by `classification.l1.value` per `policy-spec-v5.0.md` Section 6.2: `security_education` -> pedagogical defender framing; otherwise -> defensive non-artifact framing. Null when action is not `safe_completion`. (Decision 14.) |
 
-**Action selection order:** See `policy-spec-v5.0.md` section 6.1 -- engine applies the deterministic rules in the order listed there. First rule that fires wins.
+**Action selection order:** See `policy-spec-v5.0.md` section 6.1 -- engine applies the deterministic rules in the order listed there. First rule that fires wins. v5.0.1 removed the optional Stage 5 adversarial review; disposition output is final once Stage 4 returns. (Decision 11.)
 
 ### 3.4 `evidence`
 
@@ -204,17 +210,20 @@ Resolved per Decision 5 (`policy-spec-v5.0.md` section 9): default-OFF. The trac
 ```jsonc
 // shape when present:
 {
-  "stage_1": { "model": "...", "duration_ms": 312, "input_tokens": 248, "output_tokens": 64,  "output": { /* triage output */ } },
+  "stage_1": { "model": "...", "duration_ms": 312, "input_tokens": 248, "output_tokens": 64,  "output": { /* triage output */ }, "sampled_for_offline_review": false },
   "stage_2": { "model": "...", "duration_ms": 2412, "input_tokens": 1234, "output_tokens": 1187, "output": { /* faf analysis */ } },
   "stage_3": { "model": "...", "duration_ms": 891, "input_tokens": 1456, "output_tokens": 312,  "output": { /* classification */ } },
   "stage_4": { "model": "...", "duration_ms": 612, "input_tokens": 1389, "output_tokens": 187,  "output": { /* disposition */ } },
-  "stage_5": null,
   "short_circuited_at": null,
   "errors": []
 }
 ```
 
-Default-off rationale: least-info-by-default is standard for production T&S APIs (smaller response surface, lower payload, no accidental leakage of stage-internal reasoning into untrusted consumers). Debug mode covers the portfolio walkthrough use case.
+**Note on `stage_1.sampled_for_offline_review`:** When Stage 1 short-circuits to ALLOW, a deterministic hash of the prompt selects approximately `TRIAGE_OBSERVABILITY_SAMPLE_RATE` (default 10%) of cases for offline re-evaluation. The flag is recorded in the trace so an out-of-band batch job can find the sampled prompts and re-run them through the full pipeline. This is the audit mechanism backing the >98% Haiku precision claim (Decision 12). Sampling is deterministic on a stable prompt hash so the same prompt always samples the same way (no traffic-replay drift).
+
+**Note on Stage 5:** v5.0.1 removed the optional Stage 5 adversarial-review slot. The trace shape no longer carries `stage_5`. Clients written against v5.0 that defensively read `stage_5` will see undefined and should fall back to treating disposition as final at Stage 4. (Decision 11.)
+
+Default-off rationale: least-info-by-default is standard for production T&S APIs (smaller response surface, lower payload, no accidental leakage of stage-internal reasoning into untrusted consumers). Debug mode covers documentation and developer walkthrough use cases.
 
 ---
 
@@ -241,7 +250,7 @@ Query parameters:
 ```jsonc
 {
   "id": "uuid",
-  "v4_legacy": { /* unchanged v4 response, see HANDOFF.md section 4.4 */ },
+  "v4_legacy": { /* the v4 response shape (preserved during dual-emit) */ },
   "v5":        { /* v5 envelope per section 2 above */ }
 }
 ```
@@ -267,15 +276,16 @@ This is acceptable for the dual-emit window because it lets you A/B the pipeline
 
 ## 5. Stage-by-stage pipeline summary
 
-(Full pipeline architecture is in the v5 design memo section 4. This is the implementation reference.)
+(Full pipeline rationale is in `docs/04-enforcement-design.md`. This is the implementation reference.)
 
 | Stage | Model | Purpose | Output |
 |---|---|---|---|
-| 1. Triage | `claude-haiku-4-5` | Coarse L1 routing + context grab. Short-circuits obvious benigns. | `{ l1_candidate, l1_confidence, coarse_context }` |
+| 1. Triage | `claude-haiku-4-5` | Coarse L1 routing + context grab. Short-circuits obvious benigns. Gated by `TRIAGE_BENIGN_PRECISION_MIN`. | `{ l1_candidate, l1_confidence, coarse_context }` |
 | 2. FAF Analysis | `claude-sonnet-4-6` | Full FAF evidence: nodes, scores, bright lines, process flags, L2 probs. | full `evidence` object |
 | 3. Classification | `claude-sonnet-4-6` | Assigns L1, L2, L3 with confidences. Constrained by closed enums via tool-use. | full `classification` object |
-| 4. Disposition | `claude-sonnet-4-6` | Deterministic rules first, then model fills `reasoning_summary` for unhandled cases. | full `disposition` object |
-| 5. Adversarial review (optional) | `claude-sonnet-4-6` | Argues the strongest case the disposition is wrong. Adjusts action if it materially shifts confidence. | revised `disposition` |
+| 4. Disposition | `claude-sonnet-4-6` | Deterministic rules first; when a rule decides, reasoning_summary is generated from the rule + evidence without re-asking the model to "decide." When no rule fires, the model adjudicates. Always returns final disposition. | full `disposition` object |
+
+v5.0 reserved a Stage 5 adversarial review slot. v5.0.1 removed it -- see policy-spec-v5.0.md Decision 11. The calibration role is now covered by the deterministic `low_l2_confidence_review` rule (Section 6.1 rule 6).
 
 **Short-circuit:** Stage 1 emits final `disposition.action = "allow"` and stops if `l1_candidate == "benign"` AND `l1_confidence >= TRIAGE_BENIGN_CONFIDENCE_MIN` (0.92) AND no risk markers in `coarse_context`. In that case, `evidence` is populated with a minimal stub and `model_pipeline = ["claude-haiku-4-5"]`.
 
@@ -298,6 +308,9 @@ These are the validation behaviors the engine must implement. The corresponding 
 7. `evidence.aggregate_score` MUST equal the sum of `component_scores`.
 8. `evidence.component_scores[*]` MUST be integers 0-3.
 9. `disposition.reasoning_summary` MUST be at most `REASONING_SUMMARY_MAX_CHARS` (280).
+9a. `disposition.narrative_summary` MUST be at most `NARRATIVE_SUMMARY_MAX_CHARS` (600). (v5.0.1, Decision 13.)
+9b. `disposition.confidence_path` MUST match the regex `^(triage:[0-9.]+ -> )?(faf:[0-9.]+ -> )?(classify:[0-9.]+ -> )?disposition:[0-9.]+$`. Stages that did not run are omitted from the path. (v5.0.1, Decision 13.)
+9c. `disposition.triggered_by.policy_note` MUST be a non-empty string when `disposition.triggered_by.rules` contains `bright_line_forces_block`; otherwise it MUST be null or absent. (v5.0.1, Decision 11.)
 10. Prompt length on input MUST be in `[PROMPT_LENGTH_MIN, PROMPT_LENGTH_MAX]` = `[10, 5000]`.
 11. **Co-occurrence rule (`ai_model_impersonation`):** when `evidence.bright_lines` contains `ai_model_impersonation`, then `classification.l1.value` MUST equal `cyber_intrusion` AND `classification.l2.value` MUST equal `ai_model_impersonation`. This is the only case in v5.0 where a bright-line code and an L2 value intentionally share a string. Schema-keeper implements this as a JSON Schema conditional (`if/then`) invariant in Round 2. See `policy-spec-v5.0.md` section 5 and Decision 9.
 

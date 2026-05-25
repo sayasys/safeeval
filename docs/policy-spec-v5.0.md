@@ -1,14 +1,12 @@
 # SafeEval Policy Spec v5.0
 
-**Status:** Authoritative spec. Round 1 of v5 rollout.
-**Schema version:** 5.0
+**Status:** Authoritative spec. v5.0.1 patch applied 2026-05-24 (decisions 11-14 added; Section 6 expanded; Stage 5 removed).
+**Schema version:** 5.0.1
 **Ontology version:** 5.0
-**Author:** policy-architect (Steven Sayasy, owner).
-**Audience:** engine-builder and schema-keeper. This doc is the single source of truth that downstream subagents read when writing enums into JS or JSON Schema.
-**Predecessor:** FAF v4.0 (HANDOFF.md sections 4 and 8).
+**Predecessor:** FAF v4.0 (see `src/lib/safeeval.js` and v4 docs).
 **Companion docs:** `docs/07-v5-schema.md` (envelope description), `docs/08-v5-ontology.md` (vocabulary reference).
 
-This spec is ASCII-only by policy. Engine-builder mirrors the CONST block in section 1 into a JS config block; schema-keeper mirrors the closed enums into a JSON Schema. Both consume the same source: this file.
+This spec is ASCII-only by policy. The engine mirrors the CONST block in section 1 into a JS config; the JSON Schema validator mirrors the closed enums into `tests/schema/v5-envelope.schema.json`. Both consume the same source: this file.
 
 ---
 
@@ -22,8 +20,8 @@ This spec is ASCII-only by policy. Engine-builder mirrors the CONST block in sec
 - Section 6 is the disposition verb enum. Mirror to JS as `DISPOSITION_ACTIONS`.
 - Section 7 is the L1-to-L2 constraint table, copy-paste ready.
 - Section 8 is the v4-to-v5 mapping table. Mirror to JS as `V4_TO_V5_MAP`.
-- Section 9 is the decisions log -- one entry per Section 7 question in `v5-design-memo.md`.
-- Section 10 is deferred work for schema-keeper and Steven.
+- Section 9 is the decisions log -- one short entry per resolved policy decision.
+- Section 10 is deferred work.
 
 ---
 
@@ -49,9 +47,16 @@ L2_CONFIDENCE_MIN                 = 0.50
 L3_EMIT_CONFIDENCE_MIN            = 0.50  # L3 tags below this are filtered before emission
 L2_HUMAN_REVIEW_THRESHOLD         = 0.60  # l2 below this routes to human_review
 
-# Adversarial review trigger thresholds (Stage 5)
-ADVERSARIAL_HUMAN_REVIEW_CONF_MAX = 0.75  # human_review with conf < 0.75 triggers stage 5
-ADVERSARIAL_CONF_SHIFT_MIN        = 0.15  # adversarial argument must shift conf by this much to downgrade
+# Triage precision gate (Stage 1)
+TRIAGE_BENIGN_PRECISION_MIN       = 0.98  # required Haiku precision on benign classification
+                                          # before Stage 1 short-circuit is permitted. Measured by
+                                          # scripts/measure-haiku-precision.js. See Decision 12.
+
+# Triage observability
+TRIAGE_OBSERVABILITY_SAMPLE_RATE  = 0.10  # fraction of Stage 1 short-circuited ALLOW outputs that
+                                          # are flagged in the trace for offline re-evaluation.
+                                          # Sampling is deterministic on a stable prompt hash so
+                                          # the same prompt always samples the same way.
 
 # Sub-typology / L2-prob display
 SUB_TYPOLOGY_API_THRESHOLD        = 0.60  # API emits sub-typology analysis above this
@@ -69,7 +74,7 @@ PROMPT_LENGTH_MAX                 = 5000
 PIPELINE_TRACE_DEFAULT            = "off"  # default off; ?debug=1 returns trace (Decision 5)
 ```
 
-Engine-builder note: emit these as a single named export, e.g. `POLICY_CONFIG`. The disposition engine and the UI both read from this object. Changing a number here must NOT require touching engine logic.
+Implementation note: these are exported as a single `POLICY_CONFIG` object from `src/lib/safeeval-v5.js`. The disposition engine and the UI both read from this object. Changing a number here must NOT require touching engine logic.
 
 ---
 
@@ -87,7 +92,7 @@ L1 answers: *what space is this prompt in?* Exactly one L1 per prompt.
 | `platform_abuse` | Manipulation of platform mechanics for unfair gain or evasion (multi-accounting, promo abuse, reputation laundering, automation, ban evasion). |
 | `cyber_intrusion` | Content enabling technical attacks on systems, AI models, or infrastructure (prompt injection, jailbreak framing, malware, model impersonation). |
 
-Engine-builder: `L1_VALUES = ["benign","security_education","ambiguous_dual_use","deceptive_fraud","privacy_abuse","platform_abuse","cyber_intrusion"]`.
+Engine mirror: `L1_VALUES = ["benign","security_education","ambiguous_dual_use","deceptive_fraud","privacy_abuse","platform_abuse","cyber_intrusion"]`.
 
 ---
 
@@ -302,9 +307,9 @@ The 13 v4 features are carried forward intact. v5 adds one: `mfa_or_otp_harvesti
 | `prompt_injection_payload` | Working prompt-injection payload designed to override an LLM's safety behavior. |
 | `mfa_or_otp_harvesting` | (New in v5) Page or workflow for harvesting MFA / OTP codes. Was implicit in v4's `credential_harvesting_page`; v5 splits it out. |
 
-Engine-builder note: `ai_model_impersonation` appears as BOTH an L2 value (under `cyber_intrusion`) AND a bright-line feature code. This is intentional and the only such overlap. The L2 names the risk pattern; the bright-line names the evidence signal. Schema-keeper: do not error on this duplication.
+Implementation note: `ai_model_impersonation` appears as BOTH an L2 value (under `cyber_intrusion`) AND a bright-line feature code. This is intentional and the only such overlap. The L2 names the risk pattern; the bright-line names the evidence signal. The JSON Schema validator does not error on this duplication.
 
-**Co-occurrence rule:** the bright-line code `ai_model_impersonation` and the L2 value `ai_model_impersonation` are intentionally the same string. When the bright line fires, the L2 MUST be `ai_model_impersonation` (under L1 `cyber_intrusion`). This is the only case in the v5 ontology where a bright-line code and an L2 value share a string. schema-keeper enforces this as a JSON Schema conditional rule in Round 2. (Decision 9.)
+**Co-occurrence rule:** the bright-line code `ai_model_impersonation` and the L2 value `ai_model_impersonation` are intentionally the same string. When the bright line fires, the L2 MUST be `ai_model_impersonation` (under L1 `cyber_intrusion`). This is the only case in the v5 ontology where a bright-line code and an L2 value share a string. The JSON Schema validator enforces this as a conditional (`if/then`) invariant. (Decision 9.)
 
 ---
 
@@ -319,26 +324,54 @@ These four verbs are the only legal values for `disposition.action`. They never 
 | `human_review` | Ambiguous, high-impact, or possibly-authorized requests needing human adjudication. | `null` (reviewer reads `reasoning_summary` + `triggered_by`). |
 | `block` | Direct enablement of fraud, credential theft, ATO, payment abuse, identity fraud, or other deceptive harm. | `null` |
 
-Engine-builder: `DISPOSITION_ACTIONS = ["allow","safe_completion","human_review","block"]`.
+Engine mirror: `DISPOSITION_ACTIONS = ["allow","safe_completion","human_review","block"]`.
 
 ### 6.1 Deterministic disposition rule order
 
-The engine applies these rules in order. The first rule that fires wins. Rule names are recorded in `disposition.triggered_by.rules`.
+The engine applies these rules in order. The first rule that fires wins. Rule names are recorded in `disposition.triggered_by.rules`. The engine implementation lives in `applyDeterministicRules()` in `src/lib/safeeval-v5.js`; this list is the lockstep contract -- when the code adds, removes, or reorders a rule, this section updates in the same change.
 
-1. Any value in `evidence.bright_lines` -> `block`. Rule: `bright_line_forces_block`.
+1. Any value in `evidence.bright_lines` -> `block`. Rule: `bright_line_forces_block`. **Non-negotiable: no downstream stage may downgrade a bright-line block.** `disposition.triggered_by.bright_lines` enumerates the matched features and `disposition.triggered_by.policy_note` records the non-negotiability for the audit trail. (Decision 11.)
 2. `evidence.aggregate_score >= AGGREGATE_BLOCK_THRESHOLD` -> `block`. Rule: `high_aggregate_score`.
 3. `classification.l1.value == "ambiguous_dual_use"` -> `human_review`. Rule: `ambiguous_l1_requires_review`.
 4. `classification.l1.value == "security_education"` AND no bright lines -> `safe_completion`. Rule: `security_education_safe_completion`.
-5. Count of `classification.l3[]` entries with `category == "risk_marker"` >= `RISK_MARKER_REVIEW_COUNT` AND no bright lines -> at least `human_review`. Rule: `multi_risk_marker_review`.
+5. Count of `classification.l3[]` entries with `category == "risk_marker"` >= `RISK_MARKER_REVIEW_COUNT` AND no bright lines -> `human_review`. Rule: `multi_risk_marker_review`.
 6. `classification.l2.confidence < L2_HUMAN_REVIEW_THRESHOLD` -> `human_review`. Rule: `low_l2_confidence_review`.
 7. `evidence.aggregate_score <= AGGREGATE_ALLOW_THRESHOLD` AND `l1.value == "benign"` -> `allow`. Rule: `low_score_benign_allow`.
 8. Otherwise the disposition model adjudicates, filling `reasoning_summary`. Rule: `model_adjudicated`.
+
+Implicit fallback (not numbered because it is not a policy rule, it is a failure-mode behavior): when the Stage 4 model call itself fails after a rule has already decided, the engine returns the rule-derived action with `reasoning_summary = "Model unavailable; rule-derived disposition."` and adds `validation_fallback` to `disposition.triggered_by.rules` only when no rule had decided. Bright-line-decided cases never fall through to the fallback because rule 1 fires before the model is invoked for content reasoning.
+
+### 6.2 Disposition action semantics (Decision 14)
+
+`disposition.action` is a verb, not a tier. Each verb has named operational semantics that downstream consumers (UI, reviewer queue, dual-emit translator) read from:
+
+```
+allow            -- Grant request. No constraints. Used for clearly-benign traffic.
+safe_completion  -- Grant request with framing constraints. Respond defensively;
+                    do not produce a directly weaponizable artifact. The
+                    `safe_completion_guidance` field carries the specific framing
+                    constraint, branched by L1:
+                      * L1 = security_education  -> assume authorized defensive
+                        use; respond pedagogically with explicit defender framing.
+                      * Else (dual-use)          -> respond defensively; do not
+                        produce a working artifact (template, page, script).
+human_review     -- Route to abuse review queue. Human decides. Reviewer reads
+                    `reasoning_summary`, `narrative_summary`, and `triggered_by`.
+block            -- Deny request. Return policy explanation. When `triggered_by`
+                    names bright_lines, the block is non-negotiable.
+```
+
+The engine mirrors these semantics into `DISPOSITION_SEMANTICS` in `safeeval-v5.js`. The branched `safe_completion_guidance` string is generated at Stage 4 based on `classification.l1.value`.
+
+### 6.3 No adversarial review stage (Decision 11)
+
+v5.0 reserved a Stage 5 adversarial-review slot. v5.0.1 removes it. The calibration role Stage 5 was filling is covered by rule 6 (`low_l2_confidence_review`), which deterministically routes Stage 3 outputs below `L2_HUMAN_REVIEW_THRESHOLD` to human_review without a second model call. If post-traffic analysis surfaces a wrong-action rate on `model_adjudicated` cases worth re-arguing, the next iteration adds offline sampling-based review, not an inline pipeline stage. See decisions log entry 11.
 
 ---
 
 ## 7. L1 -> L2 constraint table (copy-paste ready)
 
-Engine-builder: this block is the source of truth for `L2_BY_L1`. Copy as a JS object literal. Order is stable.
+This block is the source of truth for `L2_BY_L1` in the engine. Order is stable.
 
 ```
 L2_BY_L1 = {
@@ -403,7 +436,7 @@ Validation rule: `classification.l2.value` MUST be in `L2_BY_L1[classification.l
 
 ## 8. v4 -> v5 mapping table (authoritative)
 
-Engine-builder consumes this as `V4_TO_V5_MAP` for the dual-emit window (memo section 6 step 2).
+The engine consumes this as `V5_TO_V4_TYPOLOGY` (inverse map) for the dual-emit window.
 
 | v4.0 typology code | v5 L1 | v5 L2 | Notes |
 |---|---|---|---|
@@ -434,7 +467,7 @@ Engine-builder consumes this as `V4_TO_V5_MAP` for the dual-emit window (memo se
 
 ## 9. Decisions log
 
-Each entry resolves one of the seven open decisions in `v5-design-memo.md` Section 7. Format: decision, resolution, one-sentence rationale.
+Each entry resolves one open policy decision. Format: decision, resolution, one-sentence rationale.
 
 ### Decision 1 -- PHISHING split
 
@@ -464,7 +497,7 @@ Each entry resolves one of the seven open decisions in `v5-design-memo.md` Secti
 
 - **Question:** Default-on or default-off for the full pipeline trace?
 - **Resolution:** DEFAULT-OFF. `?debug=1` returns the trace; production responses omit `pipeline_trace` entirely (not nulled -- omitted).
-- **Rationale:** Production T&S API convention is least-info-by-default (small response surface, lower payload, no accidental leakage of stage-internal reasoning into untrusted consumers); debug mode covers Steven's portfolio walkthrough use case.
+- **Rationale:** Production T&S API convention is least-info-by-default (small response surface, lower payload, no accidental leakage of stage-internal reasoning into untrusted consumers); debug mode covers documentation and developer walkthrough use cases.
 
 ### Decision 6 -- Streaming UX
 
@@ -476,7 +509,7 @@ Each entry resolves one of the seven open decisions in `v5-design-memo.md` Secti
 
 - **Question:** Does v5 need to be reflected back into stakeholder-facing docs before code changes?
 - **Resolution:** DOC-FIRST. Round 1 (this round) ships `policy-spec-v5.0.md`, `07-v5-schema.md`, `08-v5-ontology.md`. Round 2 ships `safeeval-v5.js` plus JSON Schema validators. Existing v4 docs (`01-framework.md`, `03-master-policy.md`, `05-classifier-guidance.md`, threat models) stay at v4 until v5 ships in code, then migrate in a later round.
-- **Rationale:** Steven's portfolio audience is fraud policy reviewers, not engineers reading JS first -- the spec is the artifact they evaluate, so it has to be the first deliverable. This also matches memo section 6 migration steps.
+- **Rationale:** The intended audience for this work is fraud-policy reviewers, not engineers reading JS first -- the spec is the artifact they evaluate, so it has to be the first deliverable.
 
 ### Decision 8 (post-Round-1) -- victim_support L2 under security_education
 
@@ -487,8 +520,32 @@ Each entry resolves one of the seven open decisions in `v5-design-memo.md` Secti
 ### Decision 9 (post-Round-1) -- ai_model_impersonation L2/bright-line co-occurrence
 
 - **Question:** `ai_model_impersonation` appears as both an L2 value under `cyber_intrusion` AND a bright-line feature code. Rename one side, or document the rule?
-- **Resolution:** Documented the intentional co-occurrence rather than renaming either side. When the bright line fires, the L2 MUST be `ai_model_impersonation` (under L1 `cyber_intrusion`). Schema-keeper enforces this as a JSON Schema conditional rule in Round 2.
-- **Rationale:** Lower churn vs. renaming (which would force a v4-to-v5 map change and a bright-line vocabulary churn); the rule is enforceable as a schema invariant by schema-keeper; the semantic "bright line forces this L2" is the clearest expression of the relationship.
+- **Resolution:** Documented the intentional co-occurrence rather than renaming either side. When the bright line fires, the L2 MUST be `ai_model_impersonation` (under L1 `cyber_intrusion`). Enforced as a JSON Schema conditional (`if/then`) invariant.
+- **Rationale:** Lower churn vs. renaming (which would force a v4-to-v5 map change and a bright-line vocabulary churn); the rule is enforceable as a JSON Schema invariant; the semantic "bright line forces this L2" is the clearest expression of the relationship.
+
+### Decision 11 (v5.0.1) -- Stage 5 adversarial review removed
+
+- **Question:** Stage 5 (adversarial review) can downgrade a bright-line block based on a counterargument; keep with guardrail, or remove?
+- **Resolution:** REMOVE. Stage 5 is excised from `safeeval-v5.js`. Confidence-calibrated routing through the existing `low_l2_confidence_review` rule (Section 6.1 rule 6) plus the structured `triggered_by` artifact at Stage 4 cover the calibration role Stage 5 was filling.
+- **Rationale:** A bright-line block being walked back by a re-argument breaks the policy contract that bright lines are non-negotiable; a guardrail patches the symptom while the stage's primary value (re-arguing borderlines) is already redundant with `low_l2_confidence_review`. Removing the stage is cheaper, more legible, and eliminates the audit artifact that reads as system inconsistency to reviewers. If post-traffic data shows model_adjudicated cases have a wrong-action rate, the next iteration adds offline sampling review, not an inline pipeline stage.
+
+### Decision 12 (v5.0.1) -- Haiku Stage 1 precision gate is runnable
+
+- **Question:** Stage 1's benign short-circuit depends on Haiku precision being above the gate threshold; document the requirement only, or ship a runnable check?
+- **Resolution:** RUNNABLE. `scripts/measure-haiku-precision.js` computes Haiku's false-negative rate on a labeled JSONL dataset and prints pass/fail against `POLICY_CONFIG.TRIAGE_BENIGN_PRECISION_MIN` (default 0.98). A seed dataset ships at `data/haiku-precision-seed.jsonl`.
+- **Rationale:** A precision claim without a way to test it is a load-bearing assertion with no support, and this repo already establishes the pattern (`scripts/check-lockstep.js`) of claim-in-docs + script-that-checks-claim. The seed dataset is a worked example; downstream users can swap in larger label sets without changing the harness.
+
+### Decision 13 (v5.0.1) -- Disposition output gains narrative layer; structured layer preserved
+
+- **Question:** Add a stakeholder-readable narrative to `disposition` output; collapse the existing structured fields into prose, or keep both?
+- **Resolution:** PARTIAL ADOPT. Add `disposition.narrative_summary` (up to 600 chars) and `disposition.confidence_path` (a string showing the per-stage confidence climb: e.g. `"triage:0.87 -> faf:0.92 -> classify:0.91 -> disposition:0.99"`). Do NOT collapse `triggered_by`, `bright_lines`, `l2_probabilities` -- those remain as separate structured fields.
+- **Rationale:** Two audiences read this output -- a reader skimming for system legibility and a reviewer auditing a specific call. Prose helps the first and hurts the second; structured fields do the opposite. Shipping both layers serves both audiences without breaking the v5 envelope shape. `confidence_path` specifically demonstrates how the system's confidence evolves across stages, which maps to the precision/recall tradeoff signal a fraud-policy reviewer expects.
+
+### Decision 14 (v5.0.1) -- `safe_completion` semantics named and branched by L1
+
+- **Question:** `safe_completion` is a disposition verb but its operational semantics ("respond defensively" vs. "respond pedagogically with defender framing") are undefined in v5.0. Define implicitly via free-text guidance, or name explicitly?
+- **Resolution:** NAME EXPLICITLY. Section 6.2 declares the operational semantics of all four disposition verbs. The `safe_completion_guidance` string is branched by `classification.l1.value`: `security_education` -> "assume authorized defensive use; respond pedagogically"; otherwise -> "respond defensively; do not produce a working artifact." Engine mirrors this as `DISPOSITION_SEMANTICS` in `safeeval-v5.js`.
+- **Rationale:** Verbs that downstream consumers depend on must have named semantics or they drift. The L1 branch is the smallest, clearest split that captures the actual policy difference (security_education is authorized defender framing; ambiguous_dual_use is conservative defender framing). Free-text guidance was the v5.0 placeholder; v5.0.1 promotes it to a structured policy with audit-trail visibility.
 
 ### Decision 10 (post-Round-1) -- Borderline-L2 split deferred
 
@@ -500,29 +557,20 @@ Each entry resolves one of the seven open decisions in `v5-design-memo.md` Secti
 
 ## 10. Deferred / out of scope
 
-### 10.1 To schema-keeper (Round 2)
+### 10.1 Schema validators
 
-- JSON Schema validators for the v5 envelope. The shape is fixed (see schema doc and section 7 of this spec); writing the JSON Schema is schema-keeper's job.
-- Engine-enforced validation behaviors (`validation_fallback` rule, `mfa_or_otp_harvesting` -> L2 mandatory subset, etc.) -- this spec names the rules; schema-keeper translates them to validator code.
+- JSON Schema validators for the v5 envelope. The shape is fixed (see `docs/07-v5-schema.md` and section 7 of this spec).
+- Engine-enforced validation behaviors (`validation_fallback` rule, `mfa_or_otp_harvesting` -> L2 mandatory subset, etc.) -- this spec names the rules; the validator at `tests/schema/v5-envelope.schema.json` translates the expressible ones into JSON Schema constraints.
 
-### 10.2 To engine-builder (Round 2)
+### 10.2 v4 doc migration
 
-- The actual `safeeval-v5.js` implementation: 4-stage pipeline, per-stage fallbacks, tool-use schemas for closed enum enforcement.
-- The `POLICY_CONFIG` constants block mirrored from Section 1.
-- The `V4_TO_V5_MAP` mirrored from Section 8.
-- Dual-emit API route (returns `{ v4_legacy, v5 }` when `?v5=1`).
+- `docs/01-framework.md`, `docs/03-master-policy.md`, `docs/05-classifier-guidance.md`, and `docs/threat-models/*.md` still reference v4 typology codes. They migrate to v5 vocabulary in a coordinated pass once v5 has served production traffic.
 
 ### 10.3 To later rounds
 
-- `docs/01-framework.md`, `docs/03-master-policy.md`, `docs/05-classifier-guidance.md` v5 updates. Memo section 6 step 4: bring forward after code lands. Stays at v4 in Round 1.
-- `docs/threat-models/*.md` typology code updates. Same -- bring forward when code is on v5.
-- `docs/04-enforcement-design.md` and `docs/06-stakeholder-brief.md` v5 rewrite. These ride the same cutover schedule.
 - Streaming UX (Decision 6) -- v5.1.
-- Adversarial review (Stage 5) calibration data. Schema is reserved (`stage_5` slot in `pipeline_trace`), implementation can wait.
-
-### 10.4 To Steven
-
-- Whether to publish a CHANGELOG entry distinct from this spec when the migration kicks off.
+- Offline calibration sampling of `model_adjudicated` Stage 4 outputs. Replaces the role v5.0 reserved for an inline Stage 5; landing approach (sampling cadence, storage, replay harness) is unscoped pending v5.0.1 traffic. See Decision 11.
+- `risk_marker -> escalation_signal` L3 rename. Approved in principle; deferred to v5.1 pending alignment on whether to break the L3 vocabulary pre- or post-engine-traffic. See Section 11 extension policy.
 - Whether the `ai_model_impersonation` overlap between L2 and bright-line should be renamed on either side (currently kept as-is for v4 carry-forward compatibility -- see Section 5 note).
 
 ---
@@ -541,4 +589,4 @@ Each entry resolves one of the seven open decisions in `v5-design-memo.md` Secti
 
 ---
 
-*End of spec. Engine-builder and schema-keeper consume this file as a contract; this spec MUST be updated in lockstep with any L1, L2, L3, bright-line, disposition, or threshold change.*
+*End of spec. The engine and the JSON Schema validator both consume this file as a contract; this spec MUST be updated in lockstep with any L1, L2, L3, bright-line, disposition, or threshold change.*

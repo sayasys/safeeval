@@ -1,18 +1,17 @@
 # SafeEval - Stakeholder Brief
 **Document 06 of 06**
-*Version 5.0 - May 2026*
+*Version 5.0.1 - May 2026*
 
 **Live app:** https://safeeval.vercel.app
 **Repo:** https://github.com/sayasys/safeeval
-**Author:** Steven Sayasy (sayasysteven@gmail.com)
 
 ---
 
 ## What this is
 
-SafeEval is a working fraud and scams enforcement system, built end to end by Steven Sayasy as a portfolio piece for the Anthropic Safeguards Enforcement Analyst and Fraud & Scams Policy Analyst roles. The artifact most worth your attention is not the running web app (though that exists and is linked above). It is the layered set of policy and architecture decisions sitting underneath it. SafeEval is an answer to the question "what would a fraud-policy analyst, asked to design the enforcement layer themselves, actually produce?" The thesis is that the answer should look more like a careful taxonomy and a multi-stage decision pipeline than like a single black-box classifier, and that the most senior thing a candidate for this role can demonstrate is the ability to translate policy intent into structure that an engineer can build against without losing the policy.
+SafeEval is a working fraud and scams enforcement system. The artifact most worth attention is not the running web app (though that exists and is linked above). It is the layered set of policy and architecture decisions sitting underneath it. SafeEval is an answer to the question "what would a fraud-policy analyst, asked to design the enforcement layer themselves, actually produce?" The thesis is that the answer should look more like a careful taxonomy and a multi-stage decision pipeline than like a single black-box classifier, and that the most senior version of the work is the ability to translate policy intent into structure that an engineer can build against without losing the policy.
 
-The two pieces of the artifact that are worth reading first are the Fraud Analysis Framework, which is the policy spec, and the v5 enforcement design, which is the architecture spec. Both are linked from the README. Everything else (typology threat models, classifier guidance, the running app) is downstream of those two.
+The two pieces of the artifact worth reading first are the Fraud Analysis Framework, which is the policy spec, and the v5 enforcement design, which is the architecture spec. Both are linked from the README. Everything else (typology threat models, classifier guidance, the running app) is downstream of those two.
 
 ---
 
@@ -28,15 +27,15 @@ The full FAF spec lives in `docs/01-framework.md` and the master policy in `docs
 
 ## The v5 enforcement design
 
-SafeEval v5 replaces the v4.0 single-call classifier with a four-stage pipeline (triage on Haiku, deep analysis on Sonnet, classification on Sonnet, disposition on rules-plus-Sonnet) and an optional fifth adversarial-review stage that runs only on borderline cases. The full architecture is in `docs/04-enforcement-design.md`. What matters for this brief is the trade-off space the architecture is choosing to occupy, because that is where the policy-versus-engineering judgment shows up.
+SafeEval v5 replaces the v4.0 single-call classifier with a four-stage pipeline: triage on Haiku, deep analysis on Sonnet, classification on Sonnet, and rules-plus-Sonnet disposition. The full architecture is in `docs/04-enforcement-design.md`. What matters for this brief is the trade-off space the architecture is choosing to occupy, because that is where the policy-versus-engineering judgment shows up.
 
-The pipeline pays more on suspicious traffic than the v4.0 baseline did, and less on benign traffic. The first Haiku stage is cheap, and it short-circuits a meaningful fraction of clearly-benign prompts before any Sonnet call happens. The suspicious slice of traffic, in exchange, gets a much deeper look: a substantive policy call (Stage 2) that produces full FAF evidence and component scores, a constrained classification call (Stage 3) that emits the closed-enum L1/L2/L3 envelope through tool-use schemas the model cannot violate, and a rules-first disposition step (Stage 4) where deterministic rules choose the enforcement action before the model gets to speak. This is the right shape for a fraud system, where the cost of being wrong on the suspicious slice is real harm to victims or to legitimate users, and the cost of being slow is acceptable.
+The pipeline pays more on suspicious traffic than the v4.0 baseline did, and less on benign traffic. The first Haiku stage is cheap, and it short-circuits a meaningful fraction of clearly-benign prompts before any Sonnet call happens -- under a measured Haiku precision floor and a 10% offline-sampling audit hook, so the cost story is testable rather than assumed. The suspicious slice of traffic, in exchange, gets a much deeper look: a substantive policy call (Stage 2) that produces full FAF evidence and component scores, a constrained classification call (Stage 3) that emits the closed-enum L1/L2/L3 envelope through tool-use schemas the model cannot violate, and a rules-first disposition step (Stage 4) where deterministic rules choose the enforcement action before the model gets to speak. This is the right shape for a fraud system, where the cost of being wrong on the suspicious slice is real harm to victims or to legitimate users, and the cost of being slow is acceptable.
 
-Auditability is the second reason for the multi-stage shape. Each stage emits its own output with its own confidence, and the final response includes a `triggered_by` block that names the rule and the evidence that produced the disposition. A reviewer asked to defend a block decision has the chain of reasoning available to them, attributed to specific signals, rather than a single model summary they would have to either trust or override. This is what the Safeguards Enforcement Analyst role actually does on a daily basis, and the v5 architecture is built to make that work easier rather than harder.
+Auditability is the second reason for the multi-stage shape. Each stage emits its own output with its own confidence, and the final response includes a `triggered_by` block that names the rule and the evidence that produced the disposition -- with a `policy_note` field flagging non-negotiable rules (bright-line blocks) so they cannot be silently downgraded by anything downstream. The disposition also carries a stakeholder-readable `narrative_summary` and a `confidence_path` string showing the per-stage confidence trajectory, both sitting alongside the structured audit fields rather than replacing them. A reviewer asked to defend a block decision has the chain of reasoning available to them, attributed to specific signals, rather than a single model summary they would have to either trust or override. That is what a fraud-and-scams enforcement reviewer actually does on a daily basis, and the v5 architecture is built to make that work easier rather than harder.
 
-The optional fifth stage, adversarial review, is calibration insurance. It runs only when the disposition is borderline (low-confidence human-review, blocks against prompts with a plausible legitimate use, ambiguous_dual_use that did not get human review). It argues the strongest case that the disposition is wrong, and it can only downgrade the action, never escalate. The asymmetry is intentional. Confident wrong blocks against legitimate users are the failure mode that costs you trusted developers and shows up in support tickets, and they are hard to detect post-hoc because the user is already gone. Catching them inline is worth a Sonnet call on the small slice of traffic that triggers the condition.
+v5.0 originally reserved an optional fifth adversarial-review stage to catch confident-wrong blocks by re-arguing borderlines. v5.0.1 removes it. The reason is a policy contradiction: a stage that re-argues a bright-line block has, in effect, made the bright line negotiable. The fix was not to add a guardrail to Stage 5 but to remove the stage entirely. The role it was filling -- re-routing borderline cases -- is now covered by two deterministic rules earlier in the cascade (`multi_risk_marker_review` and `low_l2_confidence_review`), which send uncertain cases to human review without a second model call. The result is a pipeline whose disposition is final at Stage 4, whose bright-line blocks cannot be downstream-overruled, and whose decision output is a thing a reviewer reads forward through, not back-and-forth with the system second-guessing itself.
 
-The full design is in `docs/04-enforcement-design.md` and the underlying memo (with the trade-off analysis and the rejected alternatives) is in `v5-design-memo.md`.
+The full design is in `docs/04-enforcement-design.md`.
 
 ---
 
@@ -50,25 +49,21 @@ The L3 layer is categorized by prefix (`method:`, `tactic:`, `target:`, `context
 
 ---
 
-## What Steven did, specifically
+## What this artifact is and isn't
 
-The thing being demonstrated here is policy-to-technical translation, not engineering output. The framework design, the policy spec, the threat models for each typology, the bright-line feature list, the v5 enforcement architecture, and the L1/L2/L3 envelope are all original work by Steven. They are the artifact. The Next.js web app exists as proof that the framework actually runs end to end against a production model and produces structured outputs that match the spec; it is the demonstration that the framework is buildable, not the demonstration itself. A reviewer who reads the FAF spec and the v5 enforcement design has seen the most senior thing Steven is offering. The app is the existence proof.
-
-Steven's working method on this project is also relevant. The v5 design memo (`v5-design-memo.md`) documents how a proposed classification schema was received, evaluated, partially adopted, and partially rejected with reasons. That document is the closest analogue in the repo to the kind of policy review note a fraud and scams analyst writes for an internal stakeholder, and it is worth reading in full if the question on your mind is "can this person reason about trade-offs in front of an engineering team."
+The work being demonstrated here is policy-to-technical translation, not engineering output. The framework design, the policy spec, the per-typology threat models, the bright-line feature list, the v5 enforcement architecture, and the L1/L2/L3 envelope are the artifact. The Next.js web app exists as proof that the framework runs end to end against a production model and produces structured outputs that match the spec; it is the demonstration that the framework is buildable, not the demonstration itself. The FAF spec and the v5 enforcement design are the load-bearing documents; everything downstream is derived from them.
 
 ---
 
 ## How to read the rest of the repo
 
-The order of reading that lands fastest, if you have an hour:
+A reading order that lands fastest in about an hour:
 
 1. The README, for the one-paragraph what-and-why.
 2. `docs/01-framework.md`, the FAF spec.
 3. This document and `docs/04-enforcement-design.md` together, for the v5 architecture.
 4. One or two of the typology threat models in `docs/threat-models/` (romance and AI-enabled abuse are the most illustrative).
 5. The running app at https://safeeval.vercel.app, for the existence proof.
-
-The v5 design memo (`v5-design-memo.md`, local-only) is worth reading after the four docs above, when the question becomes "why this design and not the obvious alternative."
 
 ---
 

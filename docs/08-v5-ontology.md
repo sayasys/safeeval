@@ -241,7 +241,7 @@ Bright lines are enumerated, high-confidence indicators that automatically force
 
 Note: `ai_model_impersonation` is intentionally both an L2 value (under `cyber_intrusion`) AND a bright-line feature code. The L2 names the risk pattern; the bright-line names the evidence signal. The duplication is intentional and the only such case in v5.0.
 
-**Co-occurrence rule:** when the bright-line code `ai_model_impersonation` fires, the L2 MUST be `ai_model_impersonation` under L1 `cyber_intrusion`. This is the only case in the v5 ontology where a bright-line code and an L2 value share a string. schema-keeper enforces this as a JSON Schema conditional rule in Round 2. See `policy-spec-v5.0.md` Decision 9 for the rationale on keeping vs. renaming.
+**Co-occurrence rule:** when the bright-line code `ai_model_impersonation` fires, the L2 MUST be `ai_model_impersonation` under L1 `cyber_intrusion`. This is the only case in the v5 ontology where a bright-line code and an L2 value share a string. The JSON Schema validator enforces this as a conditional (`if/then`) invariant. See `policy-spec-v5.0.md` Decision 9 for the rationale on keeping vs. renaming.
 
 ---
 
