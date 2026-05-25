@@ -55,6 +55,8 @@ npm run dev
 
 The app listens on `http://localhost:3000`. The single API route is `POST /api/evaluate` and takes `{ prompt: string }`; see `src/app/api/evaluate/route.js` for the shape.
 
+On Windows with OneDrive, run `git config core.filemode false` after cloning to suppress phantom executable-bit flips in `git status`. The setting is per-clone and can't be tracked via `.gitattributes`.
+
 ---
 
 ## Project status
