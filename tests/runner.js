@@ -115,6 +115,33 @@ function checkV5(actual, expected) {
   if (action !== expected.disposition_action) {
     failures.push('v5.disposition.action: expected ' + expected.disposition_action + ', got ' + action);
   }
+
+  // Spec-driven envelope invariants (phase 2d).
+  // These are universal -- every v5 envelope must satisfy them regardless of fixture.
+
+  // disposition.degraded must be a boolean.
+  if (typeof v5.disposition.degraded !== 'boolean') {
+    failures.push('v5.disposition.degraded: expected boolean, got ' + typeof v5.disposition.degraded);
+  }
+
+  // reasoning_summary and narrative_summary must end at sentence-final punctuation
+  // (schema rules 9, 9a). Skip if empty.
+  const rs = v5.disposition.reasoning_summary;
+  if (typeof rs === 'string' && rs.length > 0 && !/[.!?]$/.test(rs)) {
+    failures.push('v5.disposition.reasoning_summary: must end with . ! or ? (rule 9)');
+  }
+  const ns = v5.disposition.narrative_summary;
+  if (typeof ns === 'string' && ns.length > 0 && !/[.!?]$/.test(ns)) {
+    failures.push('v5.disposition.narrative_summary: must end with . ! or ? (rule 9a)');
+  }
+
+  // Rule 12 MUST half: classification.l2.value appears as a key in
+  // evidence.l2_probabilities (skip when probs map is empty, e.g. Stage 2 stub).
+  const probs = v5.evidence && v5.evidence.l2_probabilities;
+  if (probs && Object.keys(probs).length > 0 && l2Val && !Object.prototype.hasOwnProperty.call(probs, l2Val)) {
+    failures.push('v5.classification.l2.value: ' + l2Val + ' not in evidence.l2_probabilities keys (rule 12 MUST)');
+  }
+
   return failures;
 }
 

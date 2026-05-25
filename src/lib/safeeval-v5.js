@@ -69,6 +69,12 @@ export const POLICY_CONFIG = {
   L3_EMIT_CONFIDENCE_MIN:           0.50,
   L2_HUMAN_REVIEW_THRESHOLD:        0.60,
 
+  // L2 selection consistency with evidence (schema rule 12, phase-2b decision 2.5).
+  // Picked L2's probability in evidence.l2_probabilities SHOULD be within this
+  // tolerance of the maximum probability. Out-of-tolerance picks fall back to
+  // argmax with a structured pipeline_trace.errors entry.
+  L2_PICK_PROBABILITY_TOLERANCE:    0.05,
+
   // Sub-typology / L2-prob display
   SUB_TYPOLOGY_API_THRESHOLD:       0.60,
   SUB_TYPOLOGY_DISPLAY_THRESHOLD:   0.65,
@@ -322,6 +328,52 @@ export const V5_TO_V4_TYPOLOGY = {
   borderline_journalism:           'NONE',
   borderline_education_request:    'NONE',
 };
+
+// v4 -> v5 L1/L2 migration table (ontology section 6).
+// Used by Stage 3 validation as a defensive fallback when a v4 typology code
+// leaks into classification.l1.value despite the closed-set enum constraint
+// on the Stage 3 tool. Each row picks one canonical (L1, L2) target; the
+// PHISHING and AI_ENABLED_ABUSE rows have sub-type variants disambiguated
+// inline at the call site.
+//
+// Authority: docs/memos/2026-05-25-policy-classifier-translator-spec.md sec 3.3.
+export const V4_TO_V5_L1_L2 = {
+  NONE:                  { l1: 'benign',          l2: 'no_risk_pattern' },
+  ROMANCE:               { l1: 'deceptive_fraud', l2: 'romance_fraud' },
+  INVESTMENT:            { l1: 'deceptive_fraud', l2: 'investment_fraud' },
+  IMPERSONATION:         { l1: 'deceptive_fraud', l2: 'impersonation_scam' },
+  ADVANCE_FEE:           { l1: 'deceptive_fraud', l2: 'advance_fee_fraud' },
+  FRAUD_INFRASTRUCTURE:  { l1: 'deceptive_fraud', l2: 'fraud_infrastructure' },
+  RECOVERY:              { l1: 'deceptive_fraud', l2: 'recovery_fraud' },
+  ACCOUNT_TAKEOVER:      { l1: 'privacy_abuse',   l2: 'account_takeover' },
+};
+
+// The set of legacy v4 L1 codes that may leak. PHISHING and AI_ENABLED_ABUSE
+// are not in V4_TO_V5_L1_L2 because they require sub-type disambiguation; the
+// migrator at the call site handles them separately.
+export const LEGACY_V4_L1_CODES = [
+  'NONE', 'PHISHING', 'ROMANCE', 'INVESTMENT', 'IMPERSONATION', 'ADVANCE_FEE',
+  'FRAUD_INFRASTRUCTURE', 'RECOVERY', 'ACCOUNT_TAKEOVER', 'AI_ENABLED_ABUSE',
+];
+
+// PHISHING disambiguation heuristic: BEC-for-money requires explicit money-transfer
+// framing (wire, ACH, invoice, payment, transfer of funds). Otherwise default to
+// credential-targeting (privacy_abuse / credential_theft) per memo section 3.2.
+const MONEY_TRANSFER_PATTERN = /\b(wire|ach|swift|invoice|transfer|payment|funds|payout|remittance|bank\s+transfer)\b/i;
+
+export function migrateLegacyV4L1(v4Code, prompt) {
+  if (V4_TO_V5_L1_L2[v4Code]) return V4_TO_V5_L1_L2[v4Code];
+  if (v4Code === 'PHISHING') {
+    return MONEY_TRANSFER_PATTERN.test(prompt || '')
+      ? { l1: 'deceptive_fraud', l2: 'phishing_attack' }
+      : { l1: 'privacy_abuse',   l2: 'credential_theft' };
+  }
+  if (v4Code === 'AI_ENABLED_ABUSE') {
+    // Default to prompt_injection_attack with disambiguation tag (memo sec 3.3).
+    return { l1: 'cyber_intrusion', l2: 'prompt_injection_attack', ambiguous: true };
+  }
+  return null;
+}
 
 // --------------------------------------------------------------------------
 // Models per stage
@@ -691,10 +743,40 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
     if (!toolUse) throw new Error('classify_no_tool_use');
     const args = toolUse.input || {};
 
-    // Validate L1.
-    if (!L1_VALUES.includes(args.l1 && args.l1.value)) {
-      args.l1 = { value: 'ambiguous_dual_use', confidence: 0.5 };
+    // Validation errors get pushed up to the orchestrator-level pipeline_trace.errors.
+    const validationErrors = [];
+    // Set when the picked L2 is absent from a non-empty l2_probabilities map
+    // (rule 12 MUST violation). The orchestrator coerces disposition to
+    // human_review with validation_fallback in triggered_by.rules.
+    let mustFallback = false;
+
+    // L1 closed-set enforcement + v4-to-v5 migration (ontology section 1,
+    // memo 2026-05-25-policy-classifier-translator-spec section 3.3).
+    const rawL1 = args.l1 && args.l1.value;
+    if (!L1_VALUES.includes(rawL1)) {
+      if (LEGACY_V4_L1_CODES.includes(rawL1)) {
+        const migrated = migrateLegacyV4L1(rawL1, prompt);
+        if (migrated) {
+          validationErrors.push(
+            'stage_3: v4_l1_migrated from=' + rawL1 +
+            ' to_l1=' + migrated.l1 +
+            ' to_l2=' + migrated.l2
+          );
+          args.l1 = { value: migrated.l1, confidence: clamp01(args.l1 && args.l1.confidence) || 0.7 };
+          args.l2 = { value: migrated.l2, confidence: clamp01(args.l2 && args.l2.confidence) || 0.7 };
+          // AI_ENABLED_ABUSE default carries a disambiguation L3 tag.
+          if (migrated.ambiguous) {
+            args.l3 = Array.isArray(args.l3) ? args.l3 : [];
+            args.l3.push({ value: 'risk_marker:disambiguation_ambiguous', confidence: 0.7 });
+          }
+        } else {
+          args.l1 = { value: 'ambiguous_dual_use', confidence: 0.5 };
+        }
+      } else {
+        args.l1 = { value: 'ambiguous_dual_use', confidence: 0.5 };
+      }
     }
+
     // Validate L2 belongs to the chosen L1.
     const allowedL2 = L2_BY_L1[args.l1.value];
     if (!args.l2 || !allowedL2.includes(args.l2.value)) {
@@ -702,6 +784,65 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
     }
     args.l1.confidence = clamp01(args.l1.confidence);
     args.l2.confidence = clamp01(args.l2.confidence);
+
+    // Schema rule 12: L2 / l2_probabilities co-occurrence invariant.
+    // MUST: classification.l2.value must appear as a key in evidence.l2_probabilities.
+    // SHOULD: its probability there should be within L2_PICK_PROBABILITY_TOLERANCE
+    // of the maximum. Skip enforcement when l2_probabilities is empty (Stage 2
+    // failure fallback case -- no probability evidence to enforce against).
+    const probs = (evidence && evidence.l2_probabilities) || {};
+    const probKeys = Object.keys(probs);
+    if (probKeys.length > 0) {
+      // Find argmax over l2_probabilities filtered to L2s valid for the chosen L1.
+      const eligibleKeys = probKeys.filter(function (k) { return allowedL2.includes(k); });
+      let argmaxKey = null; let argmaxProb = -1;
+      eligibleKeys.forEach(function (k) {
+        if (probs[k] > argmaxProb) { argmaxProb = probs[k]; argmaxKey = k; }
+      });
+      // Overall argmax (across all keys, even those not allowed for the chosen L1)
+      // is used for the MUST-violation message.
+      let overallMaxKey = null; let overallMax = -1;
+      probKeys.forEach(function (k) {
+        if (probs[k] > overallMax) { overallMax = probs[k]; overallMaxKey = k; }
+      });
+
+      const pickedProb = probs[args.l2.value];
+      if (typeof pickedProb !== 'number') {
+        // MUST violation: picked L2 is not a key in the probability map.
+        validationErrors.push(
+          'stage_3: l2_must_violation picked=' + args.l2.value +
+          ' max_key=' + (overallMaxKey || 'none') +
+          ' max_prob=' + (overallMax >= 0 ? overallMax.toFixed(2) : 'none')
+        );
+        mustFallback = true;
+        // Best-effort substitute to the argmax-within-L1 if one exists, otherwise
+        // overall argmax (may force an L1 change too).
+        if (argmaxKey) {
+          args.l2 = { value: argmaxKey, confidence: argmaxProb };
+        } else if (overallMaxKey) {
+          // Re-resolve L1 to one that contains overallMaxKey.
+          for (const l1Cand of L1_VALUES) {
+            if (L2_BY_L1[l1Cand].includes(overallMaxKey)) {
+              args.l1 = { value: l1Cand, confidence: Math.max(args.l1.confidence, 0.6) };
+              args.l2 = { value: overallMaxKey, confidence: overallMax };
+              break;
+            }
+          }
+        }
+      } else if (argmaxKey && argmaxKey !== args.l2.value) {
+        // SHOULD-bound check on the picked L2 vs the argmax-within-L1.
+        const delta = argmaxProb - pickedProb;
+        if (delta > POLICY_CONFIG.L2_PICK_PROBABILITY_TOLERANCE) {
+          validationErrors.push(
+            'stage_3: l2_should_tolerance_exceeded picked=' + args.l2.value +
+            ' max_key=' + argmaxKey +
+            ' delta=' + delta.toFixed(3)
+          );
+          args.l2 = { value: argmaxKey, confidence: argmaxProb };
+        }
+      }
+    }
+
 
     // Apply bright-line L2 forcing (Decision 9 enforced: ai_model_impersonation
     // bright-line forces L1=cyber_intrusion / L2=ai_model_impersonation).
@@ -743,6 +884,8 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
     return {
       ok: true,
       output: args,
+      validation_errors: validationErrors,
+      must_fallback: mustFallback,
       duration_ms: Date.now() - t0,
       input_tokens: resp.usage && resp.usage.input_tokens,
       output_tokens: resp.usage && resp.usage.output_tokens,
@@ -907,10 +1050,11 @@ async function stage4Disposition(prompt, evidence, classification) {
     const disposition = {
       action:                   action,
       confidence:               confidence,
-      reasoning_summary:        String(args.reasoning_summary || '').slice(0, POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS),
-      narrative_summary:        String(args.narrative_summary || '').slice(0, POLICY_CONFIG.NARRATIVE_SUMMARY_MAX_CHARS),
+      reasoning_summary:        truncateAtSentenceBoundary(args.reasoning_summary, POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS),
+      narrative_summary:        truncateAtSentenceBoundary(args.narrative_summary, POLICY_CONFIG.NARRATIVE_SUMMARY_MAX_CHARS),
       triggered_by:             ruleResult.triggered,
       safe_completion_guidance: safeCompletionGuidance,
+      degraded:                 false,
     };
 
     return {
@@ -941,6 +1085,7 @@ async function stage4Disposition(prompt, evidence, classification) {
         narrative_summary:        'The disposition model failed during this evaluation. The deterministic rule cascade produced the action above; no model-written narrative is available for this case. A reviewer reading this trace should treat the disposition as best-effort and consult the triggered_by artifact for the underlying signals.',
         triggered_by:             fallbackTriggered,
         safe_completion_guidance: fallbackAction === 'safe_completion' ? buildSafeCompletionGuidance(fallbackL1) : null,
+        degraded:                 true,
       },
       duration_ms: Date.now() - t0,
       model: MODEL_DEEP,
@@ -1042,6 +1187,7 @@ export async function evaluatePromptV5(prompt, opts) {
       confidence_path:          buildConfidencePath(s1, null, null, shortCircuitConfidence),
       triggered_by:             { bright_lines: [], thresholds: [], rules: ['triage_short_circuit_allow'], policy_note: null },
       safe_completion_guidance: null,
+      degraded:                 false,
     };
 
     return assembleEnvelope({
@@ -1069,6 +1215,10 @@ export async function evaluatePromptV5(prompt, opts) {
   trace.stage_3 = s3;
   if (s3.model) modelsUsed.push(s3.model);
   if (!s3.ok) trace.errors.push('stage_3: ' + s3.error);
+  // Pipe Stage 3 validation errors (v4 migration, rule-12 violations) into the trace.
+  if (s3.ok && Array.isArray(s3.validation_errors) && s3.validation_errors.length > 0) {
+    for (const e of s3.validation_errors) trace.errors.push(e);
+  }
   const classification = s3.ok ? s3.output : deriveClassificationFromEvidence(evidence);
 
   // Stage 4: disposition. Always returns an output (model fail -> rule-only fallback).
@@ -1079,9 +1229,30 @@ export async function evaluatePromptV5(prompt, opts) {
   if (!s4.ok) trace.errors.push('stage_4: ' + s4.error);
   const disposition = s4.output;
 
+  // Rule 12 MUST violation: coerce disposition to human_review with validation_fallback,
+  // unless a stronger bright-line block already fired.
+  if (s3.ok && s3.must_fallback && disposition.action !== 'block') {
+    disposition.action = 'human_review';
+    if (!Array.isArray(disposition.triggered_by.rules)) disposition.triggered_by.rules = [];
+    if (!disposition.triggered_by.rules.includes('validation_fallback')) {
+      disposition.triggered_by.rules.push('validation_fallback');
+    }
+    disposition.degraded = true;
+  }
+
   // Attach the confidence_path (Decision 13). This is computed from per-stage
   // confidences after all stages complete, NOT asked of the model.
   disposition.confidence_path = buildConfidencePath(s1, s2, s3, disposition.confidence);
+
+  // Schema rule on disposition.degraded (07-v5-schema section 3.3): set true when
+  // pipeline_trace.errors[] is non-empty AND the disposition was emitted via a
+  // section-9 fallback path (Stage 2 stub-evidence, Stage 3 derived classification,
+  // or Stage 4 catch-block fallback). Stage 1 short-circuit never reaches here,
+  // so the !short_circuited check is implicit for this code path.
+  const sectionNineFallback = !s2.ok || !s3.ok || !s4.ok;
+  if (trace.errors.length > 0 && sectionNineFallback) {
+    disposition.degraded = true;
+  }
 
   return assembleEnvelope({ prompt, classification, evidence, disposition, modelsUsed, trace, debug });
 }
@@ -1198,6 +1369,27 @@ function parseJsonObject(text) {
 
 function clamp01(x) { x = Number(x); if (!isFinite(x)) return 0; if (x < 0) return 0; if (x > 1) return 1; return x; }
 function clampInt(x, lo, hi) { x = parseInt(x, 10); if (!isFinite(x)) return lo; if (x < lo) return lo; if (x > hi) return hi; return x; }
+
+// Schema rules 9 and 9a: reasoning_summary (280) and narrative_summary (600)
+// MUST end at sentence-final punctuation; mid-word slicing is out of spec.
+// When the model overruns the cap, trim back to the last `.`, `!`, or `?` at
+// or below the cap. If no sentence boundary fits, fall back to last whitespace
+// (with a trailing period for closure); pathological inputs with no whitespace
+// in maxLen chars get a hard slice -- the model would have to emit pathological
+// output to hit that branch.
+export function truncateAtSentenceBoundary(s, maxLen) {
+  s = String(s == null ? '' : s);
+  if (s.length <= maxLen) return s;
+  const trimmed = s.slice(0, maxLen);
+  for (let i = trimmed.length - 1; i >= 0; i--) {
+    const c = trimmed[i];
+    if (c === '.' || c === '!' || c === '?') return trimmed.slice(0, i + 1);
+  }
+  for (let i = trimmed.length - 1; i >= 0; i--) {
+    if (/\s/.test(trimmed[i])) return trimmed.slice(0, i).replace(/[\s,;:]+$/, '') + '.';
+  }
+  return trimmed;
+}
 
 // --------------------------------------------------------------------------
 // v4_legacy derivation (used by /api/evaluate for dual-emit backward compat)
