@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Check, ShieldCheck, UserRound, Ban, TriangleAlert } from 'lucide-react';
 
 // Bright-line descriptions. MUST stay in sync with BRIGHT_LINE_FEATURES in
 // src/lib/safeeval-v5.js. Missing entries silently break tooltips. See
@@ -72,33 +73,134 @@ const TIER_CONFIG = {
 
 // v5 disposition action -> visual tier. safe_completion gets amber (between
 // REVIEW yellow and BLOCK red) to signal "we will respond, but defensively".
-// See ui-builder report for rationale.
+// Per-tier Lucide icon per docs/ux/design-system/disposition-tier-icons.md
+// adds a non-color affordance (WCAG 1.4.1) to the color-only differentiation.
 const V5_ACTION_CONFIG = {
   allow: {
     bg: 'bg-green-50',
     border: 'border-green-300',
     badge: 'bg-green-100 text-green-800',
     label: 'ALLOW',
+    icon: Check,
+    iconLabel: 'Allow',
   },
   safe_completion: {
     bg: 'bg-amber-50',
     border: 'border-amber-300',
     badge: 'bg-amber-100 text-amber-900',
     label: 'SAFE COMPLETION',
+    icon: ShieldCheck,
+    iconLabel: 'Safe completion',
   },
   human_review: {
     bg: 'bg-yellow-50',
     border: 'border-yellow-300',
     badge: 'bg-yellow-100 text-yellow-800',
     label: 'HUMAN REVIEW',
+    icon: UserRound,
+    iconLabel: 'Human review',
   },
   block: {
     bg: 'bg-red-50',
     border: 'border-red-300',
     badge: 'bg-red-100 text-red-800',
     label: 'BLOCK',
+    icon: Ban,
+    iconLabel: 'Block',
   },
 };
+
+// Rule-chip hover descriptions per docs/ux/design-system/v5-result-card.md section 2.4.
+// Ops to confirm/revise via inbox. Missing keys render the rule name verbatim,
+// matching the BRIGHT_LINE_DESCRIPTIONS fallback pattern.
+const RULE_DESCRIPTIONS = {
+  bright_line_forces_block:           'Bright-line policy match. This disposition is non-negotiable -- no downstream stage may downgrade it.',
+  high_aggregate_score:               'FAF aggregate score crossed the block threshold; deterministic block without bright-line force.',
+  ambiguous_l1_requires_review:       'L1 classified as ambiguous_dual_use; routed to human review per policy spec.',
+  security_education_safe_completion: 'Prompt classified as security education; framed as defender-side training rather than executed verbatim.',
+  multi_risk_marker_review:           'Two or more risk-marker L3 tags fired; routed to human review.',
+  low_l2_confidence_review:           'L2 confidence below the human-review threshold; the model adjudicator was not confident enough to commit.',
+  low_score_benign_allow:             'Aggregate score below the allow threshold and L1 is benign; deterministic allow.',
+  model_adjudicated:                  'No deterministic rule fired; the disposition model chose the action.',
+  triage_short_circuit_allow:         'Stage 1 triage classified the prompt as clearly benign above the gate threshold; pipeline short-circuited to allow.',
+  validation_fallback:                'Envelope failed a schema invariant (e.g., L2 not in the probability map); coerced to human review per schema rule 12.',
+  adversarial_downgrade:              'Legacy v5.0 Stage 5 review downgraded the disposition (Decision 11 removed Stage 5 in v5.0.1; only present on older envelopes).',
+};
+
+// L1 / L2 hover descriptions (follow-up audit finding 3.1). Underscore-form
+// values render verbatim per v5-result-card.md section 2.3; hover affordance below
+// is the non-destructive add. Policy supplies the dictionary -- the initial
+// strings here are short prose anchors; policy can revise via inbox.
+const L1_DESCRIPTIONS = {
+  benign:             'No meaningful abuse risk. Customer support, information, education, creative content.',
+  security_education: 'Defensively-framed work: awareness training, blue-team analysis, victim support.',
+  ambiguous_dual_use: 'Could be defensive or offensive depending on the actor; routed to human review.',
+  deceptive_fraud:    'Purpose is to deceive a victim into transferring money, goods, or trust.',
+  privacy_abuse:      'Targets credentials, accounts, personal data, or surveillance.',
+  platform_abuse:     'Manipulates platform mechanics (multi-accounting, promo abuse, reputation, etc.).',
+  cyber_intrusion:    'Enables technical attacks (prompt injection, jailbreak, malware, model impersonation).',
+};
+
+const L2_DESCRIPTIONS = {
+  no_risk_pattern:                 'No abuse pattern detected.',
+  customer_support_inquiry:        'Routine support / account / billing question.',
+  general_information:             'General information request without abuse vector.',
+  creative_writing:                'Fiction or creative composition without harm vector.',
+  educational_inquiry:             'Educational question without abuse framing.',
+  phishing_awareness:              'Phishing-awareness training material with defensive framing.',
+  malware_education:               'Educational discussion of malware concepts.',
+  fraud_pattern_research:          'Research into fraud patterns, defensively framed.',
+  defensive_simulation_authorized: 'Authorized red-team / pentest framing.',
+  victim_support:                  'Helping a victim or potential victim recognize / respond to fraud.',
+  borderline_security_research:    'Adjacent to security research; could be offensive depending on actor.',
+  borderline_red_team:             'Adjacent to red-team work; dual-use framing.',
+  borderline_journalism:           'Adjacent to journalism / reporting framing.',
+  borderline_education_request:    'Adjacent to educational framing; dual-use.',
+  romance_fraud:                   'Romance-fraud / relationship-build scam.',
+  investment_fraud:                'Investment fraud / pig-butchering pattern.',
+  advance_fee_fraud:               'Advance-fee scam pattern.',
+  phishing_attack:                 'Phishing attack pattern (incl. BEC for money).',
+  impersonation_scam:              'Impersonation scam (executive, government, family, etc.).',
+  recovery_fraud:                  'Recovery-fraud pattern (preying on prior fraud victims).',
+  fraud_infrastructure:            'Fraud infrastructure (money mules, fake storefronts, etc.).',
+  marketplace_fraud:               'Marketplace / e-commerce fraud pattern.',
+  refund_payment_fraud:            'Refund-payment fraud / chargeback abuse.',
+  identity_fraud:                  'Identity fraud / synthetic identity construction.',
+  credential_theft:                'Credential-theft / credential-phishing pattern.',
+  account_takeover:                'Account-takeover pattern.',
+  private_data_misuse:             'Private-data misuse / surveillance.',
+  doxxing_or_stalking:             'Doxxing / stalking enablement.',
+  promotion_abuse:                 'Promotion / referral abuse.',
+  multi_accounting:                'Multi-accounting / sock-puppet pattern.',
+  reputation_manipulation:         'Reputation manipulation (fake reviews, ratings, etc.).',
+  automation_botting:              'Bot / automation abuse.',
+  ban_evasion:                     'Ban-evasion pattern.',
+  credential_harvesting_infra:     'Credential-harvesting infrastructure.',
+  malware_distribution:            'Malware-distribution pattern.',
+  prompt_injection_attack:         'Prompt-injection attack against an AI system.',
+  model_jailbreak:                 'Jailbreak attempt against an AI safety layer.',
+  ai_model_impersonation:          'Impersonation of a named AI assistant.',
+};
+
+// Canonical FAF component-score order (Update B; v5-result-card.md section 2.5).
+const COMPONENT_ORDER = ['target', 'lure', 'trust', 'extract', 'evade'];
+
+// Static stage labels (Update A; v5-result-card.md section 2.6, section 2.8). Source of
+// truth is ops memo section 2.3; NOT derived from model_pipeline strings.
+const STAGE_LABELS = [
+  { key: 'triage',      short: 'Triage',         long: 'Triaging prompt' },
+  { key: 'faf',         short: 'FAF analysis',   long: 'Running FAF analysis' },
+  { key: 'classify',    short: 'Classification', long: 'Classifying' },
+  { key: 'disposition', short: 'Disposition',    long: 'Choosing disposition' },
+];
+
+// Low-confidence soft-tag threshold (v5-result-card.md section 2.1). Aligned with
+// DISPLAY_THRESHOLD_PCT = 65 below rather than introducing a new constant.
+const LOW_CONFIDENCE_PCT = 65;
+
+// Interim degraded-detection string (v5-result-card.md section 2.7). Used only as a
+// fallback when disposition.degraded boolean is absent from the envelope.
+const DEGRADED_FALLBACK_STRING = 'Model unavailable; rule-derived disposition.';
 
 // L3 categories in display order (mirrors L3_CATEGORIES in safeeval-v5.js).
 const L3_CATEGORY_ORDER = ['method', 'tactic', 'target', 'context_marker', 'overlap', 'risk_marker'];
@@ -140,6 +242,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState({});
+  // Stale-result tracking (follow-up audit 3.2). Result card greys out when
+  // the prompt changes after a result lands; clears on next evaluate.
+  const [lastEvaluatedPrompt, setLastEvaluatedPrompt] = useState('');
+  const resultIsStale = result != null && prompt !== lastEvaluatedPrompt;
 
   // Normalize the dual-emit envelope. When the API returns {id, v4_legacy, v5},
   // the v4 render uses v4_legacy. When the API returns the bare v4 envelope
@@ -180,6 +286,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Evaluation failed');
       setResult(data);
+      setLastEvaluatedPrompt(prompt);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -215,8 +322,53 @@ export default function Home() {
 
   const v5Action = v5 && v5.disposition && v5.disposition.action;
   const v5Cfg = v5Action && V5_ACTION_CONFIG[v5Action] ? V5_ACTION_CONFIG[v5Action] : null;
+  const v5Icon = v5Cfg && v5Cfg.icon ? v5Cfg.icon : null;
   const evidenceOpen = !!expanded['v5-evidence'];
   const traceOpen = !!expanded['v5-trace'];
+  const stageTraceOpen = !!expanded['v5-stage-trace'];
+  const narrativeOpen = !!expanded['v5-narrative'];
+
+  // Degraded detection (v5-result-card.md section 2.7). Boolean field is authoritative
+  // once it ships from the engine; interim rule is exact-equality on the
+  // Stage-4 model-failure reasoning_summary template.
+  const v5Degraded = (() => {
+    if (!v5 || !v5.disposition) return false;
+    if (typeof v5.disposition.degraded === 'boolean') return v5.disposition.degraded;
+    return v5.disposition.reasoning_summary === DEGRADED_FALLBACK_STRING;
+  })();
+  const v5DegradedUsingInterim = v5 && v5.disposition && typeof v5.disposition.degraded !== 'boolean' && v5Degraded;
+
+  // Parse disposition.confidence_path against schema rule 9b.
+  // Example: "triage:0.92 -> faf:0.78 -> classify:0.95 -> disposition:0.95"
+  const stageConfidences = (() => {
+    const out = {};
+    const cp = v5 && v5.disposition && v5.disposition.confidence_path;
+    if (typeof cp !== 'string') return out;
+    const parts = cp.split('->').map(s => s.trim());
+    for (const p of parts) {
+      const m = p.match(/^([a-z_]+):([0-9.]+)$/);
+      if (m && STAGE_LABELS.some(s => s.key === m[1])) {
+        out[m[1]] = parseFloat(m[2]);
+      }
+    }
+    return out;
+  })();
+
+  // L2 / l2_probabilities rule-12 consistency (v5-result-card.md section 2.5).
+  const v5L2Value = v5 && v5.classification && v5.classification.l2 && v5.classification.l2.value;
+  const v5Probs = v5 && v5.evidence && v5.evidence.l2_probabilities;
+  const v5ProbsHasKeys = v5Probs && Object.keys(v5Probs).length > 0;
+  const v5L2InProbMap = v5L2Value && v5ProbsHasKeys && Object.prototype.hasOwnProperty.call(v5Probs, v5L2Value);
+  const v5Rule12Violation = v5ProbsHasKeys && v5L2Value && !v5L2InProbMap;
+
+  // Disposition-confidence percentage + low-confidence soft tag.
+  const v5DispositionPct = v5 ? Math.round((v5.disposition.confidence || 0) * 100) : 0;
+  const v5LowConfidence = v5 != null && v5DispositionPct > 0 && v5DispositionPct < LOW_CONFIDENCE_PCT;
+
+  // Stages completed: min(model_pipeline.length, parsed-confidence-path stages).
+  // Used to drive the stage-trace stepper and validate the loading state.
+  const v5ModelsRun = v5 && Array.isArray(v5.model_pipeline) ? v5.model_pipeline.length : 0;
+  const v5StagesRun = Math.min(v5ModelsRun || STAGE_LABELS.length, Object.keys(stageConfidences).length || STAGE_LABELS.length);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -295,37 +447,114 @@ export default function Home() {
         </div>
 
         <div aria-live="polite" aria-busy={loading} className="space-y-8">
-        {/* v5 panels (rendered above v4 when present). */}
-        {v5 && v5Cfg && (
-          <div className={`rounded-lg border-2 ${v5Cfg.border} ${v5Cfg.bg} p-6 space-y-6`}>
 
-            {/* Disposition banner */}
+        {/* section 2.8 Loading state -- replaces result-card region while loading. */}
+        {loading && (
+          <div className="rounded-lg border-2 border-gray-200 bg-white p-6">
+            <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
+              Evaluating
+            </div>
+            <div className="grid grid-cols-4 gap-3">
+              {STAGE_LABELS.map(s => (
+                <StageStep key={s.key} label={s.long} stage="active" />
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-4">
+              Non-streaming pipeline; total wait roughly 18-30 seconds depending on prompt complexity.
+            </p>
+          </div>
+        )}
+
+        {/* Stale-result hint -- shows under the input area, visible while result is stale. */}
+        {resultIsStale && !loading && (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            Result below is for the previous prompt. Re-run Evaluate to update.
+          </p>
+        )}
+
+        {/* v5 panels (rendered above v4 when present). Greyed out when stale. */}
+        {!loading && v5 && v5Cfg && (
+          <div className={`rounded-lg border-2 ${v5Cfg.border} ${v5Cfg.bg} p-6 space-y-6 ${resultIsStale ? 'opacity-40 pointer-events-none' : ''}`}>
+
+            {/* section 2.1 Disposition banner */}
             <div>
               <div className="flex flex-wrap items-center gap-3">
-                <span className={`inline-flex items-center text-sm font-bold px-4 py-2 rounded-full ${v5Cfg.badge}`}>
+                <span
+                  className={`inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-full ${v5Cfg.badge}`}
+                  aria-label={`Disposition: ${v5Cfg.iconLabel}`}
+                >
+                  {v5Icon && <v5Icon className="w-4 h-4" aria-hidden="true" />}
                   {v5Cfg.label}
                 </span>
                 <span className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full font-mono">
                   v5 schema {v5.schema_version || ''}
                 </span>
+                {v5Degraded && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs uppercase tracking-wide font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-300 cursor-help"
+                    title={
+                      v5DegradedUsingInterim
+                        ? 'Model was unavailable; this disposition was derived from rules only. Detection currently covers Stage 4 fallback only; tightens once disposition.degraded ships on every envelope.'
+                        : 'Model was unavailable; this disposition was derived from rules only. Result is still operational but lacks model-side rationale.'
+                    }
+                  >
+                    <TriangleAlert className="w-3 h-3" aria-hidden="true" />
+                    DEGRADED
+                  </span>
+                )}
                 <span className="ml-auto text-sm text-gray-500">
-                  Disposition confidence: <strong className="text-gray-900">{Math.round((v5.disposition.confidence || 0) * 100)}%</strong>
+                  Disposition confidence: <strong className="text-gray-900">{v5DispositionPct}%</strong>
+                  {v5LowConfidence && (
+                    <span className="ml-2 text-xs text-gray-400 italic">(low confidence)</span>
+                  )}
                 </span>
               </div>
-              {v5.disposition.reasoning_summary && (
-                <p className="text-sm text-gray-700 leading-relaxed mt-3 bg-white border border-gray-200 rounded-md px-4 py-3">
-                  {v5.disposition.reasoning_summary}
-                </p>
-              )}
-              {v5.disposition.safe_completion_guidance && (
-                <p className="text-xs text-amber-900 leading-relaxed mt-2 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                  <span className="font-semibold uppercase tracking-wide mr-2">Guidance:</span>
-                  {v5.disposition.safe_completion_guidance}
-                </p>
-              )}
             </div>
 
-            {/* Classification */}
+            {/* section 2.2 Reasoning + narrative summary */}
+            {(v5.disposition.reasoning_summary || v5.disposition.narrative_summary) && (
+              <div className="bg-white border border-gray-200 rounded-md px-4 py-3 space-y-3">
+                {v5.disposition.reasoning_summary && (
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    {v5.disposition.reasoning_summary}
+                  </p>
+                )}
+                {v5.disposition.narrative_summary && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
+                      Narrative
+                    </div>
+                    {v5.disposition.narrative_summary.length > 280 ? (
+                      <>
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          {narrativeOpen
+                            ? v5.disposition.narrative_summary
+                            : v5.disposition.narrative_summary.slice(0, 240).replace(/\s+\S*$/, '') + '...'}
+                        </p>
+                        <button
+                          className="mt-1 text-xs text-gray-500 hover:text-gray-700 underline"
+                          onClick={() => toggle('v5-narrative')}
+                        >
+                          {narrativeOpen ? 'Read less' : 'Read more'}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        {v5.disposition.narrative_summary}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {v5.disposition.safe_completion_guidance && (
+                  <p className="text-xs text-amber-900 leading-relaxed bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    <span className="font-semibold uppercase tracking-wide mr-2">Guidance:</span>
+                    {v5.disposition.safe_completion_guidance}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* section 2.3 Classification envelope (L1 / L2 / L3) */}
             {v5.classification && (
               <div>
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
@@ -335,9 +564,11 @@ export default function Home() {
                   {v5.classification.l1 && (
                     <div className="flex items-baseline gap-3">
                       <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-12 shrink-0">L1</span>
-                      <span className="inline-flex items-center text-sm font-mono font-semibold px-3 py-1.5 rounded-full bg-gray-900 text-white">
-                        {v5.classification.l1.value}
-                      </span>
+                      <HoverChip
+                        value={v5.classification.l1.value}
+                        description={L1_DESCRIPTIONS[v5.classification.l1.value]}
+                        className="text-sm font-mono font-semibold px-3 py-1.5 rounded-full bg-gray-900 text-white"
+                      />
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
                         {Math.round((v5.classification.l1.confidence || 0) * 100)}%
                       </span>
@@ -346,9 +577,11 @@ export default function Home() {
                   {v5.classification.l2 && (
                     <div className="flex items-baseline gap-3">
                       <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-12 shrink-0">L2</span>
-                      <span className="inline-flex items-center text-sm font-mono px-3 py-1 rounded-full bg-gray-100 text-gray-900 border border-gray-200">
-                        {v5.classification.l2.value}
-                      </span>
+                      <HoverChip
+                        value={v5.classification.l2.value}
+                        description={L2_DESCRIPTIONS[v5.classification.l2.value]}
+                        className="text-sm font-mono px-3 py-1 rounded-full bg-gray-100 text-gray-900 border border-gray-200"
+                      />
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
                         {Math.round((v5.classification.l2.confidence || 0) * 100)}%
                       </span>
@@ -388,7 +621,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* Triggered by */}
+            {/* section 2.4 Triggered-by block (includes policy_note + rule descriptions) */}
             {v5.disposition.triggered_by && (
               <div>
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
@@ -410,12 +643,22 @@ export default function Home() {
                     label="Rules"
                     items={v5.disposition.triggered_by.rules || []}
                     chipClass="bg-gray-100 text-gray-800 border-gray-200"
+                    descriptions={RULE_DESCRIPTIONS}
                   />
+                  {v5.disposition.triggered_by.policy_note && (
+                    <div className="mt-2 pt-2 border-t border-gray-100 flex items-start gap-2">
+                      <Ban className="w-4 h-4 text-red-700 shrink-0 mt-0.5" aria-hidden="true" />
+                      <p className="text-xs text-gray-800 leading-relaxed">
+                        <span className="font-semibold uppercase tracking-wide text-red-700 mr-2">Non-negotiable:</span>
+                        {v5.disposition.triggered_by.policy_note}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Evidence (collapsible, collapsed by default) */}
+            {/* section 2.5 Evidence panel (collapsible, collapsed by default) */}
             {v5.evidence && (
               <div>
                 <button
@@ -439,29 +682,41 @@ export default function Home() {
                 </button>
                 {evidenceOpen && (
                   <div className="mt-3 bg-white border border-gray-200 rounded-md p-4 space-y-4">
+
+                    {/* Component scores: 5-row numeric TABLE per Update B. */}
                     {v5.evidence.component_scores && (
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Component scores</div>
-                        <div className="flex flex-wrap gap-2">
-                          {Object.entries(v5.evidence.component_scores).map(([k, v]) => (
-                            <span key={k} className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-gray-50 text-gray-800 border border-gray-200">
-                              {k}
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700">{v}/3</span>
-                            </span>
-                          ))}
+                        <div className="border border-gray-200 rounded-md overflow-hidden">
+                          {COMPONENT_ORDER.map(k => {
+                            const score = typeof v5.evidence.component_scores[k] === 'number' ? v5.evidence.component_scores[k] : 0;
+                            return (
+                              <div key={k} className="flex items-center px-3 py-2 border-b border-gray-100 last:border-b-0 bg-white">
+                                <span className="text-xs font-mono text-gray-700 w-20">{k}</span>
+                                <span className="text-xs font-mono text-gray-900 w-8 text-right">{score}</span>
+                                <span className="ml-3 flex gap-1" aria-hidden="true">
+                                  {[1, 2, 3].map(i => (
+                                    <span
+                                      key={i}
+                                      className={`w-3 h-1.5 rounded-sm ${i <= score ? 'bg-gray-800' : 'bg-gray-200'}`}
+                                    />
+                                  ))}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {typeof v5.evidence.aggregate_score === 'number' && (
+                            <div className="flex items-center px-3 py-2 bg-gray-50 text-xs">
+                              <span className="font-mono text-gray-500 w-20">aggregate</span>
+                              <span className="font-mono text-gray-900 w-8 text-right">{v5.evidence.aggregate_score}</span>
+                              <span className="ml-3 text-gray-500">/15</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
-                    {v5.evidence.bright_lines && v5.evidence.bright_lines.length > 0 && (
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Bright lines</div>
-                        <div className="flex flex-wrap gap-2">
-                          {v5.evidence.bright_lines.map(f => (
-                            <BrightLineChip key={f} feature={f} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
+
+                    {/* Process flags: distinct LIST sub-section per Update B. */}
                     {v5.evidence.process_flags && v5.evidence.process_flags.length > 0 && (
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Process flags</div>
@@ -476,31 +731,98 @@ export default function Home() {
                         </div>
                       </div>
                     )}
+
+                    {v5.evidence.bright_lines && v5.evidence.bright_lines.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Bright lines</div>
+                        <div className="flex flex-wrap gap-2">
+                          {v5.evidence.bright_lines.map(f => (
+                            <BrightLineChip key={f} feature={f} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* L2 probabilities with rule-12 accent + inline note. */}
+                    {v5.evidence.l2_probabilities && Object.keys(v5.evidence.l2_probabilities).length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">L2 probabilities</div>
+                        {v5Rule12Violation && (
+                          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
+                            L2 picked as <span className="font-mono">{v5L2Value}</span> but not present in probability map -- engine validation failure (schema rule 12).
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(v5.evidence.l2_probabilities)
+                            .sort(([, a], [, b]) => b - a)
+                            .map(([k, v]) => {
+                              const isPicked = k === v5L2Value;
+                              return (
+                                <span
+                                  key={k}
+                                  className={`inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full ${
+                                    isPicked
+                                      ? 'bg-gray-900 text-white ring-2 ring-offset-1 ring-gray-700'
+                                      : 'bg-gray-50 text-gray-800 border border-gray-200'
+                                  }`}
+                                >
+                                  {k}
+                                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${isPicked ? 'bg-white text-gray-900' : 'bg-gray-200 text-gray-700'}`}>
+                                    {Math.round((v || 0) * 100)}%
+                                  </span>
+                                </span>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+
                     {v5.evidence.faf_nodes && (
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">FAF nodes</div>
-                        <pre className="whitespace-pre-wrap text-xs bg-gray-50 border border-gray-200 rounded-md p-3 font-mono text-gray-800 leading-relaxed">
+                        <pre className="whitespace-pre-wrap text-xs bg-gray-50 border border-gray-200 rounded-md p-3 font-mono text-gray-800 leading-relaxed overflow-x-auto">
 {JSON.stringify(v5.evidence.faf_nodes, null, 2)}
                         </pre>
                       </div>
                     )}
-                    {v5.evidence.l2_probabilities && Object.keys(v5.evidence.l2_probabilities).length > 0 && (
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">L2 probabilities</div>
-                        <div className="flex flex-wrap gap-2">
-                          {Object.entries(v5.evidence.l2_probabilities)
-                            .sort(([, a], [, b]) => b - a)
-                            .map(([k, v]) => (
-                              <span key={k} className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-gray-50 text-gray-800 border border-gray-200">
-                                {k}
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700">
-                                  {Math.round((v || 0) * 100)}%
-                                </span>
-                              </span>
-                            ))}
-                        </div>
-                      </div>
-                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* section 2.6 Stage trace -- reader-friendly trace from confidence_path. */}
+            {v5.disposition.confidence_path && (
+              <div>
+                <button
+                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors text-left"
+                  onClick={() => toggle('v5-stage-trace')}
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex-1">
+                    Stage trace
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {v5StagesRun} of {STAGE_LABELS.length} stages ran
+                  </span>
+                  <svg
+                    className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${stageTraceOpen ? 'rotate-180' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {stageTraceOpen && (
+                  <div className="mt-3 grid grid-cols-4 gap-3 bg-white border border-gray-200 rounded-md p-4">
+                    {STAGE_LABELS.map(s => {
+                      const ran = Object.prototype.hasOwnProperty.call(stageConfidences, s.key);
+                      return (
+                        <StageStep
+                          key={s.key}
+                          label={s.short}
+                          stage={ran ? 'complete' : 'skipped'}
+                          confidence={ran ? stageConfidences[s.key] : null}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -762,6 +1084,52 @@ function BrightLineChip({ feature }) {
           <div className="absolute top-full left-4 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
         </div>
       )}
+    </div>
+  );
+}
+
+// Generic hover-tooltip chip. Used for L1 / L2 chips that carry an underscore
+// vocabulary the reader may need explained (follow-up audit 3.1). Same hover
+// pattern as BrightLineChip / TriggerRow.
+function HoverChip({ value, description, className }) {
+  return (
+    <div className="group relative inline-block">
+      <span className={`inline-flex items-center cursor-default ${className}`}>
+        {value}
+      </span>
+      {description && (
+        <div className="absolute bottom-full left-0 mb-2 w-72 bg-gray-900 text-white text-xs rounded-md px-3 py-2 leading-relaxed hidden group-hover:block z-10 shadow-lg font-sans">
+          {description}
+          <div className="absolute top-full left-4 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One column of the stage-trace stepper (v5-result-card.md section 2.6) and the
+// loading-state stepper (section 2.8). `stage` is one of: 'pending' | 'active' |
+// 'complete' | 'skipped'.
+function StageStep({ label, stage, confidence }) {
+  const isComplete = stage === 'complete';
+  const isActive = stage === 'active';
+  const isSkipped = stage === 'skipped';
+  const dotClass = isComplete
+    ? 'bg-gray-800'
+    : isActive
+    ? 'bg-gray-400 animate-pulse'
+    : isSkipped
+    ? 'bg-gray-200'
+    : 'bg-gray-300';
+  return (
+    <div className={`flex flex-col items-start gap-1 ${isSkipped ? 'opacity-50' : ''}`}>
+      <div className="flex items-center gap-2">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} />
+        <span className="text-xs font-medium text-gray-700">{label}</span>
+      </div>
+      <span className="text-xs font-mono text-gray-500 pl-4">
+        {typeof confidence === 'number' ? confidence.toFixed(2) : isSkipped ? '--' : '...'}
+      </span>
     </div>
   );
 }
