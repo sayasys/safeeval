@@ -170,7 +170,9 @@ export default function Home() {
     setError('');
     setResult(null);
     try {
-      const res = await fetch('/api/evaluate', {
+      const v5Flag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('v5') === '1';
+      const url = v5Flag ? '/api/evaluate?v5=1' : '/api/evaluate';
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
@@ -292,6 +294,7 @@ export default function Home() {
           )}
         </div>
 
+        <div aria-live="polite" aria-busy={loading} className="space-y-8">
         {/* v5 panels (rendered above v4 when present). */}
         {v5 && v5Cfg && (
           <div className={`rounded-lg border-2 ${v5Cfg.border} ${v5Cfg.bg} p-6 space-y-6`}>
@@ -738,6 +741,7 @@ export default function Home() {
 
           </div>
         )}
+        </div>
       </main>
     </div>
   );
