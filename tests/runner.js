@@ -11,9 +11,19 @@
 //
 // Reads every tests/golden/*.json file. For each file it POSTs the prompt
 // to /api/evaluate and checks the response against expected_v4 (typology +
-// escalation_tier). If v5 mode is on, it also checks
-// response.v5.classification.l1.value, response.v5.classification.l2.value
-// (only when expected_v5.l2 is non-null), and response.v5.disposition.action.
+// escalation_tier).
+//
+// Response shape depends on mode (see src/app/api/evaluate/route.js):
+//   default:  v4 envelope at the root -- { typology, escalation_tier, ... }
+//   ?v5=1:    dual-emit envelope -- { id, v4_legacy: <v4 envelope>, v5: <v5 envelope> }
+//
+// In v5 mode the runner reads v4 fields from actual.v4_legacy.* and v5 fields
+// from actual.v5.*. A missing v4_legacy in v5 mode fails fast with a clear
+// message so future envelope drift surfaces immediately.
+//
+// If v5 mode is on, it also checks response.v5.classification.l1.value,
+// response.v5.classification.l2.value (only when expected_v5.l2 is non-null),
+// and response.v5.disposition.action.
 //
 // Probabilities are deliberately NOT checked -- they drift across model
 // versions and create noise. See tests/README.md for the rationale.
@@ -64,11 +74,21 @@ async function callEngine(prompt) {
 
 function checkV4(actual, expected) {
   const failures = [];
-  if (actual.typology !== expected.typology) {
-    failures.push('typology: expected ' + expected.typology + ', got ' + actual.typology);
+  let v4;
+  if (V5_MODE) {
+    if (!actual || !actual.v4_legacy) {
+      failures.push('dual-emit envelope missing v4_legacy');
+      return failures;
+    }
+    v4 = actual.v4_legacy;
+  } else {
+    v4 = actual;
   }
-  if (actual.escalation_tier !== expected.escalation_tier) {
-    failures.push('escalation_tier: expected ' + expected.escalation_tier + ', got ' + actual.escalation_tier);
+  if (v4.typology !== expected.typology) {
+    failures.push('typology: expected ' + expected.typology + ', got ' + v4.typology);
+  }
+  if (v4.escalation_tier !== expected.escalation_tier) {
+    failures.push('escalation_tier: expected ' + expected.escalation_tier + ', got ' + v4.escalation_tier);
   }
   return failures;
 }
