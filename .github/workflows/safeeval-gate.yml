@@ -38,8 +38,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Verify every typology in safeeval.js appears in the FAF docs
+      - name: Verify every typology in safeeval.js appears in the FAF docs, and every v5 disposition key emitted by the engine is declared in the schema
         run: node scripts/check-lockstep.js
+
+  null-byte-check:
+    name: No null bytes in src
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify no .js file under src/ contains U+0000
+        run: node scripts/check-null-bytes.js
 
   next-build:
     name: Next.js build dry-run

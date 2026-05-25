@@ -17,7 +17,7 @@
     "prompt_summary"
   ],
   "properties": {
-    "schema_version":   { "const": "5.0" },
+    "schema_version":   { "const": "5.0.1" },
     "ontology_version": { "const": "5.0" },
     "evaluated_at":     { "type": "string", "format": "date-time" },
     "model_pipeline": {
@@ -40,7 +40,8 @@
     { "$ref": "#/$defs/rule_bright_line_forces_block" },
     { "$ref": "#/$defs/rule_aggregate_equals_sum" },
     { "$ref": "#/$defs/rule_ai_model_impersonation_cooccurrence" },
-    { "$ref": "#/$defs/rule_safe_completion_guidance_presence" }
+    { "$ref": "#/$defs/rule_safe_completion_guidance_presence" },
+    { "$ref": "#/$defs/rule_policy_note_presence" }
   ],
 
   "$defs": {
@@ -390,15 +391,28 @@
     "disposition": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["action", "confidence", "reasoning_summary", "triggered_by", "safe_completion_guidance"],
+      "required": [
+        "action",
+        "confidence",
+        "reasoning_summary",
+        "narrative_summary",
+        "confidence_path",
+        "triggered_by",
+        "safe_completion_guidance"
+      ],
       "properties": {
         "action": { "$ref": "#/$defs/disposition_actions" },
         "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
         "reasoning_summary": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "narrative_summary": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "confidence_path": {
+          "type": "string",
+          "pattern": "^(triage:[0-9.]+ -> )?(faf:[0-9.]+ -> )?(classify:[0-9.]+ -> )?disposition:[0-9.]+$"
+        },
         "triggered_by": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["bright_lines", "thresholds", "rules"],
+          "required": ["bright_lines", "thresholds", "rules", "policy_note"],
           "properties": {
             "bright_lines": {
               "type": "array",
@@ -412,6 +426,10 @@
               "type": "array",
               "minItems": 1,
               "items": { "$ref": "#/$defs/disposition_rule_names" }
+            },
+            "policy_note": {
+              "type": ["string", "null"],
+              "minLength": 1
             }
           }
         },
@@ -656,6 +674,17 @@
           "then": { "properties": { "disposition": { "properties": { "safe_completion_guidance": { "type": "string", "minLength": 1 } } } } } },
         { "if": { "properties": { "disposition": { "properties": { "action": { "enum": ["allow", "human_review", "block"] } } } } },
           "then": { "properties": { "disposition": { "properties": { "safe_completion_guidance": { "type": "null" } } } } } }
+      ]
+    },
+
+    "rule_policy_note_presence": {
+      "description": "When disposition.triggered_by.rules contains 'bright_line_forces_block', disposition.triggered_by.policy_note MUST be a non-empty string. Otherwise it MUST be null. Mirrors policy-spec-v5.0.md section 6.1 rule 9c.",
+      "type": "object",
+      "allOf": [
+        { "if": { "properties": { "disposition": { "properties": { "triggered_by": { "properties": { "rules": { "type": "array", "contains": { "const": "bright_line_forces_block" } } } } } } } },
+          "then": { "properties": { "disposition": { "properties": { "triggered_by": { "properties": { "policy_note": { "type": "string", "minLength": 1 } } } } } } } },
+        { "if": { "properties": { "disposition": { "properties": { "triggered_by": { "properties": { "rules": { "type": "array", "not": { "contains": { "const": "bright_line_forces_block" } } } } } } } } },
+          "then": { "properties": { "disposition": { "properties": { "triggered_by": { "properties": { "policy_note": { "type": "null" } } } } } } } }
       ]
     }
 
