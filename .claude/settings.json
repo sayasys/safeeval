@@ -1,26 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git fetch)",
-      "Bash(git status)",
-      "Bash(git diff*)",
-      "Bash(git log*)",
-      "Bash(git add*)",
-      "Bash(git commit*)",
-      "Bash(git push)",
-      "Bash(git push:*)",
-      "Bash(npm install)",
-      "Bash(npm run build)",
-      "Bash(npm run test)",
-      "Bash(npm run lint)",
-      "Bash(npm run:*)",
-      "Bash(node scripts/*)",
-      "Bash(node tests/*)",
-      "Bash(cat *)",
-      "Bash(head *)",
-      "Bash(tail *)",
-      "Bash(grep *)",
-      "Bash(find *)"
+      "Bash(*)"
     ]
   }
 }
