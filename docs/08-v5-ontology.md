@@ -24,6 +24,8 @@ L1 answers: *what space is this prompt in?* The 7 L1 values are mutually exclusi
 
 **Mutual exclusivity rule.** A prompt can have abuse signals across multiple domains; L1 takes the *primary* domain. When two domains are plausibly co-equal (e.g., a romance scam that also harvests credentials), L1 should be `ambiguous_dual_use` only when authorization itself is genuinely ambiguous -- for clear multi-vector attacks, pick the primary harm vector and use L3 `overlap:` tags for the secondary.
 
+**Closed-set enforcement.** The seven values above are the complete and exhaustive L1 enum. Any other value in `classification.l1.value` is out of spec, including legacy v4 typology codes such as `PHISHING`, `NONE`, `ROMANCE`, `INVESTMENT`, `IMPERSONATION`, `ADVANCE_FEE`, `FRAUD_INFRASTRUCTURE`, `RECOVERY`, `ACCOUNT_TAKEOVER`, and `AI_ENABLED_ABUSE`. Those are the v4 typology codes; their v5 equivalents are given in the migration map in section 6 and must be emitted in lowercase underscore form. An engine that renders a v4 code in an L1 slot has skipped the migration map -- it is not a vocabulary ambiguity to resolve here, it is a classifier defect to fix in `safeeval-v5.js`. See policy-spec-v5.0.md section 2 (`L1_VALUES`) and Decision 1 (PHISHING split) / Decision 3 (NONE retirement) for the substantive history.
+
 ---
 
 ## 2. L2 -- Primary risk pattern (closed set, scoped by L1)
@@ -202,6 +204,17 @@ Context markers are *claims about framing*, not verified facts. They feed into d
 | `payment_instruction_embedded` | Prompt embeds specific payment / wire / crypto instructions. |
 
 Risk markers bias toward `human_review` or `block`. Two or more risk markers force at least `human_review` (`RISK_MARKER_REVIEW_COUNT = 2`, see spec section 1).
+
+---
+
+## 3.7 Component-score vocabulary vs process-flag vocabulary (clarification)
+
+Two distinct closed vocabularies appear in `evidence` and are routinely conflated. They live in different fields and answer different questions.
+
+- **Component-score names** -- `target`, `lure`, `trust`, `extract`, `evade`. Each is an integer 0-3 in `evidence.component_scores`. These are the FAF v5 evidence dimensions; they are the substantive "how much signal in each axis" view. Defined in `docs/07-v5-schema.md` section 3.4.
+- **Process-flag categories** -- `Trigger`, `Incentive`, `Control`, `Delivery`, `Template`. Each is a category string on an entry in `evidence.process_flags[]`, a list of `{ category, description }` rows. These are the v4 carry-forward process-flag categories, retained for reviewer continuity. Also defined in `docs/07-v5-schema.md` section 3.4.
+
+The two vocabularies are NOT alternative names for the same thing and are NOT meant to replace each other. A v5 envelope contains *both*: numeric scores keyed by `target/lure/trust/extract/evade`, and a list of process flags categorized by `Trigger/Incentive/Control/Delivery/Template`. Surfaces that render one set of labels in place of the other are mislabeling a field; the policy and schema layer is unambiguous about which lives where.
 
 ---
 
