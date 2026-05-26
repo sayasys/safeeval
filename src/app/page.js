@@ -322,7 +322,7 @@ export default function Home() {
 
   const v5Action = v5 && v5.disposition && v5.disposition.action;
   const v5Cfg = v5Action && V5_ACTION_CONFIG[v5Action] ? V5_ACTION_CONFIG[v5Action] : null;
-  const v5Icon = v5Cfg && v5Cfg.icon ? v5Cfg.icon : null;
+  const V5Icon = v5Cfg && v5Cfg.icon ? v5Cfg.icon : null;
   const evidenceOpen = !!expanded['v5-evidence'];
   const traceOpen = !!expanded['v5-trace'];
   const stageTraceOpen = !!expanded['v5-stage-trace'];
@@ -426,6 +426,7 @@ export default function Home() {
               {EXAMPLE_PROMPTS.map(ex => (
                 <button
                   key={ex.label}
+                  type="button"
                   onClick={() => setPrompt(ex.text)}
                   className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors"
                 >
@@ -483,7 +484,7 @@ export default function Home() {
                   className={`inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-full ${v5Cfg.badge}`}
                   aria-label={`Disposition: ${v5Cfg.iconLabel}`}
                 >
-                  {v5Icon && <v5Icon className="w-4 h-4" aria-hidden="true" />}
+                  {V5Icon && <V5Icon className="w-4 h-4" aria-hidden="true" />}
                   {v5Cfg.label}
                 </span>
                 <span className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full font-mono">
