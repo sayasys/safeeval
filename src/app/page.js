@@ -1315,11 +1315,21 @@ function ClassifierLabelChip({ value, descKey, size }) {
     chipClass = `${baseClass} bg-slate-100 text-slate-800 ${small ? 'border-slate-300' : ''}`;
   }
   const tooltipId = `classifier-${descKey}-${value}`;
+  // WCAG 2.1 SC 1.4.13: Escape dismisses the tooltip without moving focus.
+  // Blur resets so the next focus-in re-surfaces it (spec docs/ux/design-system/v5-result-card.md section 12.2).
+  const [dismissed, setDismissed] = useState(false);
   return (
     <span className="group relative inline-block">
       <button
         type="button"
-        aria-describedby={description ? tooltipId : undefined}
+        aria-describedby={description && !dismissed ? tooltipId : undefined}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && description) {
+            e.stopPropagation();
+            setDismissed(true);
+          }
+        }}
+        onBlur={() => setDismissed(false)}
         className={`${chipClass} cursor-default focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1`}
       >
         {value}
@@ -1327,7 +1337,7 @@ function ClassifierLabelChip({ value, descKey, size }) {
       {value === 'other' && (
         <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700 font-semibold">audit me</span>
       )}
-      {description && (
+      {description && !dismissed && (
         <div
           id={tooltipId}
           role="tooltip"
