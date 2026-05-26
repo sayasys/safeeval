@@ -326,8 +326,23 @@ function setDiff(a, b) {
 function checkV51ClassifierDisplayLockstep() {
   const engineSrc = fs.readFileSync(V5_ENGINE, 'utf-8');
   const schemaDocSrc = fs.readFileSync(V5_SCHEMA_DOC, 'utf-8');
-  const memoSrc = fs.readFileSync(CLASSIFIER_DISPLAY_MEMO, 'utf-8');
   const schema = JSON.parse(fs.readFileSync(V5_SCHEMA, 'utf-8'));
+
+  // The vocabulary memo at CLASSIFIER_DISPLAY_MEMO is the policy-authored
+  // source-of-truth that seeded the engine constants. Per the Cowork
+  // workflow convention (docs/memos/ is the policy track's working
+  // directory and is untracked in this portfolio repo), the memo file may
+  // be absent in CI even though it exists locally on the policy author's
+  // machine. The in-repo lockstep trinity is engine <-> schema <-> schema-doc;
+  // the memo check is opportunistic and skipped (with a notice) when the
+  // file isn't present. When it IS present, it MUST agree -- mismatches
+  // are still failures so a local lockstep run catches policy/code drift.
+  let memoSrc = null;
+  let memoStatus = 'absent';
+  if (fs.existsSync(CLASSIFIER_DISPLAY_MEMO)) {
+    memoSrc = fs.readFileSync(CLASSIFIER_DISPLAY_MEMO, 'utf-8');
+    memoStatus = 'present';
+  }
 
   let totalMisses = 0;
 
@@ -340,9 +355,11 @@ function checkV51ClassifierDisplayLockstep() {
     try { schemaLabels = extractSchemaLabelArray(schema, ent.schemaDef); }
     catch (e) { console.error('FAIL ' + ent.engine + ': ' + e.message); totalMisses++; continue; }
 
-    let memoLabels;
-    try { memoLabels = extractMemoLabelTable(memoSrc, ent.memoSection); }
-    catch (e) { console.error('FAIL ' + ent.engine + ': ' + e.message); totalMisses++; continue; }
+    let memoLabels = null;
+    if (memoSrc) {
+      try { memoLabels = extractMemoLabelTable(memoSrc, ent.memoSection); }
+      catch (e) { console.error('FAIL ' + ent.engine + ' (memo parse): ' + e.message); totalMisses++; continue; }
+    }
 
     let ok = true;
     if (!setsEqual(engineLabels, schemaLabels)) {
@@ -353,7 +370,7 @@ function checkV51ClassifierDisplayLockstep() {
       if (extraEng.length > 0) console.error('  engine has but schema lacks: ' + extraEng.join(', '));
       if (extraSch.length > 0) console.error('  schema has but engine lacks: ' + extraSch.join(', '));
     }
-    if (!setsEqual(engineLabels, memoLabels)) {
+    if (memoLabels !== null && !setsEqual(engineLabels, memoLabels)) {
       ok = false;
       console.error('LOCKSTEP FAIL ' + ent.engine + ' (engine vs memo ' + ent.memoSection + '):');
       const extraEng = setDiff(engineLabels, memoLabels);
@@ -372,7 +389,10 @@ function checkV51ClassifierDisplayLockstep() {
     }
 
     if (ok) {
-      console.log('OK ' + ent.engine + ' (' + engineLabels.length + ' values; engine=schema=memo, doc references the name)');
+      const sources = memoLabels !== null
+        ? 'engine=schema=memo, doc references the name'
+        : 'engine=schema, doc references the name (memo absent: ' + memoStatus + ')';
+      console.log('OK ' + ent.engine + ' (' + engineLabels.length + ' values; ' + sources + ')');
     } else {
       totalMisses++;
     }
@@ -381,10 +401,14 @@ function checkV51ClassifierDisplayLockstep() {
   if (totalMisses > 0) {
     console.error('');
     console.error('v5.1 classifier-display lockstep failed with ' + totalMisses + ' enum(s) mismatched.');
-    console.error('Closed sets must be consistent across src/lib/safeeval-v5.js, tests/schema/v5-envelope.schema.json, the vocabulary memo, and docs/07-v5-schema.md.');
+    console.error('Closed sets must be consistent across src/lib/safeeval-v5.js, tests/schema/v5-envelope.schema.json, docs/07-v5-schema.md, and (when present locally) the vocabulary memo.');
     return false;
   }
-  console.log('v5.1 classifier-display lockstep passed.');
+  if (memoStatus === 'absent') {
+    console.log('v5.1 classifier-display lockstep passed (memo absent in this environment; engine<->schema<->doc verified).');
+  } else {
+    console.log('v5.1 classifier-display lockstep passed.');
+  }
   return true;
 }
 
