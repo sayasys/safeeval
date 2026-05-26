@@ -24,10 +24,29 @@ const ROOT = path.resolve(__dirname, '..');
 const ENGINE = path.join(ROOT, 'src', 'lib', 'safeeval.js');
 const V5_ENGINE = path.join(ROOT, 'src', 'lib', 'safeeval-v5.js');
 const V5_SCHEMA = path.join(ROOT, 'tests', 'schema', 'v5-envelope.schema.json');
+const V5_SCHEMA_DOC = path.join(ROOT, 'docs', '07-v5-schema.md');
+const CLASSIFIER_DISPLAY_MEMO = path.join(ROOT, 'docs', 'memos', '2026-05-26-policy-v5-classifier-display-vocabulary.md');
 const DOCS = [
   'docs/01-framework.md',
   'docs/03-master-policy.md',
   'docs/05-classifier-guidance.md',
+];
+
+// v5.1 classifier-display closed sets. Each entry: (a) the engine-constant
+// name in src/lib/safeeval-v5.js, (b) the schema-doc reference name
+// (referenced verbatim in docs/07-v5-schema.md), (c) the memo section header
+// that anchors the table to scan. The lockstep check parses each source for
+// the closed set and confirms set equality across (engine, schema-doc-mention,
+// memo-table). See docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md
+// section 8 for the spec.
+const V51_CLASSIFIER_LABEL_SETS = [
+  { engine: 'TEMPLATE_LABELS',  schemaDef: 'template_labels',  memoSection: '### 2.1 Template' },
+  { engine: 'DELIVERY_LABELS',  schemaDef: 'delivery_labels',  memoSection: '### 2.2 Delivery' },
+  { engine: 'CONTROL_LABELS',   schemaDef: 'control_labels',   memoSection: '### 2.3 Control' },
+  { engine: 'TOPIC_LABELS',     schemaDef: 'topic_labels',     memoSection: '### 3.1 Topic' },
+  { engine: 'TARGET_LABELS',    schemaDef: 'target_labels',    memoSection: '### 3.2 Target' },
+  { engine: 'OBJECTIVE_LABELS', schemaDef: 'objective_labels', memoSection: '### 3.3 Objective' },
+  { engine: 'PRETEXT_LABELS',   schemaDef: 'pretext_labels',   memoSection: '### 3.4 Pretext' },
 ];
 
 function extractTypologies(engineSource) {
@@ -222,11 +241,160 @@ function checkSchemaEngineLockstep() {
   return false;
 }
 
+// v5.1 classifier-display lockstep. Each of the seven closed-set vocabularies
+// (Template, Delivery, Control, Topic, Target, Objective, Pretext) MUST be
+// consistent across:
+//   (a) engine constants in src/lib/safeeval-v5.js (TEMPLATE_LABELS et al),
+//   (b) the JSON Schema validator at tests/schema/v5-envelope.schema.json
+//       ($defs.template_labels.enum et al),
+//   (c) the vocabulary memo's per-label table at
+//       docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md,
+//   (d) the schema doc reference at docs/07-v5-schema.md (presence-only --
+//       the doc references the memo for the closed-set tables rather than
+//       duplicating them, so this check is "the label-set name appears in
+//       the schema doc somewhere," not full enum membership).
+// Spec: vocabulary memo section 8.
+function extractEngineLabelArray(engineSrc, constName) {
+  const re = new RegExp('export\\s+const\\s+' + constName + '\\s*=\\s*\\[([\\s\\S]*?)\\]');
+  const m = engineSrc.match(re);
+  if (!m) throw new Error('Engine constant missing: ' + constName);
+  return m[1]
+    .split(',')
+    .map(s => s.trim().replace(/^["']|["']$/g, ''))
+    .filter(s => s.length > 0 && !s.startsWith('//'));
+}
+
+function extractMemoLabelTable(memoSrc, sectionHeader) {
+  // Walk from the section header to the next heading at the same or higher
+  // level. Within the section, extract every `<label>` from the table's
+  // first column. Memo convention: each closed-set value appears as
+  // `\`<label>\`` in a markdown table row's first column.
+  const startIdx = memoSrc.indexOf(sectionHeader);
+  if (startIdx === -1) throw new Error('Memo section missing: ' + sectionHeader);
+  // The next section starts at the next "### " or "## " heading after the section header.
+  let nextIdx = memoSrc.length;
+  const candidates = [];
+  const reNext = /\n(##? )/g;
+  reNext.lastIndex = startIdx + sectionHeader.length;
+  let nm;
+  while ((nm = reNext.exec(memoSrc)) !== null) {
+    candidates.push(nm.index);
+  }
+  if (candidates.length > 0) nextIdx = candidates[0];
+  const slice = memoSrc.slice(startIdx, nextIdx);
+
+  // The memo has two tables per section: the closed-set table (which is the
+  // first one and is what we want) and a prose-to-label mapping table
+  // (which may name labels in either column). We pick out labels from the
+  // FIRST column only of every row that begins with `\`<word>\` |`. To
+  // distinguish the closed-set table from the prose-to-label mapping
+  // table, we stop scanning at the "**Prose-to-label mapping" marker.
+  const stopMarker = slice.indexOf('**Prose-to-label mapping');
+  const closedSetSlice = stopMarker >= 0 ? slice.slice(0, stopMarker) : slice;
+
+  const labels = new Set();
+  // Match table rows whose first column is a single-backtick-wrapped label.
+  // Form: `| \`label\` |` with any whitespace around the pipes.
+  const reRow = /^\s*\|\s*`([a-z_]+)`\s*\|/gm;
+  let rm;
+  while ((rm = reRow.exec(closedSetSlice)) !== null) {
+    labels.add(rm[1]);
+  }
+  return Array.from(labels);
+}
+
+function extractSchemaLabelArray(schema, defName) {
+  const def = schema.$defs && schema.$defs[defName];
+  if (!def || !Array.isArray(def.enum)) {
+    throw new Error('Schema $defs missing enum: ' + defName);
+  }
+  return def.enum.slice();
+}
+
+function setsEqual(a, b) {
+  if (a.length !== b.length) return false;
+  const sb = new Set(b);
+  for (const v of a) if (!sb.has(v)) return false;
+  return true;
+}
+
+function setDiff(a, b) {
+  const sb = new Set(b);
+  return a.filter(v => !sb.has(v));
+}
+
+function checkV51ClassifierDisplayLockstep() {
+  const engineSrc = fs.readFileSync(V5_ENGINE, 'utf-8');
+  const schemaDocSrc = fs.readFileSync(V5_SCHEMA_DOC, 'utf-8');
+  const memoSrc = fs.readFileSync(CLASSIFIER_DISPLAY_MEMO, 'utf-8');
+  const schema = JSON.parse(fs.readFileSync(V5_SCHEMA, 'utf-8'));
+
+  let totalMisses = 0;
+
+  for (const ent of V51_CLASSIFIER_LABEL_SETS) {
+    let engineLabels;
+    try { engineLabels = extractEngineLabelArray(engineSrc, ent.engine); }
+    catch (e) { console.error('FAIL ' + ent.engine + ': ' + e.message); totalMisses++; continue; }
+
+    let schemaLabels;
+    try { schemaLabels = extractSchemaLabelArray(schema, ent.schemaDef); }
+    catch (e) { console.error('FAIL ' + ent.engine + ': ' + e.message); totalMisses++; continue; }
+
+    let memoLabels;
+    try { memoLabels = extractMemoLabelTable(memoSrc, ent.memoSection); }
+    catch (e) { console.error('FAIL ' + ent.engine + ': ' + e.message); totalMisses++; continue; }
+
+    let ok = true;
+    if (!setsEqual(engineLabels, schemaLabels)) {
+      ok = false;
+      console.error('LOCKSTEP FAIL ' + ent.engine + ' (engine vs schema):');
+      const extraEng = setDiff(engineLabels, schemaLabels);
+      const extraSch = setDiff(schemaLabels, engineLabels);
+      if (extraEng.length > 0) console.error('  engine has but schema lacks: ' + extraEng.join(', '));
+      if (extraSch.length > 0) console.error('  schema has but engine lacks: ' + extraSch.join(', '));
+    }
+    if (!setsEqual(engineLabels, memoLabels)) {
+      ok = false;
+      console.error('LOCKSTEP FAIL ' + ent.engine + ' (engine vs memo ' + ent.memoSection + '):');
+      const extraEng = setDiff(engineLabels, memoLabels);
+      const extraMemo = setDiff(memoLabels, engineLabels);
+      if (extraEng.length > 0) console.error('  engine has but memo lacks: ' + extraEng.join(', '));
+      if (extraMemo.length > 0) console.error('  memo has but engine lacks: ' + extraMemo.join(', '));
+    }
+
+    // Schema doc presence-only check: the constant name (e.g., TEMPLATE_LABELS)
+    // must appear in docs/07-v5-schema.md so the schema doc references the
+    // engine constants. Set membership is not duplicated in the schema doc
+    // (the memo owns the tables; the schema doc references them).
+    if (schemaDocSrc.indexOf(ent.engine) < 0) {
+      ok = false;
+      console.error('LOCKSTEP FAIL ' + ent.engine + ': name not referenced in docs/07-v5-schema.md.');
+    }
+
+    if (ok) {
+      console.log('OK ' + ent.engine + ' (' + engineLabels.length + ' values; engine=schema=memo, doc references the name)');
+    } else {
+      totalMisses++;
+    }
+  }
+
+  if (totalMisses > 0) {
+    console.error('');
+    console.error('v5.1 classifier-display lockstep failed with ' + totalMisses + ' enum(s) mismatched.');
+    console.error('Closed sets must be consistent across src/lib/safeeval-v5.js, tests/schema/v5-envelope.schema.json, the vocabulary memo, and docs/07-v5-schema.md.');
+    return false;
+  }
+  console.log('v5.1 classifier-display lockstep passed.');
+  return true;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
   const schemaEngineOk = checkSchemaEngineLockstep();
-  if (!docCodeOk || !schemaEngineOk) {
+  console.log('');
+  const classifierDisplayOk = checkV51ClassifierDisplayLockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk) {
     process.exit(1);
   }
   console.log('');

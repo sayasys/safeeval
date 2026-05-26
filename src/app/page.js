@@ -182,6 +182,127 @@ const L2_DESCRIPTIONS = {
   ai_model_impersonation:          'Impersonation of a named AI assistant.',
 };
 
+// Classifier-display tooltip descriptors (v5.1; v5-result-card.md sections 9-11).
+// Each value is the verbatim per-label descriptor from the vocabulary memo
+// (docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md sections
+// 2.1/2.2/2.3/3.1/3.2/3.3/3.4). MUST stay in sync with the closed-set engine
+// constants (TEMPLATE_LABELS / DELIVERY_LABELS / ...) in src/lib/safeeval-v5.js.
+// Missing entries fall back to the underscore-form label as the chip label
+// (same fallback pattern as BRIGHT_LINE_DESCRIPTIONS).
+const CLASSIFIER_LABEL_DESCRIPTIONS = {
+  Template: {
+    synthetic_document:            'A forged or fabricated document (ID, statement, regulatory letter, legal notice). Includes both image-like artifacts and structured-text equivalents.',
+    phishing_message:              'A message designed to deceive its recipient into action -- email, SMS, DM, or chat. Includes BEC scripts, password-reset lures, executive-impersonation messages.',
+    credential_capture_page:       'A page or workflow that captures usernames, passwords, MFA codes, or session tokens. Includes login mimics and OTP-relay flows.',
+    script_or_dialogue:            'A speaking script or back-and-forth dialogue -- vishing scripts, bank-evasion coaching, recovery-scam calls, family-emergency dialogue, romance-grooming sequences.',
+    synthetic_identity_kit:        'A bundle of identity attributes (persona, history, supporting artifacts) designed to read as a single coherent identity for downstream fraud.',
+    recruitment_post:              'A job posting or recruitment message designed to onboard mules, accomplices, or affiliates into a fraud operation.',
+    review_or_testimonial:         'A fake review, testimonial, rating, or social-proof artifact -- single or templated for bulk use.',
+    prompt_injection_payload:      "Text whose purpose is to override an LLM's intended behavior via embedded instructions or framing.",
+    policy_or_compliance_artifact: 'A document or statement that performs compliance (fake KYC, fake regulator letter, fake audit report) without being a regulator artifact per se.',
+    none_observed:                 'No identifiable artifact request. The prompt is a question or a discussion, not a generate-this-thing request.',
+    other:                         "An artifact request that doesn't fit the labels above. If `other` recurs, add a new Template label rather than letting `other` become a catchall.",
+  },
+  Delivery: {
+    email:               'Delivered via email. Includes mass-email, targeted, BEC, and outbound notifications.',
+    sms_or_messaging:    'Delivered via SMS, MMS, RCS, or a one-to-one messaging app (WhatsApp, Signal DM, iMessage).',
+    phone_voice:         'Delivered via voice call (live or pre-recorded). Includes vishing, deepfake-voice, recovery calls.',
+    web_page:            'Delivered as a web page the target visits -- login mimic, fake storefront, fake portal.',
+    social_post:         'Delivered as a public or semi-public post on a social platform -- timeline post, reply, comment, public profile bio.',
+    dm_or_chat:          "Delivered via a platform's direct-message or in-app chat surface (LinkedIn DM, Instagram DM, Discord DM). Distinct from sms_or_messaging (carrier-level) and email.",
+    in_person_or_print:  'Delivered face-to-face, by paper mail, or as a printed artifact. Rare in eval-set but real for ID forgeries and document fraud.',
+    none_observed:       'No delivery channel implied. The prompt does not commit to how the artifact would reach a target.',
+    other:               "Delivery channel that doesn't fit above. If `other` recurs, add a label rather than letting `other` become a catchall.",
+  },
+  Control: {
+    urgency_or_deadline:       'Time pressure -- "act within 24 hours", "lock in 60 minutes", "expires today". The most common control.',
+    authority_invocation:      'The message claims authority that discourages questioning -- "IT department", "CEO directive", "court order", "government agency".',
+    reply_suppression:         'The prompt instructs the target not to reply, not to forward, not to confirm by another channel.',
+    channel_isolation:         'The prompt steers the target onto a single channel and discourages cross-channel verification ("text me, do not call").',
+    advisor_isolation:         'The prompt explicitly discourages the target from consulting family, advisors, lawyers, or bank fraud teams. Strong romance- and recovery-scam signal.',
+    detection_evasion:         'Explicit instructions to evade fraud detection, monitoring, or filters -- bank coaching, structuring guidance, anti-detection language for the artifact itself.',
+    consequence_threat:        'The target is told a negative consequence will follow non-compliance -- account closure, legal action, public exposure, harm to a family member.',
+    reciprocity_or_obligation: 'The target is manufactured into a debt of obligation -- a fake favor done first, a fake refund overpaid, a fake gift in advance.',
+    secrecy_directive:         'The target is instructed to keep the matter confidential -- "do not tell anyone", "this is between us", "internal only".',
+    none_observed:             'No control mechanism present in the prompt. Default for benign and security-education prompts.',
+    other:                     "Control mechanism that doesn't fit above. If `other` recurs, add a label rather than letting `other` become a catchall.",
+  },
+  Topic: {
+    document_generation:    'The prompt asks the model to produce a document, ID, certificate, or formal artifact.',
+    messaging_or_outreach:  'The prompt asks for a message, sequence, or outreach copy -- email body, DM script, ad copy, recruitment message.',
+    credential_or_access:   'The prompt is about getting, capturing, or bypassing credentials, accounts, or authentication.',
+    payment_or_transfer:    'The prompt is about moving money -- wire, crypto, refund, chargeback, mule transfer.',
+    relationship_grooming:  'The prompt is about building or maintaining a deceptive relationship over time -- romance, pig butchering, sustained pretexting.',
+    recovery_or_followup:   'The prompt addresses prior victims -- recovery scams, follow-up frauds, secondary victimization.',
+    investment_or_market:   'The prompt is about investment products, trading, crypto platforms, market-related fraud.',
+    platform_mechanic:      'The prompt targets platform mechanics -- multi-accounting, promo abuse, fake reviews, ban evasion.',
+    model_attack:           'The prompt targets an LLM or AI product -- prompt injection, jailbreak, model impersonation.',
+    awareness_or_education: 'The prompt is defensive education -- awareness training, fraud explainers, victim support, blue-team material.',
+    general_information:    'The prompt is non-fraud general info, customer support, factual lookups, creative writing.',
+    other:                  "A topic that doesn't fit. If `other` recurs, add a label.",
+  },
+  Target: {
+    enterprise_employee:        'Workforce of a company, generic.',
+    enterprise_executive:       'C-suite or senior leadership.',
+    enterprise_it_credentials:  'IT-system credentials specifically.',
+    enterprise_finance:         'Finance / AP / treasury functions.',
+    financial_account:          'Consumer bank, brokerage, or fintech account holder.',
+    payment_card:               'Holder of credit / debit card data.',
+    crypto_holder:              'Cryptocurrency holders.',
+    elderly_individual:         'Elderly target demographic.',
+    recent_fraud_victim:        'Known prior fraud victims (recovery-scam target).',
+    public_figure:              'Politicians, executives, celebrities -- typically for impersonation, sometimes as target.',
+    lonely_individual:          'Romance-scam target profile.',
+    job_seeker:                 'Targets in active job-search context.',
+    consumer_general:           'General-public consumer target.',
+    none_observed:              'No identifiable target. Default for benign / abstract / awareness-education prompts.',
+    other:                      "A target that doesn't fit. If `other` recurs, add a label.",
+  },
+  Objective: {
+    money_transfer:        'Get the victim to move money to the attacker -- wire, crypto, gift card, payment app.',
+    credential_capture:    'Capture credentials, MFA codes, session tokens, or account-recovery secrets.',
+    account_takeover:      'Take direct control of a victim account via credential stuffing, SIM swap, or social-engineering recovery.',
+    forged_documents:      'Produce a forged document for downstream use (downstream may be money, identity, or compliance).',
+    synthetic_identity:    'Construct a synthetic or blended identity for downstream fraud.',
+    personal_data_capture: 'Capture PII, lookups, or surveillance data without an account-takeover endpoint.',
+    platform_advantage:    'Gain unfair platform advantage -- referral abuse, fake reputation, ban evasion.',
+    model_compromise:      'Override or jailbreak an LLM, or impersonate a model brand.',
+    awareness_or_defense:  'Help defenders or potential victims; no attacker objective.',
+    none_observed:         'No identifiable objective. Default for benign prompts.',
+    other:                 "An objective that doesn't fit. If `other` recurs, add a label.",
+  },
+  Pretext: {
+    it_support:              'The attacker claims to be IT, helpdesk, or a security team performing routine work (resets, lockouts, MFA reconfig).',
+    executive_directive:     'The attacker claims to be an executive issuing a directive -- BEC, "CEO needs wire processed before the meeting".',
+    government_or_regulator: 'The attacker claims to be a government agency, regulator, court, or law-enforcement officer.',
+    family_emergency:        'The attacker claims to be (or to represent) a family member in crisis.',
+    tech_support_scam:       'The attacker claims to be tech support for a third party (Microsoft, Apple, bank-IT) contacting the victim about a problem.',
+    romantic_partner:        'The attacker is performing a romantic relationship -- new connection, long-distance partner, deepening intimacy.',
+    investment_advisor:      'The attacker is performing financial-advice authority -- broker, fund manager, crypto coach, "private group" tipster.',
+    recovery_agent:          'The attacker is performing a recovery role for a prior fraud victim ("we can help you get your money back").',
+    vendor_or_customer:      'The attacker is performing a normal business counterparty -- vendor invoice, customer dispute, marketplace buyer/seller.',
+    peer_or_colleague:       'The attacker is performing a peer-level relationship -- coworker, fellow user, fellow group member.',
+    none_observed:           'No pretext present in the prompt -- direct request without an impersonation frame.',
+    other:                   "A pretext that doesn't fit. If `other` recurs, add a label.",
+  },
+};
+
+// Canonical row order for the v5.1 prompt-summary section (display spec
+// section 11.3). Each row: { key: prompt_summary key, label: display label,
+// descKey: CLASSIFIER_LABEL_DESCRIPTIONS namespace, proseKey: dual-emit
+// prose alias for fallback when the *_label field is absent }.
+const PROMPT_SUMMARY_ROWS = [
+  { key: 'topic_label',     label: 'Topic',     descKey: 'Topic',     proseKey: 'topic',     explanationKey: 'topic_explanation' },
+  { key: 'target_label',    label: 'Target',    descKey: 'Target',    proseKey: 'target' },
+  { key: 'objective_label', label: 'Objective', descKey: 'Objective', proseKey: 'objective' },
+  { key: 'pretext_label',   label: 'Pretext',   descKey: 'Pretext',   proseKey: 'pretext',   explanationKey: 'pretext_explanation' },
+];
+
+// Canonical Evidence-panel process-flags row order (display spec section 9.5).
+// Template / Delivery / Control come first (the classifier-labelled rows);
+// Trigger / Incentive come last (the v4-carry-forward prose-only rows).
+const PROCESS_FLAG_ROW_ORDER = ['Template', 'Delivery', 'Control', 'Trigger', 'Incentive'];
+
 // Canonical FAF component-score order (Update B; v5-result-card.md section 2.5).
 const COMPONENT_ORDER = ['target', 'lure', 'trust', 'extract', 'evade'];
 
@@ -659,6 +780,34 @@ export default function Home() {
               </div>
             )}
 
+            {/* section 2.4a Prompt summary (v5.1 classifier-display; default-visible).
+                Renders the four closed-set classifier labels (Topic / Target /
+                Objective / Pretext) as label-value pairs with companion content
+                in the right column, plus a prose Persona row. Empty labels fall
+                back to none_observed; missing dual-emit prose falls back to "--".
+                See docs/ux/design-system/v5-result-card.md sections 10-11. */}
+            {v5.prompt_summary && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Prompt summary
+                </h3>
+                <div className="bg-white border border-gray-200 rounded-md px-4 py-3 space-y-2">
+                  {PROMPT_SUMMARY_ROWS.map(row => (
+                    <PromptSummaryRow
+                      key={row.key}
+                      label={row.label}
+                      labelValue={v5.prompt_summary[row.key]}
+                      legacyProse={row.proseKey ? v5.prompt_summary[row.proseKey] : null}
+                      explanation={row.explanationKey ? v5.prompt_summary[row.explanationKey] : null}
+                      descKey={row.descKey}
+                      targetAttributes={row.descKey === 'Target' ? (v5.prompt_summary.target_attributes || []) : null}
+                    />
+                  ))}
+                  <PersonaRow persona={v5.prompt_summary.persona} />
+                </div>
+              </div>
+            )}
+
             {/* section 2.5 Evidence panel (collapsible, collapsed by default) */}
             {v5.evidence && (
               <div>
@@ -717,18 +866,26 @@ export default function Home() {
                       </div>
                     )}
 
-                    {/* Process flags: distinct LIST sub-section per Update B. */}
+                    {/* Process flags: v5.1 classifier-label chip(s) per Template /
+                        Delivery / Control row; prose-only Trigger / Incentive
+                        rows retained. Rows sorted into canonical display order
+                        (Template, Delivery, Control, Trigger, Incentive) per
+                        display spec section 9.5. */}
                     {v5.evidence.process_flags && v5.evidence.process_flags.length > 0 && (
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Process flags</div>
                         <div className="rounded-md overflow-hidden border border-gray-200">
-                          {v5.evidence.process_flags.map((flag, i) => (
-                            <div key={i} className="flex items-baseline gap-2 px-3 py-2 bg-white border-b border-gray-100 last:border-b-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
-                              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-20 shrink-0">{flag.category}</span>
-                              <span className="text-xs text-gray-900 leading-relaxed">{flag.description}</span>
-                            </div>
-                          ))}
+                          {[...v5.evidence.process_flags]
+                            .sort((a, b) => {
+                              const ai = PROCESS_FLAG_ROW_ORDER.indexOf(a.category);
+                              const bi = PROCESS_FLAG_ROW_ORDER.indexOf(b.category);
+                              const av = ai < 0 ? PROCESS_FLAG_ROW_ORDER.length : ai;
+                              const bv = bi < 0 ? PROCESS_FLAG_ROW_ORDER.length : bi;
+                              return av - bv;
+                            })
+                            .map((flag, i) => (
+                              <ProcessFlagRow key={i} flag={flag} />
+                            ))}
                         </div>
                       </div>
                     )}
@@ -1131,6 +1288,218 @@ function StageStep({ label, stage, confidence }) {
       <span className="text-xs font-mono text-gray-500 pl-4">
         {typeof confidence === 'number' ? confidence.toFixed(2) : isSkipped ? '--' : '...'}
       </span>
+    </div>
+  );
+}
+
+// v5.1 classifier-label chip. Monospace neutral palette per display spec
+// section 9.1 / 10.2. Variants: 'default' (bg-slate-100), 'none_observed'
+// (muted, bg-slate-50 / text-slate-500), 'other' (audit-affordance,
+// bg-amber-50 / text-amber-900 with inline "audit me" text-tag).
+// Reuses the same hover/focus tooltip pattern as HoverChip / BrightLineChip.
+// WCAG AA: button[type=button] is keyboard-focusable; aria-describedby
+// points to the tooltip-text element so screen readers surface the descriptor.
+function ClassifierLabelChip({ value, descKey, size }) {
+  const descriptions = CLASSIFIER_LABEL_DESCRIPTIONS[descKey] || {};
+  const description = descriptions[value] || null;
+  const small = size === 'small';
+  const baseClass = small
+    ? 'text-[11px] font-mono px-1.5 py-0.5 rounded-[3px] border'
+    : 'text-xs font-mono px-2 py-0.5 rounded';
+  let chipClass;
+  if (value === 'none_observed') {
+    chipClass = `${baseClass} bg-slate-50 text-slate-500 ${small ? 'border-slate-200 italic' : ''}`;
+  } else if (value === 'other') {
+    chipClass = `${baseClass} bg-amber-50 text-amber-900 ${small ? 'border-amber-200' : ''}`;
+  } else {
+    chipClass = `${baseClass} bg-slate-100 text-slate-800 ${small ? 'border-slate-300' : ''}`;
+  }
+  const tooltipId = `classifier-${descKey}-${value}`;
+  return (
+    <span className="group relative inline-block">
+      <button
+        type="button"
+        aria-describedby={description ? tooltipId : undefined}
+        className={`${chipClass} cursor-default focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1`}
+      >
+        {value}
+      </button>
+      {value === 'other' && (
+        <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700 font-semibold">audit me</span>
+      )}
+      {description && (
+        <div
+          id={tooltipId}
+          role="tooltip"
+          className="absolute bottom-full left-0 mb-2 w-72 bg-gray-900 text-white text-xs rounded-md px-3 py-2 leading-relaxed hidden group-hover:block group-focus-within:block z-10 shadow-lg font-sans"
+        >
+          {description}
+          <div className="absolute top-full left-4 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
+        </div>
+      )}
+    </span>
+  );
+}
+
+// v5.1 prompt-summary row (display spec section 10.2 + 11). At desktop
+// (>=768px) lays out as a 3-column grid: field label | classifier-label chip |
+// companion content. At <768px collapses to a vertical stack with the field
+// label on its own line above the chip (section 13.1).
+function PromptSummaryRow({ label, labelValue, legacyProse, explanation, descKey, targetAttributes }) {
+  const hasLabel = typeof labelValue === 'string' && labelValue.length > 0;
+  const effectiveValue = hasLabel ? labelValue : null;
+  const legacyOnly = !hasLabel && typeof legacyProse === 'string' && legacyProse.length > 0;
+  // Companion content: Target shows attribute chip-strip; Topic / Pretext
+  // show explanation prose; Objective has no companion content.
+  const isTarget = descKey === 'Target';
+  const showAttributes = isTarget && Array.isArray(targetAttributes);
+  const companion = explanation || null;
+  return (
+    <div className="md:flex md:items-baseline md:gap-3">
+      <span className="block md:w-24 md:shrink-0 text-xs font-medium text-slate-700 uppercase tracking-wide md:text-right">
+        {label}
+      </span>
+      <div className="md:flex md:items-baseline md:gap-2 md:flex-1 mt-0.5 md:mt-0">
+        {effectiveValue && (
+          <ClassifierLabelChip value={effectiveValue} descKey={descKey} />
+        )}
+        {legacyOnly && (
+          <span className="inline-flex items-baseline gap-1.5">
+            <span className="text-xs text-slate-600">{legacyProse}</span>
+            <span className="text-[10px] uppercase tracking-wide text-slate-400 italic">legacy emission</span>
+          </span>
+        )}
+        {!effectiveValue && !legacyOnly && (
+          <span className="text-xs text-slate-400">--</span>
+        )}
+        {showAttributes && (
+          <TargetAttributesStrip attributes={targetAttributes} />
+        )}
+        {!showAttributes && companion && (
+          <span className="text-xs text-slate-600">
+            <span className="text-slate-400 mr-1">--</span>
+            &quot;{companion}&quot;
+          </span>
+        )}
+        {!showAttributes && !companion && descKey !== 'Objective' && hasLabel && (
+          <span className="text-xs text-slate-400">--</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Target Attributes chip strip (display spec section 11.2). L3-tag-aliased
+// values (target:* and tactic:* prefixed). Prefix stripped for display but
+// retained in accessible name. target: gets solid border, tactic: gets
+// dotted border. Caps visible chips at 5; overflow handled by wrap.
+function TargetAttributesStrip({ attributes }) {
+  if (!attributes || attributes.length === 0) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="text-[11px] font-mono italic px-1.5 py-0.5 rounded-[3px] bg-slate-50 text-slate-500 border border-slate-200">
+          none observed
+        </span>
+      </span>
+    );
+  }
+  const visible = attributes.slice(0, 5);
+  const overflow = attributes.length - visible.length;
+  return (
+    <ul role="list" aria-label="Target attributes" className="inline-flex flex-wrap items-center gap-1">
+      {visible.map((raw, i) => {
+        const colonIdx = raw.indexOf(':');
+        const prefix = colonIdx > 0 ? raw.slice(0, colonIdx) : '';
+        const value = colonIdx > 0 ? raw.slice(colonIdx + 1) : raw;
+        const isTactic = prefix === 'tactic';
+        const borderClass = isTactic ? 'border-slate-300 border-dotted' : 'border-slate-300';
+        return (
+          <li key={i} className="inline-flex">
+            <span
+              aria-label={raw}
+              className={`text-[11px] font-mono px-1.5 py-0.5 rounded-[3px] bg-slate-100 text-slate-700 border ${borderClass}`}
+            >
+              {value}
+            </span>
+          </li>
+        );
+      })}
+      {overflow > 0 && (
+        <li className="inline-flex">
+          <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-[3px] bg-slate-50 text-slate-500 border border-slate-200">
+            +{overflow} more
+          </span>
+        </li>
+      )}
+    </ul>
+  );
+}
+
+// Persona row (display spec section 11.3). Prose-only -- no chip, no
+// tooltip-descriptor. Rendered at the bottom of section 2.4a below the
+// four classifier-labeled rows.
+function PersonaRow({ persona }) {
+  const shown = (typeof persona === 'string' && persona.length > 0) ? persona : null;
+  return (
+    <div className="md:flex md:items-baseline md:gap-3 md:pt-1 md:border-t md:border-gray-100">
+      <span className="block md:w-24 md:shrink-0 text-xs font-medium text-slate-700 uppercase tracking-wide md:text-right">
+        Persona
+      </span>
+      <div className="md:flex md:items-baseline md:gap-2 md:flex-1 mt-0.5 md:mt-0">
+        {shown ? (
+          <span className="text-xs text-slate-600">&quot;{shown}&quot;</span>
+        ) : (
+          <span className="text-xs text-slate-400">--</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// v5.1 Evidence-panel process-flags row. Template / Delivery show a single
+// classifier-label chip alongside the prose description; Control shows a
+// multi-chip strip; Trigger / Incentive stay prose-only. Display spec
+// section 9.1-9.4. Multi-chip rows use ul role=list + li per chip for
+// screen-reader coherence (section 12.3).
+function ProcessFlagRow({ flag }) {
+  const cat = flag.category;
+  const isMulti = cat === 'Control';
+  const hasSingleLabel = (cat === 'Template' || cat === 'Delivery') && typeof flag.label === 'string';
+  const hasMultiLabels = isMulti && Array.isArray(flag.labels) && flag.labels.length > 0;
+  // Legacy v4 envelopes during dual-emit: no label/labels emitted. Render
+  // prose-only with a "legacy emission" tag inline per display spec 9.3.
+  const isLegacyEmission = (cat === 'Template' || cat === 'Delivery' || cat === 'Control') && !hasSingleLabel && !hasMultiLabels;
+  return (
+    <div className="flex items-baseline gap-2 px-3 py-2 bg-white border-b border-gray-100 last:border-b-0">
+      <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
+      <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-20 shrink-0">{cat}</span>
+      <div className="flex flex-wrap items-baseline gap-1.5">
+        {hasSingleLabel && (
+          <ClassifierLabelChip value={flag.label} descKey={cat} />
+        )}
+        {hasMultiLabels && (
+          <ul role="list" aria-label="Control labels" className="inline-flex flex-wrap items-center gap-1">
+            {flag.labels.slice(0, 4).map((lab, i) => (
+              <li key={i} className="inline-flex">
+                <ClassifierLabelChip value={lab} descKey={cat} />
+              </li>
+            ))}
+            {flag.labels.length > 4 && (
+              <li className="inline-flex">
+                <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-[3px] bg-slate-50 text-slate-500 border border-slate-200">
+                  +{flag.labels.length - 4} more
+                </span>
+              </li>
+            )}
+          </ul>
+        )}
+        {isLegacyEmission && (
+          <span className="text-[10px] uppercase tracking-wide text-slate-400 italic">legacy emission</span>
+        )}
+        {flag.description && (
+          <span className="text-xs text-gray-900 leading-relaxed">{flag.description}</span>
+        )}
+      </div>
     </div>
   );
 }

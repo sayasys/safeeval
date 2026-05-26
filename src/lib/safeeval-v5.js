@@ -249,6 +249,143 @@ export const L3_VALUES_BY_CATEGORY = {
 
 export const DISPOSITION_ACTIONS = ['allow', 'safe_completion', 'human_review', 'block'];
 
+// --------------------------------------------------------------------------
+// Classifier-display closed-set vocabularies (v5.1 additive, schema 5.1).
+// Authoritative source: docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md
+// (sections 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4). Lockstep-verified by
+// scripts/check-lockstep.js. Tooltip descriptors live in src/app/page.js as
+// CLASSIFIER_LABEL_DESCRIPTIONS (same pattern as BRIGHT_LINE_DESCRIPTIONS).
+//
+// All seven vocabularies include 'none_observed' (no-signal default) and
+// 'other' (audit-affordance catchall) per the memo's empty-state policy.
+// Stage 2 emits these in evidence.process_flags[].label/labels and
+// prompt_summary.{topic_label, target_label, objective_label, pretext_label,
+// target_attributes}. Engine-side coercion in stage2FAFAnalysis() forces
+// out-of-spec values to 'other' rather than throwing.
+// --------------------------------------------------------------------------
+
+// Template -- what artifact the prompt is asking the model to produce (memo 2.1).
+// Single-valued per envelope (evidence.process_flags[i].label, category Template).
+export const TEMPLATE_LABELS = [
+  'synthetic_document',
+  'phishing_message',
+  'credential_capture_page',
+  'script_or_dialogue',
+  'synthetic_identity_kit',
+  'recruitment_post',
+  'review_or_testimonial',
+  'prompt_injection_payload',
+  'policy_or_compliance_artifact',
+  'none_observed',
+  'other',
+];
+
+// Delivery -- how the artifact reaches its target (memo 2.2).
+// Single-valued per envelope (evidence.process_flags[i].label, category Delivery).
+export const DELIVERY_LABELS = [
+  'email',
+  'sms_or_messaging',
+  'phone_voice',
+  'web_page',
+  'social_post',
+  'dm_or_chat',
+  'in_person_or_print',
+  'none_observed',
+  'other',
+];
+
+// Control -- how compliance is maintained and detection avoided (memo 2.3).
+// Multi-valued per envelope (evidence.process_flags[i].labels[], category Control).
+export const CONTROL_LABELS = [
+  'urgency_or_deadline',
+  'authority_invocation',
+  'reply_suppression',
+  'channel_isolation',
+  'advisor_isolation',
+  'detection_evasion',
+  'consequence_threat',
+  'reciprocity_or_obligation',
+  'secrecy_directive',
+  'none_observed',
+  'other',
+];
+
+// Topic -- substantive subject of the prompt (memo 3.1).
+// Single-valued: prompt_summary.topic_label.
+export const TOPIC_LABELS = [
+  'document_generation',
+  'messaging_or_outreach',
+  'credential_or_access',
+  'payment_or_transfer',
+  'relationship_grooming',
+  'recovery_or_followup',
+  'investment_or_market',
+  'platform_mechanic',
+  'model_attack',
+  'awareness_or_education',
+  'general_information',
+  'other',
+];
+
+// Target -- who or what is being targeted (memo 3.2).
+// Single-valued: prompt_summary.target_label. Mirrors L3 target: category with
+// none_observed and other added for prompt-summary use.
+export const TARGET_LABELS = [
+  'enterprise_employee',
+  'enterprise_executive',
+  'enterprise_it_credentials',
+  'enterprise_finance',
+  'financial_account',
+  'payment_card',
+  'crypto_holder',
+  'elderly_individual',
+  'recent_fraud_victim',
+  'public_figure',
+  'lonely_individual',
+  'job_seeker',
+  'consumer_general',
+  'none_observed',
+  'other',
+];
+
+// Objective -- what the attacker is trying to achieve (memo 3.3).
+// Single-valued: prompt_summary.objective_label.
+export const OBJECTIVE_LABELS = [
+  'money_transfer',
+  'credential_capture',
+  'account_takeover',
+  'forged_documents',
+  'synthetic_identity',
+  'personal_data_capture',
+  'platform_advantage',
+  'model_compromise',
+  'awareness_or_defense',
+  'none_observed',
+  'other',
+];
+
+// Pretext -- the false story the attacker is telling (memo 3.4).
+// Single-valued: prompt_summary.pretext_label.
+export const PRETEXT_LABELS = [
+  'it_support',
+  'executive_directive',
+  'government_or_regulator',
+  'family_emergency',
+  'tech_support_scam',
+  'romantic_partner',
+  'investment_advisor',
+  'recovery_agent',
+  'vendor_or_customer',
+  'peer_or_colleague',
+  'none_observed',
+  'other',
+];
+
+// Categories that accept a single-valued label vs multi-valued labels array.
+// Used by stage2 coercion to pick the right field shape per category.
+const SINGLE_VALUED_FLAG_CATEGORIES = { Template: TEMPLATE_LABELS, Delivery: DELIVERY_LABELS };
+const MULTI_VALUED_FLAG_CATEGORIES  = { Control:  CONTROL_LABELS };
+
 // 14 bright-line features per spec section 5 (13 v4 carry-forward + mfa_or_otp_harvesting new in v5).
 export const BRIGHT_LINE_FEATURES = [
   'fake_regulatory_document',
@@ -537,8 +674,47 @@ const SYSTEM_STAGE_2_FAF = [
   '  extract -- how the asset (money / credentials / data) is taken',
   '  evade  -- detection evasion built into the request',
   '',
-  'Process flags: array of { category, description } where category is one of',
-  '  Trigger, Incentive, Control, Delivery, Template',
+  'Process flags: array of { category, description, label?, labels? } where category is one of',
+  '  Trigger, Incentive, Control, Delivery, Template.',
+  '',
+  '  In addition to the prose description, three category rows MUST carry a',
+  '  closed-set classifier label so the result card surfaces the classifier',
+  '  output (not just the prose):',
+  '',
+  '    - Template (single-valued, "label": <string>). Allowed values:',
+  '      synthetic_document             -- forged/fabricated document (ID, regulator letter, statement).',
+  '      phishing_message               -- BEC scripts, password-reset lures, executive-impersonation emails/DMs.',
+  '      credential_capture_page        -- login mimic / MFA-relay flows.',
+  '      script_or_dialogue             -- vishing scripts, bank-evasion coaching, romance grooming sequences.',
+  '      synthetic_identity_kit         -- bundled persona/history/artifacts for downstream fraud.',
+  '      recruitment_post               -- money-mule or affiliate recruitment.',
+  '      review_or_testimonial          -- fake reviews or templated social proof.',
+  '      prompt_injection_payload       -- text whose purpose is overriding an LLM.',
+  '      policy_or_compliance_artifact  -- fake KYC, audit reports, "compliance theater" forgeries.',
+  '      none_observed                  -- prompt is not a generate-this-thing request.',
+  '      other                          -- artifact request not fitting the above (rare; flag for audit).',
+  '',
+  '    - Delivery (single-valued, "label": <string>). Allowed values:',
+  '      email, sms_or_messaging, phone_voice, web_page, social_post, dm_or_chat,',
+  '      in_person_or_print, none_observed, other.',
+  '      Pick the primary channel when multiple are named in passing.',
+  '',
+  '    - Control (multi-valued, "labels": [<string>, ...]). Allowed values:',
+  '      urgency_or_deadline       -- "act within 24h", "lock in 60 minutes".',
+  '      authority_invocation      -- claims IT / CEO / court / agency authority.',
+  '      reply_suppression         -- "do not reply", "do not forward".',
+  '      channel_isolation         -- "text me, do not call".',
+  '      advisor_isolation         -- discourages consulting family / advisors / bank fraud team.',
+  '      detection_evasion         -- explicit instructions to evade fraud detection / monitoring.',
+  '      consequence_threat        -- account closure / legal action / harm if not complied.',
+  '      reciprocity_or_obligation -- fake favor / refund / gift in advance.',
+  '      secrecy_directive         -- "keep this confidential", "between us".',
+  '      none_observed             -- no control mechanism present.',
+  '      other                     -- control not fitting the above (flag for audit).',
+  '      Emit every Control label that applies. Stack labels for prompts that combine controls.',
+  '',
+  '  Trigger and Incentive rows are prose-only -- do NOT emit "label" or "labels"',
+  '  for those categories.',
   '',
   'Bright lines (high-confidence indicators that auto-block downstream). Emit any that apply:',
   '  fake_regulatory_document, executive_impersonation_payment, government_impersonation_payment,',
@@ -577,15 +753,74 @@ const SYSTEM_STAGE_2_FAF = [
   'signal for phishing_awareness but not for phishing_attack; do not over-emit on',
   'thematic adjacency.',
   '',
+  'Prompt summary classifier labels (closed-set, single-valued for each). Emit',
+  'these alongside the existing prose fields:',
+  '',
+  '  topic_label -- substantive subject. Allowed values:',
+  '    document_generation      -- produce a document / ID / certificate / formal artifact.',
+  '    messaging_or_outreach    -- message / sequence / outreach copy (email, DM, ad, recruitment).',
+  '    credential_or_access     -- getting / capturing / bypassing credentials or accounts.',
+  '    payment_or_transfer      -- moving money (wire, crypto, refund, chargeback, mule transfer).',
+  '    relationship_grooming    -- building / maintaining a deceptive relationship (romance, pig butchering).',
+  '    recovery_or_followup     -- prior victims; recovery scams, follow-up frauds.',
+  '    investment_or_market     -- investment / trading / crypto-platform / market fraud.',
+  '    platform_mechanic        -- multi-accounting, promo abuse, fake reviews, ban evasion.',
+  '    model_attack             -- prompt injection, jailbreak, model impersonation.',
+  '    awareness_or_education   -- defender education, awareness training, victim support.',
+  '    general_information      -- non-fraud info / customer support / creative.',
+  '    other                    -- topic not fitting the above (flag for audit).',
+  '',
+  '  target_label -- who/what is targeted (primary). Allowed values:',
+  '    enterprise_employee, enterprise_executive, enterprise_it_credentials,',
+  '    enterprise_finance, financial_account, payment_card, crypto_holder,',
+  '    elderly_individual, recent_fraud_victim, public_figure, lonely_individual,',
+  '    job_seeker, consumer_general, none_observed, other.',
+  '',
+  '  objective_label -- what the attacker is trying to achieve. Allowed values:',
+  '    money_transfer           -- get the victim to send money.',
+  '    credential_capture       -- capture credentials, MFA codes, recovery secrets.',
+  '    account_takeover         -- direct control of victim account (SIM swap, recovery social-eng).',
+  '    forged_documents         -- produce a forged document for downstream use.',
+  '    synthetic_identity       -- construct a synthetic / blended identity.',
+  '    personal_data_capture    -- PII / lookup / surveillance without ATO endpoint.',
+  '    platform_advantage       -- unfair platform advantage, fake reputation, ban evasion.',
+  '    model_compromise         -- override / jailbreak / impersonate an LLM.',
+  '    awareness_or_defense     -- help defenders or potential victims; no attacker objective.',
+  '    none_observed            -- no identifiable objective (benign default).',
+  '    other                    -- objective not fitting the above (flag for audit).',
+  '',
+  '  pretext_label -- the false story the attacker is telling (primary). Allowed values:',
+  '    it_support               -- claims IT / helpdesk / security team.',
+  '    executive_directive      -- BEC / CEO directive.',
+  '    government_or_regulator  -- IRS / SEC / court / regulator / law-enforcement.',
+  '    family_emergency         -- relative in crisis.',
+  '    tech_support_scam        -- Microsoft / Apple / bank IT third-party support.',
+  '    romantic_partner         -- performing romantic relationship.',
+  '    investment_advisor       -- broker / fund manager / private-group tipster.',
+  '    recovery_agent           -- offering to recover prior fraud losses.',
+  '    vendor_or_customer       -- vendor invoice, marketplace counterparty.',
+  '    peer_or_colleague        -- coworker / fellow group member.',
+  '    none_observed            -- no impersonation frame; direct request.',
+  '    other                    -- pretext not fitting the above (flag for audit).',
+  '',
+  '  topic_explanation, pretext_explanation -- short free-text prose (2-8 words typical)',
+  '  carrying the specific noun (e.g., topic_label=document_generation +',
+  '  topic_explanation="California driver licence"). Nullable.',
+  '',
   'Output strict JSON only:',
   '{',
   '  "faf_nodes": { "context": {...}, "process": { "execution": {...}, "psychological": {...} }, "objective": {...} },',
   '  "component_scores": { "target": int, "lure": int, "trust": int, "extract": int, "evade": int },',
   '  "aggregate_score": int,',
   '  "bright_lines": [string],',
-  '  "process_flags": [{ "category": string, "description": string }],',
+  '  "process_flags": [{ "category": string, "description": string, "label": string?, "labels": [string]? }],',
   '  "l2_probabilities": { "<L2 value>": float, ... },',
-  '  "prompt_summary": { "persona": string|null, "topic": string, "target": string|null, "objective": string|null, "pretext": string|null }',
+  '  "prompt_summary": {',
+  '    "persona": string|null,',
+  '    "topic": string, "target": string|null, "objective": string|null, "pretext": string|null,',
+  '    "topic_label": string, "target_label": string, "objective_label": string, "pretext_label": string,',
+  '    "topic_explanation": string|null, "pretext_explanation": string|null',
+  '  }',
   '}',
   '',
   'aggregate_score MUST equal the sum of component_scores. Be conservative on bright lines.',
@@ -783,12 +1018,13 @@ async function stage2FAFAnalysis(prompt, triageOutput) {
       ? parsed.bright_lines.filter(function (b) { return BRIGHT_LINE_FEATURES.includes(b); })
       : [];
     parsed.process_flags = Array.isArray(parsed.process_flags) ? parsed.process_flags : [];
+    parsed.process_flags = parsed.process_flags.map(coerceProcessFlag);
     parsed.l2_probabilities = parsed.l2_probabilities || {};
     Object.keys(parsed.l2_probabilities).forEach(function (k) {
       if (!ALL_L2_VALUES.includes(k)) delete parsed.l2_probabilities[k];
       else parsed.l2_probabilities[k] = clamp01(parsed.l2_probabilities[k]);
     });
-    parsed.prompt_summary = parsed.prompt_summary || { persona: null, topic: '', target: null, objective: null, pretext: null };
+    parsed.prompt_summary = coercePromptSummary(parsed.prompt_summary);
 
     return {
       ok: true,
@@ -1441,8 +1677,18 @@ export async function evaluatePromptV5(prompt, opts) {
 // --------------------------------------------------------------------------
 
 function assembleEnvelope(p) {
+  // Engine-side post-Stage-3 population of target_attributes from the L3
+  // tag set. Per vocabulary memo section 3.5 / 4.3, target_attributes is an
+  // L3-tag-aliased list (target: and tactic: prefixed values) surfaced to
+  // the prompt_summary surface. Done here (not in Stage 2) because the L3
+  // set lives in classification, not evidence.
+  const promptSummary = (p.evidence && p.evidence.prompt_summary)
+    ? p.evidence.prompt_summary
+    : coercePromptSummary(null);
+  populateTargetAttributes(promptSummary, p.classification);
+
   const envelope = {
-    schema_version:   '5.0.1',
+    schema_version:   '5.1',
     ontology_version: '5.0',
     evaluated_at:     new Date().toISOString(),
     model_pipeline:   p.modelsUsed,
@@ -1457,7 +1703,7 @@ function assembleEnvelope(p) {
       process_flags:    (p.evidence && p.evidence.process_flags) || [],
       l2_probabilities: (p.evidence && p.evidence.l2_probabilities) || {},
     },
-    prompt_summary: (p.evidence && p.evidence.prompt_summary) || { persona: null, topic: '', target: null, objective: null, pretext: null },
+    prompt_summary:   promptSummary,
   };
   // pipeline_trace is omitted entirely (not nulled) when debug is off. (Decision 5.)
   if (p.debug) envelope.pipeline_trace = p.trace;
@@ -1497,13 +1743,13 @@ function stubEvidence(triageOutput) {
     bright_lines:     [],
     process_flags:    [],
     l2_probabilities: {},
-    prompt_summary: {
+    prompt_summary: coercePromptSummary({
       persona:   coarse.persona || null,
       topic:     coarse.topic || '',
       target:    coarse.target || null,
       objective: null,
       pretext:   null,
-    },
+    }),
   };
 }
 
@@ -1548,6 +1794,100 @@ function parseJsonObject(text) {
 
 function clamp01(x) { x = Number(x); if (!isFinite(x)) return 0; if (x < 0) return 0; if (x > 1) return 1; return x; }
 function clampInt(x, lo, hi) { x = parseInt(x, 10); if (!isFinite(x)) return lo; if (x < lo) return lo; if (x > hi) return hi; return x; }
+
+// Coerce a Stage 2 process_flags[] entry into the v5.1 envelope shape.
+// Template / Delivery get a single-valued `label` (out-of-spec values coerce
+// to 'other'; missing -> 'none_observed'). Control gets a multi-valued
+// `labels` array (out-of-spec entries drop; empty array becomes
+// ['none_observed']). Trigger / Incentive stay prose-only. See display spec
+// section 10.3 + memo section 2 / section 4.3.
+function coerceProcessFlag(flag) {
+  if (!flag || typeof flag !== 'object') return { category: 'Trigger', description: '' };
+  const out = {
+    category:    typeof flag.category === 'string' ? flag.category : 'Trigger',
+    description: typeof flag.description === 'string' ? flag.description : '',
+  };
+  const singleEnum = SINGLE_VALUED_FLAG_CATEGORIES[out.category];
+  if (singleEnum) {
+    const raw = typeof flag.label === 'string' ? flag.label : null;
+    if (raw && singleEnum.indexOf(raw) >= 0) out.label = raw;
+    else if (raw) out.label = 'other';
+    else out.label = 'none_observed';
+    return out;
+  }
+  const multiEnum = MULTI_VALUED_FLAG_CATEGORIES[out.category];
+  if (multiEnum) {
+    const rawList = Array.isArray(flag.labels) ? flag.labels : [];
+    const seen = new Set();
+    const cleaned = [];
+    for (const raw of rawList) {
+      if (typeof raw !== 'string') continue;
+      const v = multiEnum.indexOf(raw) >= 0 ? raw : 'other';
+      if (seen.has(v)) continue;
+      seen.add(v);
+      cleaned.push(v);
+    }
+    out.labels = cleaned.length > 0 ? cleaned : ['none_observed'];
+    return out;
+  }
+  return out;
+}
+
+// Coerce a Stage 2 prompt_summary object into the v5.1 envelope shape.
+// New *_label fields default to 'none_observed' when missing or out-of-spec;
+// existing prose fields (topic, target, objective, pretext, persona) stay
+// populated for backward-compat per memo section 4.3 dual-emit window.
+// target_attributes is engine-populated post-Stage-3 from classification.l3[]
+// rather than emitted by Stage 2; default empty here so the field is always
+// present.
+function coercePromptSummary(ps) {
+  ps = ps || {};
+  function coerceLabel(raw, allowed) {
+    if (typeof raw !== 'string') return 'none_observed';
+    if (allowed.indexOf(raw) >= 0) return raw;
+    return 'other';
+  }
+  function coerceProse(raw) {
+    if (typeof raw === 'string') return raw;
+    return null;
+  }
+  return {
+    persona:             coerceProse(ps.persona),
+    topic:               typeof ps.topic === 'string' ? ps.topic : '',
+    target:              coerceProse(ps.target),
+    objective:           coerceProse(ps.objective),
+    pretext:             coerceProse(ps.pretext),
+    topic_label:         coerceLabel(ps.topic_label, TOPIC_LABELS),
+    target_label:        coerceLabel(ps.target_label, TARGET_LABELS),
+    objective_label:     coerceLabel(ps.objective_label, OBJECTIVE_LABELS),
+    pretext_label:       coerceLabel(ps.pretext_label, PRETEXT_LABELS),
+    topic_explanation:   coerceProse(ps.topic_explanation),
+    pretext_explanation: coerceProse(ps.pretext_explanation),
+    target_attributes:   Array.isArray(ps.target_attributes) ? ps.target_attributes.slice() : [],
+  };
+}
+
+// Populate prompt_summary.target_attributes from classification.l3[].
+// The attributes are an L3-tag-aliased list -- the subset of target: and
+// tactic: prefixed L3 values that fired on this prompt. Per memo section 3.5,
+// this is engine-side population rather than Stage 2 emission. Mutates
+// prompt_summary in place; safe to call repeatedly.
+function populateTargetAttributes(promptSummary, classification) {
+  if (!promptSummary) return;
+  const tags = (classification && Array.isArray(classification.l3)) ? classification.l3 : [];
+  const out = [];
+  const seen = new Set();
+  for (const tag of tags) {
+    if (!tag || typeof tag.value !== 'string') continue;
+    if (tag.value.indexOf('target:') === 0 || tag.value.indexOf('tactic:') === 0) {
+      if (!seen.has(tag.value)) {
+        seen.add(tag.value);
+        out.push(tag.value);
+      }
+    }
+  }
+  promptSummary.target_attributes = out;
+}
 
 // Schema rules 9 and 9a: reasoning_summary (280) and narrative_summary (600)
 // MUST end at sentence-final punctuation; mid-word slicing is out of spec.

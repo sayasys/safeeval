@@ -1,7 +1,7 @@
 # SafeEval v5 -- Output Schema
 
-**Status:** v5.0.1 patch. Schema additions: `disposition.narrative_summary`, `disposition.confidence_path`, `disposition.triggered_by.policy_note`. Stage 5 trace slot removed.
-**Schema version:** 5.0.1
+**Status:** v5.1 patch. Schema additions (additive, dual-emit): classifier-display closed-set labels on `evidence.process_flags[]` (`label` / `labels`) and `prompt_summary` (`topic_label`, `target_label`, `objective_label`, `pretext_label`, `topic_explanation`, `pretext_explanation`, `target_attributes`). Existing prose fields retained as backward-compat aliases per `docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md` section 4.3. Prior v5.0.1 additions: `disposition.narrative_summary`, `disposition.confidence_path`, `disposition.triggered_by.policy_note`; Stage 5 trace slot removed.
+**Schema version:** 5.1
 **Ontology version:** 5.0
 **Predecessor:** FAF v4.0 (`src/lib/safeeval.js`)
 **Companion docs:** `docs/policy-spec-v5.0.md` (authoritative spec), `docs/08-v5-ontology.md` (vocabulary reference).
@@ -183,7 +183,7 @@ The FAF v4.0 evidence layer, moved from the response root to under `evidence`.
 | `component_scores` | object | `target`, `lure`, `trust`, `extract`, `evade`, each int 0-3. |
 | `aggregate_score` | int | Sum of component scores, 0-15. |
 | `bright_lines` | array of strings | Subset of `BRIGHT_LINE_FEATURES` (see ontology doc section 5, spec section 5). |
-| `process_flags` | array of objects | Each `{ category, description }`. Categories: `Trigger`, `Incentive`, `Control`, `Delivery`, `Template`. (Carry-forward from v4.0.) |
+| `process_flags` | array of objects | Each `{ category, description, label?, labels? }`. Categories: `Trigger`, `Incentive`, `Control`, `Delivery`, `Template`. Categories `Template` and `Delivery` carry a single-valued `label` (closed-set from `TEMPLATE_LABELS` / `DELIVERY_LABELS` -- see section 3.7); category `Control` carries a multi-valued `labels` array (closed-set from `CONTROL_LABELS`). Categories `Trigger` / `Incentive` stay prose-only. (v5.1 additive; legacy v4 envelopes without `label` / `labels` keep rendering against the description per display spec section 9.3.) |
 | `l2_probabilities` | object | Map from any L2 value to probability [0,1]. Sparse -- only L2s with prob > 0 are included. Replaces v4's `typology_probabilities`. |
 
 **Relationship-Phase values:** `targeting`, `contact`, `engagement`, `conversion`, `extraction`, `escalation`, `evasion`. Unchanged from v4.0.
@@ -192,17 +192,45 @@ The FAF v4.0 evidence layer, moved from the response root to under `evidence`.
 
 ### 3.5 `prompt_summary`
 
-Carry-forward from v4.0 with no changes. Five-field convenience summary for UI display.
+Convenience summary for UI display. The original v4-carry-forward prose fields stay populated as backward-compat aliases during the v5.1 dual-emit window; the additive `*_label` / `*_explanation` / `target_attributes` fields land alongside them per the v5.1 classifier-display work (`docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md`).
 
-```json
+```jsonc
 {
+  // -- v4-carry-forward prose (dual-emit, retained for back-compat) --
   "persona":   "string | null",
   "topic":     "string",
   "target":    "string | null",
   "objective": "string | null",
-  "pretext":   "string | null"
+  "pretext":   "string | null",
+
+  // -- v5.1 classifier-display closed-set labels (additive) --
+  "topic_label":         "string",        // closed-set from TOPIC_LABELS
+  "target_label":        "string",        // closed-set from TARGET_LABELS
+  "objective_label":     "string",        // closed-set from OBJECTIVE_LABELS
+  "pretext_label":       "string",        // closed-set from PRETEXT_LABELS
+  "topic_explanation":   "string | null", // free-text prose (e.g., "California driver licence")
+  "pretext_explanation": "string | null", // free-text prose
+  "target_attributes":   ["string"]       // L3-aliased values, prefix target:|tactic:
 }
 ```
+
+`target_attributes` is engine-populated post-Stage-3 from `classification.l3[]` (the subset of `target:` and `tactic:` prefixed values). It is not emitted by Stage 2.
+
+### 3.7 v5.1 classifier-display closed sets
+
+Seven closed-set vocabularies introduced in v5.1 for the result-card classifier-display surface. Each set is defined in the vocabulary memo (`docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md`) and mirrored verbatim in `src/lib/safeeval-v5.js` exports plus `tests/schema/v5-envelope.schema.json` `$defs`. Lockstep-verified by `scripts/check-lockstep.js`.
+
+| Engine constant | JSON Schema `$defs` | Memo section | Cardinality | Surface |
+|---|---|---|---|---|
+| `TEMPLATE_LABELS`  | `template_labels`  | memo 2.1 | 11 values | `evidence.process_flags[].label` (category Template) |
+| `DELIVERY_LABELS`  | `delivery_labels`  | memo 2.2 | 9 values  | `evidence.process_flags[].label` (category Delivery) |
+| `CONTROL_LABELS`   | `control_labels`   | memo 2.3 | 11 values | `evidence.process_flags[].labels` (category Control; multi-valued) |
+| `TOPIC_LABELS`     | `topic_labels`     | memo 3.1 | 12 values | `prompt_summary.topic_label` |
+| `TARGET_LABELS`    | `target_labels`    | memo 3.2 | 15 values | `prompt_summary.target_label` |
+| `OBJECTIVE_LABELS` | `objective_labels` | memo 3.3 | 11 values | `prompt_summary.objective_label` |
+| `PRETEXT_LABELS`   | `pretext_labels`   | memo 3.4 | 12 values | `prompt_summary.pretext_label` |
+
+Every vocabulary includes `none_observed` (no-signal default) and `other` (audit-affordance catchall). The display spec at `docs/ux/design-system/v5-result-card.md` sections 9-13 documents the chip chrome and empty-state policy. Out-of-spec values emitted by Stage 2 are coerced engine-side to `other` rather than throwing -- see `coerceProcessFlag` / `coercePromptSummary` in `src/lib/safeeval-v5.js`.
 
 ### 3.6 `pipeline_trace` (debug only)
 

@@ -17,7 +17,7 @@
     "prompt_summary"
   ],
   "properties": {
-    "schema_version":   { "const": "5.0.1" },
+    "schema_version":   { "const": "5.1" },
     "ontology_version": { "const": "5.0" },
     "evaluated_at":     { "type": "string", "format": "date-time" },
     "model_pipeline": {
@@ -323,6 +323,139 @@
       "enum": ["Trigger", "Incentive", "Control", "Delivery", "Template"]
     },
 
+    "template_labels": {
+      "type": "string",
+      "enum": [
+        "synthetic_document",
+        "phishing_message",
+        "credential_capture_page",
+        "script_or_dialogue",
+        "synthetic_identity_kit",
+        "recruitment_post",
+        "review_or_testimonial",
+        "prompt_injection_payload",
+        "policy_or_compliance_artifact",
+        "none_observed",
+        "other"
+      ]
+    },
+
+    "delivery_labels": {
+      "type": "string",
+      "enum": [
+        "email",
+        "sms_or_messaging",
+        "phone_voice",
+        "web_page",
+        "social_post",
+        "dm_or_chat",
+        "in_person_or_print",
+        "none_observed",
+        "other"
+      ]
+    },
+
+    "control_labels": {
+      "type": "string",
+      "enum": [
+        "urgency_or_deadline",
+        "authority_invocation",
+        "reply_suppression",
+        "channel_isolation",
+        "advisor_isolation",
+        "detection_evasion",
+        "consequence_threat",
+        "reciprocity_or_obligation",
+        "secrecy_directive",
+        "none_observed",
+        "other"
+      ]
+    },
+
+    "topic_labels": {
+      "type": "string",
+      "enum": [
+        "document_generation",
+        "messaging_or_outreach",
+        "credential_or_access",
+        "payment_or_transfer",
+        "relationship_grooming",
+        "recovery_or_followup",
+        "investment_or_market",
+        "platform_mechanic",
+        "model_attack",
+        "awareness_or_education",
+        "general_information",
+        "other"
+      ]
+    },
+
+    "target_labels": {
+      "type": "string",
+      "enum": [
+        "enterprise_employee",
+        "enterprise_executive",
+        "enterprise_it_credentials",
+        "enterprise_finance",
+        "financial_account",
+        "payment_card",
+        "crypto_holder",
+        "elderly_individual",
+        "recent_fraud_victim",
+        "public_figure",
+        "lonely_individual",
+        "job_seeker",
+        "consumer_general",
+        "none_observed",
+        "other"
+      ]
+    },
+
+    "objective_labels": {
+      "type": "string",
+      "enum": [
+        "money_transfer",
+        "credential_capture",
+        "account_takeover",
+        "forged_documents",
+        "synthetic_identity",
+        "personal_data_capture",
+        "platform_advantage",
+        "model_compromise",
+        "awareness_or_defense",
+        "none_observed",
+        "other"
+      ]
+    },
+
+    "pretext_labels": {
+      "type": "string",
+      "enum": [
+        "it_support",
+        "executive_directive",
+        "government_or_regulator",
+        "family_emergency",
+        "tech_support_scam",
+        "romantic_partner",
+        "investment_advisor",
+        "recovery_agent",
+        "vendor_or_customer",
+        "peer_or_colleague",
+        "none_observed",
+        "other"
+      ]
+    },
+
+    "process_flag_label_union": {
+      "description": "Loose union over the three labelled-flag enums (Template, Delivery, Control). Category-conditional strictness is enforced engine-side in coerceProcessFlag(); the schema accepts the union so JSON Schema 2020-12 if/then/else conditionals do not have to branch on category. v5.1 additive.",
+      "type": "string",
+      "anyOf": [
+        { "$ref": "#/$defs/template_labels" },
+        { "$ref": "#/$defs/delivery_labels" },
+        { "$ref": "#/$defs/control_labels" }
+      ]
+    },
+
     "relationship_phase_values": {
       "type": "string",
       "enum": [
@@ -482,8 +615,14 @@
             "additionalProperties": false,
             "required": ["category", "description"],
             "properties": {
-              "category": { "$ref": "#/$defs/process_flag_categories" },
-              "description": { "type": "string" }
+              "category":    { "$ref": "#/$defs/process_flag_categories" },
+              "description": { "type": "string" },
+              "label":       { "$ref": "#/$defs/process_flag_label_union" },
+              "labels": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/control_labels" },
+                "minItems": 1
+              }
             }
           }
         },
@@ -559,7 +698,21 @@
         "topic":     { "type": "string" },
         "target":    { "type": ["string", "null"] },
         "objective": { "type": ["string", "null"] },
-        "pretext":   { "type": ["string", "null"] }
+        "pretext":   { "type": ["string", "null"] },
+
+        "topic_label":         { "$ref": "#/$defs/topic_labels" },
+        "target_label":        { "$ref": "#/$defs/target_labels" },
+        "objective_label":     { "$ref": "#/$defs/objective_labels" },
+        "pretext_label":       { "$ref": "#/$defs/pretext_labels" },
+        "topic_explanation":   { "type": ["string", "null"] },
+        "pretext_explanation": { "type": ["string", "null"] },
+        "target_attributes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(target|tactic):[a-z_]+$"
+          }
+        }
       }
     },
 
