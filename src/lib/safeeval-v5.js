@@ -376,6 +376,93 @@ export function migrateLegacyV4L1(v4Code, prompt) {
 }
 
 // --------------------------------------------------------------------------
+// Rule 1.5 -- AI-Enabled-Abuse bright-line defender-framing escape valve.
+// Spec: docs/04-enforcement-design.md section 5.1; canonical adjudication
+// memo docs/memos/2026-05-25-policy-case07-defender-framing.md section 6.
+//
+// When all five preconditions hold, the disposition cascade routes to
+// human_review (rather than block) and Stage 3's bright-line forcing
+// substitutes a borderline L2 under L1 ambiguous_dual_use (rather than the
+// cyber_intrusion L2). The Stage 3 helper and the Stage 4 cascade rule
+// both check the same preconditions on the same inputs, so they stay in
+// sync.
+// --------------------------------------------------------------------------
+
+const AEA_BRIGHT_LINES_FOR_RULE_15 = ['prompt_injection_payload', 'ai_model_impersonation'];
+const CASE07_DEFENDER_CONTEXT_MARKERS = ['academic_research', 'defensive_analysis', 'authorized_pentest_claimed'];
+const CASE07_OPERATIONALIZATION_MARKERS = ['specific_victim_targeted', 'payment_instruction_embedded', 'scale_enablement_requested'];
+const RULE_15_NAME = 'bright_line_with_defender_framing_routes_to_review';
+const RULE_15_POLICY_NOTE = 'Defender framing claimed but unverifiable (academic / defensive / authorized-pentest context marker present; authorization_unverifiable risk marker present; no operationalization markers). Bright-line match remains in triggered_by.bright_lines for audit; disposition routed to human_review per master-policy section 3.9 legitimate-use clause.';
+
+// Rule 1.5 borderline L2 set per bright-line (memo 6.2). The ordering matters:
+// the Stage 3 forcer picks the highest-probability candidate from the forced
+// set and falls back to forced[0] when none of the forced candidates appear in
+// l2_probabilities (which is the expected case for borderline L2s on an AEA
+// prompt). prompt_injection_payload defaults to borderline_security_research;
+// ai_model_impersonation defaults to borderline_red_team.
+const RULE_15_FORCED_L2 = {
+  prompt_injection_payload: ['borderline_security_research', 'borderline_red_team'],
+  ai_model_impersonation:   ['borderline_red_team', 'borderline_security_research'],
+};
+
+// Extract L3 values for a given category from the Stage 3 l3 array shape:
+// [{value: "<category>:<value>", confidence: <number>}, ...].
+function l3ValuesByCategory(l3, category) {
+  if (!Array.isArray(l3)) return [];
+  const prefix = category + ':';
+  const out = [];
+  for (const tag of l3) {
+    if (tag && typeof tag.value === 'string' && tag.value.indexOf(prefix) === 0) {
+      out.push(tag.value.slice(prefix.length));
+    }
+  }
+  return out;
+}
+
+export function evaluatesToRule15(brightLines, l3) {
+  if (!Array.isArray(brightLines) || brightLines.length === 0) return false;
+  const aeaPresent = brightLines.some(function (bl) { return AEA_BRIGHT_LINES_FOR_RULE_15.includes(bl); });
+  if (!aeaPresent) return false;
+  const nonAeaPresent = brightLines.some(function (bl) { return !AEA_BRIGHT_LINES_FOR_RULE_15.includes(bl); });
+  if (nonAeaPresent) return false;
+  const contextMarkers = l3ValuesByCategory(l3, 'context_marker');
+  const defenderContextPresent = contextMarkers.some(function (v) { return CASE07_DEFENDER_CONTEXT_MARKERS.includes(v); });
+  if (!defenderContextPresent) return false;
+  const riskMarkers = l3ValuesByCategory(l3, 'risk_marker');
+  if (riskMarkers.indexOf('authorization_unverifiable') < 0) return false;
+  const operationalizationPresent = riskMarkers.some(function (v) { return CASE07_OPERATIONALIZATION_MARKERS.includes(v); });
+  if (operationalizationPresent) return false;
+  return true;
+}
+
+// forcedL2ForBrightLine: returns the L2 set Stage 3 should force for a given
+// bright-line under the current L3 evidence. When Rule 1.5's preconditions
+// hold AND the bright line is an AEA bright line, returns the borderline L2
+// set (which lives under L1 ambiguous_dual_use). Otherwise returns the
+// static BRIGHT_LINE_FORCED_L2 lookup unchanged.
+//
+// brightLinesContext is the full bright_lines array on the envelope, needed
+// to check Rule 1.5 precondition 2 ("no non-AEA bright lines co-occurring").
+// Tests that call this with a single bright line can omit it; the function
+// defaults to [brightLine], which preserves single-bright-line behavior.
+export function forcedL2ForBrightLine(brightLine, l3, brightLinesContext) {
+  const allBrightLines = Array.isArray(brightLinesContext) ? brightLinesContext : [brightLine];
+  if (AEA_BRIGHT_LINES_FOR_RULE_15.includes(brightLine) && evaluatesToRule15(allBrightLines, l3)) {
+    return RULE_15_FORCED_L2[brightLine];
+  }
+  return BRIGHT_LINE_FORCED_L2[brightLine];
+}
+
+// Hardcoded reasoning_summary for the rule-derived path (memo 6.4). Names
+// the AEA bright lines that fired and the two key L3 signal classes; the
+// model's reasoning_summary is replaced with this when Rule 1.5 fired so
+// the audit string is stable across runs.
+function reasoningSummaryForRule15(brightLines) {
+  const aea = (Array.isArray(brightLines) ? brightLines : []).filter(function (bl) { return AEA_BRIGHT_LINES_FOR_RULE_15.includes(bl); });
+  return 'Rule 1.5: bright-line ' + aea.join(',') + ' co-occurs with defender framing (academic_research/defensive_analysis/authorized_pentest_claimed + authorization_unverifiable, no operationalization markers). Per master-policy 3.9, routed to human_review.';
+}
+
+// --------------------------------------------------------------------------
 // Models per stage
 // --------------------------------------------------------------------------
 
@@ -473,6 +560,22 @@ const SYSTEM_STAGE_2_FAF = [
   '    reputation_manipulation, automation_botting, ban_evasion,',
   '    credential_harvesting_infra, malware_distribution, prompt_injection_attack,',
   '    model_jailbreak, ai_model_impersonation',
+  '',
+  'The L2 probability map is non-exclusive. Many prompts express multiple plausible',
+  'L2 patterns simultaneously, and the map should reflect every L2 with substantive',
+  'signal, not just the single best fit. Score each plausible L2 independently.',
+  '',
+  'Worked example -- business email compromise (BEC) requesting a wire transfer',
+  'from a victim impersonating an executive: this prompt is centrally BOTH',
+  'phishing_attack (the delivery template is a phishing email) AND impersonation_scam',
+  '(the persona is a fabricated executive identity). Emit non-zero probabilities for',
+  'BOTH. Do not pick one and zero out the other.',
+  '',
+  '"Substantive signal" means the prompt\'s content (target, lure, trust, extract,',
+  'or evade dimensions) actively supports that L2 -- not merely that the L2 is',
+  'thematically adjacent. A prompt about phishing-awareness training has substantive',
+  'signal for phishing_awareness but not for phishing_attack; do not over-emit on',
+  'thematic adjacency.',
   '',
   'Output strict JSON only:',
   '{',
@@ -795,9 +898,14 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
     // When the bright-line allows multiple L2s, prefer the one with the highest
     // probability in evidence.l2_probabilities -- this keeps the forced pick
     // consistent with rule 12 instead of always defaulting to forced[0].
+    //
+    // For the two AEA bright lines (prompt_injection_payload, ai_model_impersonation)
+    // under Rule 1.5 preconditions, the forced set becomes the borderline pair
+    // under L1 ambiguous_dual_use (memo 6.2). forcedL2ForBrightLine handles
+    // that branch transparently to this call site.
     if (evidence && Array.isArray(evidence.bright_lines) && evidence.bright_lines.length > 0) {
       for (const bl of evidence.bright_lines) {
-        const forced = BRIGHT_LINE_FORCED_L2[bl];
+        const forced = forcedL2ForBrightLine(bl, args.l3, evidence.bright_lines);
         if (forced && forced.length > 0 && !forced.includes(args.l2.value)) {
           // Pick the forced L2 with the highest probability in the map; fall back
           // to forced[0] when none of the forced candidates appear in the map.
@@ -872,6 +980,42 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
           args.l2 = { value: argmaxKey, confidence: argmaxProb };
         }
       }
+
+      // Schema rule 12b: within-tolerance tiebreak for the Stage 3 L2 pick.
+      // When two or more keys are within L2_PICK_PROBABILITY_TOLERANCE of the
+      // overall max, the pick is deterministic: (i) if exactly one tied L2 is
+      // referenced by a fired bright-line (via BRIGHT_LINE_FORCED_L2), pick
+      // that one; (ii) otherwise, alphabetically-earliest by ASCII. When only
+      // one L2 is within tolerance of max, this is a no-op. Runs after the
+      // SHOULD-bound enforcement above so the input is whatever L2 the upstream
+      // selection settled on. (Spec: docs/07-v5-schema.md section 6 rule 12b.)
+      const tiedL2s = probKeys.filter(function (k) {
+        return (overallMax - probs[k]) <= POLICY_CONFIG.L2_PICK_PROBABILITY_TOLERANCE;
+      });
+      if (tiedL2s.length > 1) {
+        const fired = (evidence && Array.isArray(evidence.bright_lines)) ? evidence.bright_lines : [];
+        const referenced = new Set();
+        for (const bl of fired) {
+          const refs = BRIGHT_LINE_FORCED_L2[bl];
+          if (Array.isArray(refs)) for (const r of refs) referenced.add(r);
+        }
+        const referencedTied = tiedL2s.filter(function (k) { return referenced.has(k); });
+        let pickByTiebreak;
+        if (referencedTied.length === 1) {
+          pickByTiebreak = referencedTied[0];
+        } else {
+          pickByTiebreak = tiedL2s.slice().sort()[0];
+        }
+        if (pickByTiebreak !== args.l2.value) {
+          // Only override when the tiebreak picks a different L2 under the
+          // same L1 -- avoid cross-L1 hops at this stage (those are bright-line
+          // forcing territory, already handled above).
+          const finalAllowedL2b = L2_BY_L1[args.l1.value];
+          if (finalAllowedL2b.includes(pickByTiebreak)) {
+            args.l2 = { value: pickByTiebreak, confidence: probs[pickByTiebreak] };
+          }
+        }
+      }
     }
 
     // Validate + filter L3.
@@ -939,6 +1083,20 @@ function applyDeterministicRules(evidence, classification) {
   // fired, or 'model_adjudicated' if none did), and policy_note (set when a
   // non-negotiable rule fired). See policy-spec-v5.0.md Section 6.1.
   const triggered = { bright_lines: [], thresholds: [], rules: [], policy_note: null };
+
+  // Rule 1.5: AEA bright-line defender-framing escape valve. Runs BEFORE rule 1
+  // so an AEA bright-line in combination with the L3 defender-framing conjunction
+  // routes to human_review rather than block. When any precondition fails,
+  // rule 1 fires unchanged. Spec: docs/04-enforcement-design.md section 5.1;
+  // adjudication memo docs/memos/2026-05-25-policy-case07-defender-framing.md
+  // section 6.
+  if (evidence && Array.isArray(evidence.bright_lines) && evidence.bright_lines.length > 0
+      && evaluatesToRule15(evidence.bright_lines, classification && classification.l3)) {
+    triggered.bright_lines = evidence.bright_lines.slice();
+    triggered.rules.push(RULE_15_NAME);
+    triggered.policy_note = RULE_15_POLICY_NOTE;
+    return { action: 'human_review', confidence: 0.85, triggered, decided: true };
+  }
 
   if (evidence && Array.isArray(evidence.bright_lines) && evidence.bright_lines.length > 0) {
     triggered.bright_lines = evidence.bright_lines.slice();
@@ -1058,10 +1216,20 @@ async function stage4Disposition(prompt, evidence, classification) {
       ? buildSafeCompletionGuidance(l1Value)
       : null;
 
+    // Rule 1.5: hardcoded reasoning_summary for the rule-derived path
+    // (memo 6.4). narrative_summary stays model-emitted -- the model sees
+    // the rule name in the DETERMINISTIC RULE OUTCOME block and writes
+    // coherent prose around it. Override is post-model so the truncation
+    // step below applies uniformly.
+    let reasoningSummary = args.reasoning_summary;
+    if (ruleResult.triggered.rules.indexOf(RULE_15_NAME) >= 0) {
+      reasoningSummary = reasoningSummaryForRule15(ruleResult.triggered.bright_lines);
+    }
+
     const disposition = {
       action:                   action,
       confidence:               confidence,
-      reasoning_summary:        truncateAtSentenceBoundary(args.reasoning_summary, POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS),
+      reasoning_summary:        truncateAtSentenceBoundary(reasoningSummary, POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS),
       narrative_summary:        truncateAtSentenceBoundary(args.narrative_summary, POLICY_CONFIG.NARRATIVE_SUMMARY_MAX_CHARS),
       triggered_by:             ruleResult.triggered,
       safe_completion_guidance: safeCompletionGuidance,

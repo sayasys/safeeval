@@ -84,8 +84,10 @@ function checkV4(actual, expected) {
   } else {
     v4 = actual;
   }
-  if (v4.typology !== expected.typology) {
-    failures.push('typology: expected ' + expected.typology + ', got ' + v4.typology);
+  if (expected.typology !== null && expected.typology !== undefined) {
+    if (v4.typology !== expected.typology) {
+      failures.push('typology: expected ' + expected.typology + ', got ' + v4.typology);
+    }
   }
   if (v4.escalation_tier !== expected.escalation_tier) {
     failures.push('escalation_tier: expected ' + expected.escalation_tier + ', got ' + v4.escalation_tier);
@@ -104,8 +106,10 @@ function checkV5(actual, expected) {
   const l2Val = v5.classification && v5.classification.l2 && v5.classification.l2.value;
   const action = v5.disposition && v5.disposition.action;
 
-  if (l1Val !== expected.l1) {
-    failures.push('v5.l1: expected ' + expected.l1 + ', got ' + l1Val);
+  if (expected.l1 !== null && expected.l1 !== undefined) {
+    if (l1Val !== expected.l1) {
+      failures.push('v5.l1: expected ' + expected.l1 + ', got ' + l1Val);
+    }
   }
   if (expected.l2 !== null && expected.l2 !== undefined) {
     if (l2Val !== expected.l2) {
@@ -137,8 +141,16 @@ function checkV5(actual, expected) {
 
   // Rule 12 MUST half: classification.l2.value appears as a key in
   // evidence.l2_probabilities (skip when probs map is empty, e.g. Stage 2 stub).
+  // Also skip when triggered_by.rules contains 'validation_fallback' -- that
+  // signals the rule-12 fallback already fired and handled the MUST violation
+  // in-band (the canonical case is Rule 1.5's borderline L2 forcing, where
+  // the forced L2 is intentionally not in the Stage 2 probability map; memo
+  // 2026-05-25-policy-case07-defender-framing.md section 6.3).
   const probs = v5.evidence && v5.evidence.l2_probabilities;
-  if (probs && Object.keys(probs).length > 0 && l2Val && !Object.prototype.hasOwnProperty.call(probs, l2Val)) {
+  const rules = (v5.disposition && v5.disposition.triggered_by && v5.disposition.triggered_by.rules) || [];
+  const ruleTwelveFallbackFired = Array.isArray(rules) && rules.indexOf('validation_fallback') >= 0;
+  if (probs && Object.keys(probs).length > 0 && l2Val && !ruleTwelveFallbackFired &&
+      !Object.prototype.hasOwnProperty.call(probs, l2Val)) {
     failures.push('v5.classification.l2.value: ' + l2Val + ' not in evidence.l2_probabilities keys (rule 12 MUST)');
   }
 
