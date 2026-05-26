@@ -71,6 +71,8 @@ handoff/
 
 # Claude Code project-level config (not part of the portfolio repo)
 .claude/
+# ...except the shared permissions file, which is checked in
+!.claude/settings.json
 
 # Parallel-tracks workflow infrastructure (not part of the portfolio repo)
 docs/memos/2026-05-24-parallel-cowork-tracks.md
