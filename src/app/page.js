@@ -23,6 +23,36 @@ const BRIGHT_LINE_DESCRIPTIONS = {
   mfa_or_otp_harvesting: 'Generates pages, prompts, or scripts designed to capture a victim multi-factor or one-time passcode in real time -- the final step in account takeover.',
 };
 
+// Conversation-mode example pills. Click loads `turns` straight into the
+// preview-confirm step (no Stage 0 parser, sub-modality forced to text).
+// STUB CONTENT: policy is curating real scenarios in parallel
+// (docs/memos/2026-05-28-policy-conversation-example-scenarios.md). Wire-up
+// step replaces these entries with the curated set; render plumbing here is
+// final.
+const EXAMPLE_PILLS = [
+  {
+    label: 'Stub 1',
+    turns: [
+      { sender: 'placeholder', text: 'Stub turn 1 -- replace with policy scenario.' },
+      { sender: '__user__', text: 'Stub user reply -- replace with policy scenario.' },
+    ],
+  },
+  {
+    label: 'Stub 2',
+    turns: [
+      { sender: 'placeholder', text: 'Another stub conversation opener.' },
+      { sender: '__user__', text: 'Another stub user reply.' },
+    ],
+  },
+  {
+    label: 'Stub 3',
+    turns: [
+      { sender: 'placeholder', text: 'Third stub example, swap at wire-up.' },
+      { sender: '__user__', text: 'Third stub reply.' },
+    ],
+  },
+];
+
 const EXAMPLE_PROMPTS = [
   {
     label: 'Romance / Pig Butchering',
@@ -758,6 +788,37 @@ export default function Home() {
     setActiveTurnIndex(null);
   }
 
+  // Example-pill click handler (conversation mode). Loads the pill's canned
+  // turns straight into preview-confirm, bypassing Stage 0 entirely. Forces
+  // sub-modality to text and clears any stale image / paste / parse state so
+  // mode-switch confirm dialogs read the new state correctly.
+  function loadExamplePill(pill) {
+    if (!pill || !Array.isArray(pill.turns)) return;
+    if (parseAbortRef.current) {
+      try { parseAbortRef.current.abort(); } catch (e) { /* no-op */ }
+      parseAbortRef.current = null;
+    }
+    setSubModality('text');
+    setImageBase64('');
+    setImageMediaType('');
+    setImageName('');
+    setConvText('');
+    setParseError('');
+    setParsing(false);
+    setSonnetEscalating(false);
+    const cloned = pill.turns.map(t => ({
+      sender: typeof t.sender === 'string' ? t.sender : '__user__',
+      text: typeof t.text === 'string' ? t.text : '',
+      ...(t.timestamp ? { timestamp: t.timestamp } : {}),
+    }));
+    setParsedTurns(cloned);
+    setPreviewTurns(cloned.map(t => ({ ...t })));
+    setParseConfidence(1);
+    setParseWarnings([]);
+    setModalityHint(null);
+    setActiveTurnIndex(null);
+  }
+
   // File handlers --------------------------------------------------------
 
   function handleImageFile(file) {
@@ -1019,6 +1080,7 @@ export default function Home() {
                 setParseError('');
               }}
               parseFromText={() => invokeStage0(false)}
+              loadExamplePill={loadExamplePill}
             />
           )}
         </div>
@@ -2033,6 +2095,7 @@ function ConversationInput(props) {
     updateTurn, deleteTurn, insertTurnAt,
     invokeStage0, fileInputRef, txtFileInputRef,
     clearAttachedImage, parseFromText,
+    loadExamplePill,
   } = props;
 
   const hasPreview = Array.isArray(previewTurns);
@@ -2100,6 +2163,26 @@ function ConversationInput(props) {
               handleTxtFile={handleTxtFile}
               parseFromText={parseFromText}
             />
+          )}
+
+          {/* Conversation-mode example pills. Clicking loads canned turns
+              directly into preview-confirm (no Stage 0 parser, sub-modality
+              forced to text). STUB content for now; policy is curating the
+              real set in parallel. Visual style mirrors prompt-mode pills
+              per CURRENT.md until UX spec section 27 lands. */}
+          {Array.isArray(EXAMPLE_PILLS) && EXAMPLE_PILLS.length > 0 && (
+            <div className="flex flex-wrap gap-2" data-testid="conversation-example-pills">
+              {EXAMPLE_PILLS.map(pill => (
+                <button
+                  key={pill.label}
+                  type="button"
+                  onClick={() => loadExamplePill && loadExamplePill(pill)}
+                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors"
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
           )}
         </>
       )}
