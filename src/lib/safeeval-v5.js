@@ -23,8 +23,10 @@
 //   - This file is ASCII-only on purpose. Em dashes, smart quotes, arrows, and
 //     curly apostrophes will silently corrupt on the Windows-mounted clone path
 //     and break Vercel build with "Unexpected eof".
-//   - This module is parallel to src/lib/safeeval.js (v4). v4 is untouched.
-//   - Dual-emit is wired in src/app/api/evaluate/route.js (?v5=1 opt-in).
+//   - This module is the only classification engine. The v4 single-call
+//     classifier (src/lib/safeeval.js) was sunset on 2026-05-27; the route at
+//     src/app/api/evaluate/route.js calls evaluatePromptV5 directly and
+//     returns the v5 envelope at the response root.
 //   - All thresholds live in POLICY_CONFIG -- changing a number here does NOT
 //     require touching engine logic. (Decision 4.)
 
@@ -430,48 +432,6 @@ export const BRIGHT_LINE_FORCED_L2 = {
   bank_evasion_script:               ['romance_fraud', 'investment_fraud', 'advance_fee_fraud'],
   detection_evasion_explicit:        [],
   structuring_guidance:              [],
-};
-
-// Section 8 v4 -> v5 mapping (used by deriveV4Legacy for dual-emit).
-export const V5_TO_V4_TYPOLOGY = {
-  romance_fraud:                   'ROMANCE',
-  investment_fraud:                'INVESTMENT',
-  advance_fee_fraud:               'ADVANCE_FEE',
-  phishing_attack:                 'PHISHING',
-  impersonation_scam:              'IMPERSONATION',
-  recovery_fraud:                  'RECOVERY',
-  fraud_infrastructure:            'FRAUD_INFRASTRUCTURE',
-  marketplace_fraud:               'FRAUD_INFRASTRUCTURE',
-  refund_payment_fraud:            'FRAUD_INFRASTRUCTURE',
-  identity_fraud:                  'FRAUD_INFRASTRUCTURE',
-  credential_theft:                'PHISHING',
-  account_takeover:                'ACCOUNT_TAKEOVER',
-  private_data_misuse:             'ACCOUNT_TAKEOVER',
-  doxxing_or_stalking:             'ACCOUNT_TAKEOVER',
-  promotion_abuse:                 'NONE',
-  multi_accounting:                'NONE',
-  reputation_manipulation:         'FRAUD_INFRASTRUCTURE',
-  automation_botting:              'NONE',
-  ban_evasion:                     'NONE',
-  credential_harvesting_infra:     'PHISHING',
-  malware_distribution:            'AI_ENABLED_ABUSE',
-  prompt_injection_attack:         'AI_ENABLED_ABUSE',
-  model_jailbreak:                 'AI_ENABLED_ABUSE',
-  ai_model_impersonation:          'AI_ENABLED_ABUSE',
-  no_risk_pattern:                 'NONE',
-  customer_support_inquiry:        'NONE',
-  general_information:             'NONE',
-  creative_writing:                'NONE',
-  educational_inquiry:             'NONE',
-  phishing_awareness:              'NONE',
-  malware_education:               'NONE',
-  fraud_pattern_research:          'NONE',
-  defensive_simulation_authorized: 'NONE',
-  victim_support:                  'NONE',
-  borderline_security_research:    'NONE',
-  borderline_red_team:             'NONE',
-  borderline_journalism:           'NONE',
-  borderline_education_request:    'NONE',
 };
 
 // v4 -> v5 L1/L2 migration table (ontology section 6).
@@ -1919,51 +1879,36 @@ export function truncateAtSentenceBoundary(s, maxLen) {
 }
 
 // --------------------------------------------------------------------------
-// v4_legacy derivation (used by /api/evaluate for dual-emit backward compat)
+// In-memory evaluation store. The listing endpoint at /api/evaluations
+// filters by disposition.action (allow / safe_completion / human_review /
+// block). The store is process-local and bounded to 100 entries; SafeEval is
+// stateless by design and the store exists only to power the listing surface.
 // --------------------------------------------------------------------------
 
-export function deriveV4Legacy(v5) {
-  if (!v5) return null;
-  const l2val = v5.classification && v5.classification.l2 && v5.classification.l2.value;
-  const typology = V5_TO_V4_TYPOLOGY[l2val] || 'NONE';
+const evaluationStore = [];
 
-  const tier = (function () {
-    switch (v5.disposition.action) {
-      case 'allow':           return 'ALLOW';
-      case 'safe_completion': return 'ALLOW';
-      case 'human_review':    return 'REVIEW';
-      case 'block':           return 'BLOCK';
-      default:                return 'REVIEW';
-    }
-  })();
+export function storeEvaluation(promptText, v5Result) {
+  const record = Object.assign(
+    {
+      id: 'eval-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+      prompt_preview: promptText.slice(0, 120) + (promptText.length > 120 ? '...' : ''),
+    },
+    v5Result
+  );
+  evaluationStore.unshift(record);
+  if (evaluationStore.length > 100) evaluationStore.pop();
+  return record;
+}
 
-  // Re-shape l2_probabilities into v4 typology_probabilities.
-  const v4Typologies = ['ROMANCE', 'INVESTMENT', 'PHISHING', 'IMPERSONATION', 'ADVANCE_FEE',
-                        'FRAUD_INFRASTRUCTURE', 'RECOVERY', 'ACCOUNT_TAKEOVER', 'AI_ENABLED_ABUSE', 'NONE'];
-  const v4Probs = {};
-  v4Typologies.forEach(function (t) { v4Probs[t] = 0; });
-  const v5Probs = (v5.evidence && v5.evidence.l2_probabilities) || {};
-  Object.keys(v5Probs).forEach(function (l2) {
-    const t = V5_TO_V4_TYPOLOGY[l2] || 'NONE';
-    v4Probs[t] = Math.max(v4Probs[t], v5Probs[l2]);
-  });
-
+export function getEvaluations({ limit = 20, offset = 0, action } = {}) {
+  let results = evaluationStore;
+  if (action) {
+    results = results.filter(function (e) {
+      return e && e.disposition && e.disposition.action === action;
+    });
+  }
   return {
-    escalation_tier:        tier,
-    typology:               typology,
-    typology_probabilities: v4Probs,
-    sub_typology_analysis:  {},
-    prompt_summary:         v5.prompt_summary,
-    bright_line:            (v5.evidence.bright_lines || []).length > 0,
-    bright_line_features:   v5.evidence.bright_lines || [],
-    aggregate_score:        v5.evidence.aggregate_score,
-    component_scores:       v5.evidence.component_scores,
-    confidence:             v5.disposition.confidence,
-    rationale:              v5.disposition.reasoning_summary,
-    legitimate_use_possible: v5.disposition.action === 'safe_completion' || (v5.classification.l1 && v5.classification.l1.value === 'security_education'),
-    disambiguation_note:    v5.disposition.safe_completion_guidance,
-    evaluated_at:           v5.evaluated_at,
-    model:                  MODEL_DEEP,
-    prompt_length:          v5.prompt_length,
+    total: results.length,
+    evaluations: results.slice(offset, offset + limit),
   };
 }

@@ -1,42 +1,30 @@
 // tests/runner.js
 //
-// Golden-prompt regression runner for SafeEval.
+// Golden-prompt regression runner for SafeEval (v5-only).
 //
 // Usage:
 //   node tests/runner.js
 //
 // Environment variables:
 //   TEST_BASE_URL  - Base URL of the running app. Default: http://localhost:3000
-//   TEST_V5        - If "1", request the v5 envelope (?v5=1) and check v5 fields.
 //
 // Reads every tests/golden/*.json file. For each file it POSTs the prompt
-// to /api/evaluate and checks the response against expected_v4 (typology +
-// escalation_tier).
+// to /api/evaluate and checks the response against expected_v5
+// (classification.l1.value, classification.l2.value when expected_v5.l2 is
+// non-null, and disposition.action).
 //
-// Response shape depends on mode (see src/app/api/evaluate/route.js):
-//   default:  v4 envelope at the root -- { typology, escalation_tier, ... }
-//   ?v5=1:    dual-emit envelope -- { id, v4_legacy: <v4 envelope>, v5: <v5 envelope> }
-//
-// In v5 mode the runner reads v4 fields from actual.v4_legacy.* and v5 fields
-// from actual.v5.*. A missing v4_legacy in v5 mode fails fast with a clear
-// message so future envelope drift surfaces immediately.
-//
-// If v5 mode is on, it also checks response.v5.classification.l1.value,
-// response.v5.classification.l2.value (only when expected_v5.l2 is non-null),
-// and response.v5.disposition.action.
+// Response shape (post-2026-05-27 v4 sunset): the v5 envelope at the root.
+//   { id, classification, disposition, evidence, model_pipeline, ... }
 //
 // Probabilities are deliberately NOT checked -- they drift across model
 // versions and create noise. See tests/README.md for the rationale.
 //
 // Exit code 0 if every prompt passes, 1 otherwise.
-//
-// TODO: schema-keeper to wire in tests/schema/v5-envelope.schema.json validation here in Round 2.
 
 const fs = require('fs');
 const path = require('path');
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
-const V5_MODE = process.env.TEST_V5 === '1';
 const GOLDEN_DIR = path.join(__dirname, 'golden');
 
 function loadGoldens() {
@@ -57,10 +45,7 @@ function loadGoldens() {
 }
 
 async function callEngine(prompt) {
-  const url = V5_MODE
-    ? BASE_URL + '/api/evaluate?v5=1'
-    : BASE_URL + '/api/evaluate';
-  const res = await fetch(url, {
+  const res = await fetch(BASE_URL + '/api/evaluate', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ prompt }),
@@ -72,32 +57,8 @@ async function callEngine(prompt) {
   return res.json();
 }
 
-function checkV4(actual, expected) {
+function checkV5(v5, expected) {
   const failures = [];
-  let v4;
-  if (V5_MODE) {
-    if (!actual || !actual.v4_legacy) {
-      failures.push('dual-emit envelope missing v4_legacy');
-      return failures;
-    }
-    v4 = actual.v4_legacy;
-  } else {
-    v4 = actual;
-  }
-  if (expected.typology !== null && expected.typology !== undefined) {
-    if (v4.typology !== expected.typology) {
-      failures.push('typology: expected ' + expected.typology + ', got ' + v4.typology);
-    }
-  }
-  if (v4.escalation_tier !== expected.escalation_tier) {
-    failures.push('escalation_tier: expected ' + expected.escalation_tier + ', got ' + v4.escalation_tier);
-  }
-  return failures;
-}
-
-function checkV5(actual, expected) {
-  const failures = [];
-  const v5 = actual && actual.v5;
   if (!v5) {
     failures.push('v5: missing v5 envelope on response');
     return failures;
@@ -106,18 +67,35 @@ function checkV5(actual, expected) {
   const l2Val = v5.classification && v5.classification.l2 && v5.classification.l2.value;
   const action = v5.disposition && v5.disposition.action;
 
+  // Set-valued any_of assertions are supported via expected.l1_any_of /
+  // expected.l2_any_of / expected.disposition_action_any_of. Single-value
+  // assertions take precedence when present.
   if (expected.l1 !== null && expected.l1 !== undefined) {
     if (l1Val !== expected.l1) {
       failures.push('v5.l1: expected ' + expected.l1 + ', got ' + l1Val);
+    }
+  } else if (Array.isArray(expected.l1_any_of) && expected.l1_any_of.length > 0) {
+    if (!expected.l1_any_of.includes(l1Val)) {
+      failures.push('v5.l1: expected one of [' + expected.l1_any_of.join(', ') + '], got ' + l1Val);
     }
   }
   if (expected.l2 !== null && expected.l2 !== undefined) {
     if (l2Val !== expected.l2) {
       failures.push('v5.l2: expected ' + expected.l2 + ', got ' + l2Val);
     }
+  } else if (Array.isArray(expected.l2_any_of) && expected.l2_any_of.length > 0) {
+    if (!expected.l2_any_of.includes(l2Val)) {
+      failures.push('v5.l2: expected one of [' + expected.l2_any_of.join(', ') + '], got ' + l2Val);
+    }
   }
-  if (action !== expected.disposition_action) {
-    failures.push('v5.disposition.action: expected ' + expected.disposition_action + ', got ' + action);
+  if (expected.disposition_action !== null && expected.disposition_action !== undefined) {
+    if (action !== expected.disposition_action) {
+      failures.push('v5.disposition.action: expected ' + expected.disposition_action + ', got ' + action);
+    }
+  } else if (Array.isArray(expected.disposition_action_any_of) && expected.disposition_action_any_of.length > 0) {
+    if (!expected.disposition_action_any_of.includes(action)) {
+      failures.push('v5.disposition.action: expected one of [' + expected.disposition_action_any_of.join(', ') + '], got ' + action);
+    }
   }
 
   // Spec-driven envelope invariants (phase 2d).
@@ -161,11 +139,7 @@ async function runOne(entry) {
   const { name, golden } = entry;
   try {
     const actual = await callEngine(golden.prompt);
-    const failures = checkV4(actual, golden.expected_v4);
-    if (V5_MODE) {
-      const v5Failures = checkV5(actual, golden.expected_v5);
-      for (const f of v5Failures) failures.push(f);
-    }
+    const failures = checkV5(actual, golden.expected_v5 || {});
     if (failures.length === 0) {
       console.log('[PASS] ' + name);
       return true;
@@ -179,9 +153,8 @@ async function runOne(entry) {
 }
 
 async function main() {
-  console.log('SafeEval golden runner');
+  console.log('SafeEval golden runner (v5-only)');
   console.log('  base URL: ' + BASE_URL);
-  console.log('  v5 mode:  ' + (V5_MODE ? 'on' : 'off'));
   console.log('');
 
   const goldens = loadGoldens();

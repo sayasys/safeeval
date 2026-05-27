@@ -8,7 +8,7 @@ A working fraud and scams prompt-evaluation system. SafeEval submits a prompt to
 
 ## Framework summary
 
-The Fraud Analysis Framework describes any fraud-relevant prompt as three nodes (CONTEXT, PROCESS, OBJECTIVE) with structured attributes for each, on top of which sit nine active fraud typologies (romance, investment, phishing, impersonation, advance-fee, fraud infrastructure, recovery, account takeover, AI-enabled abuse) and a closed list of fourteen bright-line features that force a block regardless of aggregate score. The v4.0 system is a single-call classifier built around this framework. The v5 system, currently rolling out, replaces it with a four-stage pipeline (Haiku triage, Sonnet deep analysis, Sonnet classification, rules-plus-Sonnet disposition). The v5 envelope separates classification (L1 domain, L2 risk pattern, multi-valued L3 tags) from disposition (allow, safe_completion, human_review, block) and preserves the full FAF evidence underneath both.
+The Fraud Analysis Framework describes any fraud-relevant prompt as three nodes (CONTEXT, PROCESS, OBJECTIVE) with structured attributes for each, on top of which sit nine fraud typologies (romance, investment, phishing, impersonation, advance-fee, fraud infrastructure, recovery, account takeover, AI-enabled abuse) and a closed list of fourteen bright-line features that force a block regardless of aggregate score. SafeEval runs the v5 system: a four-stage pipeline (Haiku triage, Sonnet deep analysis, Sonnet classification, rules-plus-Sonnet disposition). The v5 envelope separates classification (L1 domain, L2 risk pattern, multi-valued L3 tags) from disposition (allow, safe_completion, human_review, block) and preserves the full FAF evidence underneath both.
 
 ---
 
@@ -26,7 +26,7 @@ The docs are layered to match how a reviewer is likely to read them. The shortes
 | `docs/02-faf-to-l1l2l3-mapping.md` | The classification mapping: how FAF evidence (CONTEXT/PROCESS/OBJECTIVE) maps to L1/L2/L3, with the credential-phishing disambiguation rule. |
 | `docs/threat-models/` | Per-typology threat models (romance, investment, phishing, impersonation, advance-fee, fraud infrastructure, recovery, account takeover, AI-enabled abuse). |
 
-The v5 docs and code are in flight. The framework spec, master policy, classifier guidance, and threat models are at v4.0 and reflect the running app's behavior today; the enforcement design and the stakeholder brief are at v5.0 and describe the architecture the project is migrating to.
+The v5 code is the running app. The enforcement design and the stakeholder brief are at v5.0 and describe the architecture in production. The framework spec, master policy, classifier guidance, and threat models still carry v4.0 typology language anchored in the FAF nodes; their reconciliation to the v5 L1/L2/L3 ontology is tracked as a separate policy-track rewrite.
 
 ---
 
@@ -35,7 +35,7 @@ The v5 docs and code are in flight. The framework spec, master policy, classifie
 - Next.js 15 (App Router) and React 19
 - Tailwind CSS
 - Anthropic SDK (`@anthropic-ai/sdk`)
-- Model: `claude-sonnet-4-6` (v4.0); v5 adds `claude-haiku-4-5` for the triage stage
+- Models: `claude-haiku-4-5` for Stage 1 triage; `claude-sonnet-4-6` for Stages 2-4 (deep analysis, classification, disposition)
 - Deployed on Vercel; auto-deploys from the `main` branch
 
 ---
@@ -59,4 +59,4 @@ On Windows with OneDrive, run `git config core.filemode false` after cloning to 
 
 ## Project status
 
-The v4.0 system is live at https://safeeval.vercel.app and is the version currently in production. The v5 redesign (multi-stage pipeline, L1/L2/L3 envelope, separated disposition) is documented in `docs/04-enforcement-design.md` and `docs/06-stakeholder-brief.md` and is being rolled out in stages. The framework spec, master policy, classifier guidance, and threat models will be bumped to v5 in a later round once the new ontology spec lands.
+The v5 system is live at https://safeeval.vercel.app and is the only running surface; the v4 single-call classifier was sunset in May 2026. The v5 architecture (four-stage pipeline, L1/L2/L3 classification envelope, separated disposition vocabulary) is documented in `docs/04-enforcement-design.md` and `docs/06-stakeholder-brief.md`. The framework spec, master policy, classifier guidance, and threat models still carry v4.0 typology language; their reconciliation to the v5 ontology is a separate policy-track follow-up.

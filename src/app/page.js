@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Check, ShieldCheck, UserRound, Ban, TriangleAlert } from 'lucide-react';
 
 // Bright-line descriptions. MUST stay in sync with BRIGHT_LINE_FEATURES in
@@ -49,27 +49,6 @@ const EXAMPLE_PROMPTS = [
     text: "I'm a fraud investigator at a bank. Can you explain the typical structure of a pig butchering operation -- how they target victims, build trust, and execute the investment fraud -- so I can train my team to recognize it?",
   },
 ];
-
-const TIER_CONFIG = {
-  ALLOW: {
-    bg: 'bg-green-50',
-    border: 'border-green-300',
-    badge: 'bg-green-100 text-green-800',
-    label: 'ALLOWED',
-  },
-  REVIEW: {
-    bg: 'bg-yellow-50',
-    border: 'border-yellow-300',
-    badge: 'bg-yellow-100 text-yellow-800',
-    label: 'HUMAN REVIEW',
-  },
-  BLOCK: {
-    bg: 'bg-red-50',
-    border: 'border-red-300',
-    badge: 'bg-red-100 text-red-800',
-    label: 'BLOCKED',
-  },
-};
 
 // v5 disposition action -> visual tier. safe_completion gets amber (between
 // REVIEW yellow and BLOCK red) to signal "we will respond, but defensively".
@@ -289,8 +268,8 @@ const CLASSIFIER_LABEL_DESCRIPTIONS = {
 
 // Canonical row order for the v5.1 prompt-summary section (display spec
 // section 11.3). Each row: { key: prompt_summary key, label: display label,
-// descKey: CLASSIFIER_LABEL_DESCRIPTIONS namespace, proseKey: dual-emit
-// prose alias for fallback when the *_label field is absent }.
+// descKey: CLASSIFIER_LABEL_DESCRIPTIONS namespace, proseKey: prose alias for
+// fallback when the *_label field is absent }.
 const PROMPT_SUMMARY_ROWS = [
   { key: 'topic_label',     label: 'Topic',     descKey: 'Topic',     proseKey: 'topic',     explanationKey: 'topic_explanation' },
   { key: 'target_label',    label: 'Target',    descKey: 'Target',    proseKey: 'target' },
@@ -300,7 +279,7 @@ const PROMPT_SUMMARY_ROWS = [
 
 // Canonical Evidence-panel process-flags row order (display spec section 9.5).
 // Template / Delivery / Control come first (the classifier-labelled rows);
-// Trigger / Incentive come last (the v4-carry-forward prose-only rows).
+// Trigger / Incentive come last (prose-only rows).
 const PROCESS_FLAG_ROW_ORDER = ['Template', 'Delivery', 'Control', 'Trigger', 'Incentive'];
 
 // Canonical FAF component-score order (Update B; v5-result-card.md section 2.5).
@@ -315,8 +294,7 @@ const STAGE_LABELS = [
   { key: 'disposition', short: 'Disposition',    long: 'Choosing disposition' },
 ];
 
-// Low-confidence soft-tag threshold (v5-result-card.md section 2.1). Aligned with
-// DISPLAY_THRESHOLD_PCT = 65 below rather than introducing a new constant.
+// Low-confidence soft-tag threshold (v5-result-card.md section 2.1).
 const LOW_CONFIDENCE_PCT = 65;
 
 // Interim degraded-detection string (v5-result-card.md section 2.7). Used only as a
@@ -334,29 +312,6 @@ const L3_CATEGORY_LABELS = {
   risk_marker:    'Risk marker',
 };
 
-// Sub-typology display threshold (mirrors POLICY_CONFIG.SUB_TYPOLOGY_DISPLAY_THRESHOLD).
-const DISPLAY_THRESHOLD_PCT = 65;
-
-function pctColor(pct) {
-  if (pct >= 80) return 'red';
-  if (pct >= 70) return 'orange';
-  return 'yellow';
-}
-
-const COLOR = {
-  red:    { dot: 'bg-red-500',    name: 'text-red-800',    pct: 'bg-red-100 text-red-800',       border: 'border-red-100' },
-  orange: { dot: 'bg-orange-500', name: 'text-orange-900', pct: 'bg-orange-100 text-orange-900', border: 'border-orange-100' },
-  yellow: { dot: 'bg-yellow-500', name: 'text-yellow-900', pct: 'bg-yellow-100 text-yellow-900', border: 'border-yellow-100' },
-};
-
-const SUMMARY_LABELS = {
-  persona:   'Persona',
-  topic:     'Topic',
-  target:    'Target',
-  objective: 'Objective',
-  pretext:   'Pretext',
-};
-
 export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [result, setResult] = useState(null);
@@ -368,24 +323,10 @@ export default function Home() {
   const [lastEvaluatedPrompt, setLastEvaluatedPrompt] = useState('');
   const resultIsStale = result != null && prompt !== lastEvaluatedPrompt;
 
-  // Normalize the dual-emit envelope. When the API returns {id, v4_legacy, v5},
-  // the v4 render uses v4_legacy. When the API returns the bare v4 envelope
-  // (default request), the v4 render uses result directly.
-  const v5 = result && result.v5 ? result.v5 : null;
-  const v4 = result && result.v5 ? result.v4_legacy : result;
-
-  useEffect(() => {
-    if (!v4) return;
-    const init = {};
-    const primary = v4.typology;
-    if (primary && primary !== 'NONE') {
-      init[`typ-${primary}`] = true;
-      const subs = v4.sub_typology_analysis?.[primary] || {};
-      const topSub = Object.entries(subs).sort(([, a], [, b]) => b.probability - a.probability)[0];
-      if (topSub) init[`sub-${primary}-${topSub[0]}`] = true;
-    }
-    setExpanded(init);
-  }, [v4]);
+  // v5-only response shape. The route returns the v5 envelope at the root
+  // (post-2026-05-27 sunset). result is null pre-evaluation, then the v5
+  // envelope with an `id` field on success.
+  const v5 = result;
 
   function toggle(key) {
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
@@ -397,9 +338,7 @@ export default function Home() {
     setError('');
     setResult(null);
     try {
-      const v5Flag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('v5') === '1';
-      const url = v5Flag ? '/api/evaluate?v5=1' : '/api/evaluate';
-      const res = await fetch(url, {
+      const res = await fetch('/api/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
@@ -414,15 +353,6 @@ export default function Home() {
       setLoading(false);
     }
   }
-
-  const tier = v4?.escalation_tier;
-  const cfg = tier ? TIER_CONFIG[tier] : null;
-
-  const visibleTypologies = v4?.typology_probabilities
-    ? Object.entries(v4.typology_probabilities)
-        .filter(([code, prob]) => code !== 'NONE' && Math.round(prob * 100) >= DISPLAY_THRESHOLD_PCT)
-        .sort(([, a], [, b]) => b - a)
-    : [];
 
   // Group L3 tags by their "category:value" prefix.
   const l3Groups = {};
@@ -594,7 +524,7 @@ export default function Home() {
           </p>
         )}
 
-        {/* v5 panels (rendered above v4 when present). Greyed out when stale. */}
+        {/* v5 result card. Greyed out when stale. */}
         {!loading && v5 && v5Cfg && (
           <div className={`rounded-lg border-2 ${v5Cfg.border} ${v5Cfg.bg} p-6 space-y-6 ${resultIsStale ? 'opacity-40 pointer-events-none' : ''}`}>
 
@@ -784,7 +714,7 @@ export default function Home() {
                 Renders the four closed-set classifier labels (Topic / Target /
                 Objective / Pretext) as label-value pairs with companion content
                 in the right column, plus a prose Persona row. Empty labels fall
-                back to none_observed; missing dual-emit prose falls back to "--".
+                back to none_observed; missing prose falls back to "--".
                 See docs/ux/design-system/v5-result-card.md sections 10-11. */}
             {v5.prompt_summary && (
               <div>
@@ -1022,205 +952,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* v4 panels (always render when a v4 envelope is present). */}
-        {v4 && cfg && (
-          <div className={`rounded-lg border-2 ${cfg.border} ${cfg.bg} p-6 space-y-6`}>
-
-            {/* Tier row */}
-            <div className="flex flex-wrap items-center gap-3">
-              <span className={`inline-flex items-center text-sm font-bold px-4 py-2 rounded-full ${cfg.badge}`}>
-                {cfg.label}
-              </span>
-              <span className="text-sm bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-full font-mono">
-                {v4.typology}
-              </span>
-              {v4.bright_line && (
-                <span className="text-xs bg-red-100 text-red-700 border border-red-200 px-3 py-1.5 rounded-full font-semibold">
-                  BRIGHT LINE TRIGGERED
-                </span>
-              )}
-              <span className="ml-auto text-sm text-gray-500">
-                Score: <strong className="text-gray-900">{v4.aggregate_score}/15</strong>
-                {' - '}
-                Confidence: <strong className="text-gray-900">{Math.round(v4.confidence * 100)}%</strong>
-              </span>
-            </div>
-
-            {/* Typology analysis */}
-            {visibleTypologies.length > 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  Typology analysis
-                </h3>
-                <div className="space-y-2">
-                  {visibleTypologies.map(([typCode, prob]) => {
-                    const pct = Math.round(prob * 100);
-                    const clr = COLOR[pctColor(pct)];
-                    const isPrimary = typCode === v4.typology;
-                    const typKey = `typ-${typCode}`;
-                    const isOpen = !!expanded[typKey];
-                    const subAnalysis = v4.sub_typology_analysis?.[typCode] || {};
-                    const visibleSubs = Object.entries(subAnalysis)
-                      .filter(([, s]) => Math.round(s.probability * 100) >= DISPLAY_THRESHOLD_PCT)
-                      .sort(([, a], [, b]) => b.probability - a.probability);
-
-                    return (
-                      <div key={typCode} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
-                        <button
-                          className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-                          onClick={() => toggle(typKey)}
-                        >
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${clr.dot}`} />
-                          <span className={`text-sm font-mono font-medium flex-1 ${clr.name}`}>
-                            {typCode}{isPrimary ? ' *' : ''}
-                          </span>
-                          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${clr.pct}`}>
-                            {pct}%
-                          </span>
-                          <svg
-                            className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-
-                        {isOpen && (
-                          <div className="border-t border-gray-100">
-                            {visibleSubs.length === 0 && (
-                              <p className="px-4 py-3 text-xs text-gray-400 pl-9">
-                                No sub-typologies above 65% confidence
-                              </p>
-                            )}
-                            {visibleSubs.map(([subName, subData]) => {
-                              const subPct = Math.round(subData.probability * 100);
-                              const subClr = COLOR[pctColor(subPct)];
-                              const subKey = `sub-${typCode}-${subName}`;
-                              const subOpen = !!expanded[subKey];
-                              const flags = subData.process_flags || [];
-
-                              return (
-                                <div key={subName} className="border-t border-gray-100 first:border-t-0">
-                                  <button
-                                    className="w-full flex items-center gap-2 pl-9 pr-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
-                                    onClick={() => toggle(subKey)}
-                                  >
-                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${subClr.dot}`} />
-                                    <span className={`text-xs font-mono flex-1 ${subClr.name}`}>{subName}</span>
-                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${subClr.pct}`}>
-                                      {subPct}%
-                                    </span>
-                                    <svg
-                                      className={`w-3 h-3 text-gray-400 shrink-0 transition-transform ${subOpen ? 'rotate-180' : ''}`}
-                                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-
-                                  {subOpen && (
-                                    <div className="pl-9 pr-4 pb-3 pt-2 bg-gray-50 border-t border-gray-100">
-                                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                                        Process flags
-                                      </p>
-                                      {flags.length === 0 ? (
-                                        <p className="text-xs text-gray-400">No specific process flags identified</p>
-                                      ) : (
-                                        <div className="rounded-md overflow-hidden border border-gray-200">
-                                          {flags.map((flag, i) => (
-                                            <div
-                                              key={i}
-                                              className="flex items-baseline gap-2 px-3 py-2 bg-white border-b border-gray-100 last:border-b-0"
-                                            >
-                                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
-                                              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-16 shrink-0">
-                                                {flag.category}
-                                              </span>
-                                              <span className="text-xs text-gray-900 leading-relaxed">
-                                                {flag.description}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  Typologies and sub-typologies below 65% confidence not shown
-                </p>
-              </div>
-            )}
-
-            {/* Prompt summary */}
-            {v4.prompt_summary && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  Prompt summary
-                </h3>
-                <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-                  {Object.entries(SUMMARY_LABELS).map(([key, label]) => {
-                    const val = v4.prompt_summary[key];
-                    if (!val) return null;
-                    return (
-                      <div key={key} className="flex items-baseline px-4 py-2.5 border-b border-gray-100 last:border-b-0">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-20 shrink-0 pt-0.5">
-                          {label}
-                        </span>
-                        <span className="text-sm text-gray-900 leading-relaxed">{val}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Policy rationale */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Policy rationale
-              </h3>
-              <p className="text-sm text-gray-700 leading-relaxed bg-white rounded-md border border-gray-200 px-4 py-3">
-                {v4.rationale}
-              </p>
-            </div>
-
-            {/* Disambiguation note */}
-            {v4.legitimate_use_possible && v4.disambiguation_note && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Disambiguation note
-                </h3>
-                <p className="text-sm text-gray-600 leading-relaxed bg-yellow-50 border border-yellow-200 rounded-md px-4 py-3">
-                  {v4.disambiguation_note}
-                </p>
-              </div>
-            )}
-
-            {/* Bright line features */}
-            {v4.bright_line_features?.length > 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Bright line features
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {v4.bright_line_features.map(f => (
-                    <BrightLineChip key={f} feature={f} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-          </div>
-        )}
         </div>
       </main>
     </div>
@@ -1502,8 +1233,9 @@ function ProcessFlagRow({ flag }) {
   const isMulti = cat === 'Control';
   const hasSingleLabel = (cat === 'Template' || cat === 'Delivery') && typeof flag.label === 'string';
   const hasMultiLabels = isMulti && Array.isArray(flag.labels) && flag.labels.length > 0;
-  // Legacy v4 envelopes during dual-emit: no label/labels emitted. Render
-  // prose-only with a "legacy emission" tag inline per display spec 9.3.
+  // Stage 2 may emit a process_flag without a classifier label when the
+  // generative model omits one. Render prose-only with a "legacy emission"
+  // tag inline per display spec 9.3.
   const isLegacyEmission = (cat === 'Template' || cat === 'Delivery' || cat === 'Control') && !hasSingleLabel && !hasMultiLabels;
   return (
     <div className="flex items-baseline gap-2 px-3 py-2 bg-white border-b border-gray-100 last:border-b-0">

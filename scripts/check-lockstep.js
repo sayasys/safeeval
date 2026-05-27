@@ -2,12 +2,17 @@
 //
 // Two lockstep gates, run in CI via .github/workflows/safeeval-gate.yml:
 //
-// 1. Doc/code typology lockstep: every typology declared in src/lib/safeeval.js
-//    TYPOLOGIES (except the NONE sentinel) appears in each of the canonical
-//    FAF docs:
+// 1. Doc/code typology lockstep: every legacy v4 typology declared in
+//    LEGACY_V4_L1_CODES in src/lib/safeeval-v5.js (except the NONE sentinel)
+//    appears in each of the canonical FAF docs:
 //      docs/01-framework.md
 //      docs/03-master-policy.md
 //      docs/05-classifier-guidance.md
+//    The v4 engine was sunset in 2026-05-27; the v4 typology names are still
+//    the anchor in the policy docs (docs/01, docs/03, docs/05 remain at v4.0
+//    pending a separate policy-track v5 reconciliation), so the lockstep
+//    semantic is preserved by reading the canonical typology-code list from
+//    LEGACY_V4_L1_CODES, which Stage 3 validation already maintains.
 //
 // 2. Engine/schema disposition lockstep: every key the v5 engine emits in
 //    `disposition` and `disposition.triggered_by` is declared in
@@ -21,7 +26,6 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const ENGINE = path.join(ROOT, 'src', 'lib', 'safeeval.js');
 const V5_ENGINE = path.join(ROOT, 'src', 'lib', 'safeeval-v5.js');
 const V5_SCHEMA = path.join(ROOT, 'tests', 'schema', 'v5-envelope.schema.json');
 const V5_SCHEMA_DOC = path.join(ROOT, 'docs', '07-v5-schema.md');
@@ -50,10 +54,14 @@ const V51_CLASSIFIER_LABEL_SETS = [
 ];
 
 function extractTypologies(engineSource) {
-  // Match: export const TYPOLOGIES = [ 'A', 'B', ... ];
-  const m = engineSource.match(/export\s+const\s+TYPOLOGIES\s*=\s*\[([\s\S]*?)\]/);
+  // Match: export const LEGACY_V4_L1_CODES = [ 'A', 'B', ... ];
+  // (Renamed from TYPOLOGIES after the 2026-05-27 v4 sunset; the constant in
+  // safeeval-v5.js is the canonical list of v4 typology codes that Stage 3
+  // defensive migration recognizes, and the policy docs still anchor to
+  // these names pending a separate v5 doc reconciliation.)
+  const m = engineSource.match(/export\s+const\s+LEGACY_V4_L1_CODES\s*=\s*\[([\s\S]*?)\]/);
   if (!m) {
-    throw new Error('Could not locate TYPOLOGIES array in src/lib/safeeval.js');
+    throw new Error('Could not locate LEGACY_V4_L1_CODES array in src/lib/safeeval-v5.js');
   }
   const list = m[1]
     .split(',')
@@ -63,7 +71,7 @@ function extractTypologies(engineSource) {
 }
 
 function checkDocCodeLockstep() {
-  const engineSrc = fs.readFileSync(ENGINE, 'utf-8');
+  const engineSrc = fs.readFileSync(V5_ENGINE, 'utf-8');
   const typologies = extractTypologies(engineSrc);
   console.log('Found ' + typologies.length + ' typologies in engine: ' + typologies.join(', '));
 
