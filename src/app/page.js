@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ShieldCheck, UserRound, Ban, TriangleAlert, X, Plus, MoreVertical } from 'lucide-react';
 
 // Bright-line descriptions. MUST stay in sync with BRIGHT_LINE_FEATURES in
@@ -1439,11 +1440,15 @@ export default function Home() {
                           const descKey = L3_CATEGORY_DESC_KEY[cat]; // 'Arc' | 'Cadence' | undefined
                           const tags = l3Groups[cat] || [];
                           return (
-                            <div key={cat} className="flex items-baseline gap-2">
-                              <span className="text-xs uppercase tracking-wide text-gray-400 w-20 shrink-0">
+                            // Mobile reflow (display spec section 30.2): at
+                            // <768px the category name stacks ABOVE its chip
+                            // row full-width; at >=768px the desktop label-
+                            // left / chips-right layout is restored.
+                            <div key={cat} className="flex flex-col md:flex-row md:items-baseline md:gap-2 gap-1">
+                              <span className="text-xs uppercase tracking-wide text-gray-400 md:w-20 md:shrink-0">
                                 {L3_CATEGORY_LABELS[cat] || cat}
                               </span>
-                              <div className="flex flex-wrap gap-1.5">
+                              <div className="flex flex-wrap gap-1.5 min-w-0 w-full md:flex-1">
                                 {tags.length === 0 ? (
                                   <span className="text-xs text-gray-400 italic">
                                     {cat === 'arc'
@@ -1454,19 +1459,19 @@ export default function Home() {
                                   </span>
                                 ) : tags.map((t, i) => (
                                   descKey ? (
-                                    <span key={`${cat}-${i}`} className="inline-flex items-baseline gap-1.5">
+                                    <span key={`${cat}-${i}`} className="inline-flex items-baseline gap-1.5 max-w-full">
                                       <ClassifierLabelChip value={t.value} descKey={descKey} />
-                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700">
+                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700 shrink-0">
                                         {Math.round((t.confidence || 0) * 100)}%
                                       </span>
                                     </span>
                                   ) : (
                                     <span
                                       key={`${cat}-${i}`}
-                                      className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-gray-50 text-gray-800 border border-gray-200"
+                                      className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-gray-50 text-gray-800 border border-gray-200 max-w-full break-words [overflow-wrap:anywhere] whitespace-normal"
                                     >
                                       {t.value}
-                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700">
+                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700 shrink-0">
                                         {Math.round((t.confidence || 0) * 100)}%
                                       </span>
                                     </span>
@@ -1773,20 +1778,118 @@ export default function Home() {
 
 // --- Small helpers ----------------------------------------------------------
 
+// Portal-rendered tooltip body (display spec section 28). React-portals to
+// document.body to escape every ancestor stacking-context / overflow clip.
+// Positioning is anchored to `anchorRef.current.getBoundingClientRect()`:
+// prefer above the anchor, flip to below if chipTop - tooltipHeight - 8 < 0.
+// Re-anchors on scroll (capture) and resize. Pointer triangle tracks anchor
+// horizontal center, clamped to tooltip bounds.
+function PortalTooltip({ anchorRef, visible, id, role, maxWidth, children }) {
+  const tipRef = useRef(null);
+  const [pos, setPos] = useState({ top: -9999, left: -9999, direction: 'above', arrowLeft: 16, ready: false });
+  const w = typeof maxWidth === 'number' ? maxWidth : 288;
+
+  const compute = useCallback(() => {
+    const anchor = anchorRef && anchorRef.current;
+    const tip = tipRef.current;
+    if (!anchor || !tip) return;
+    const anchorRect = anchor.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    const vw = (typeof window !== 'undefined') ? window.innerWidth : 1024;
+    const margin = 8;
+    let direction = 'above';
+    let top;
+    if (anchorRect.top - tipRect.height - margin < 0) {
+      direction = 'below';
+      top = anchorRect.bottom + margin;
+    } else {
+      top = anchorRect.top - tipRect.height - margin;
+    }
+    let left = anchorRect.left;
+    if (left + tipRect.width > vw - margin) {
+      left = Math.max(margin, vw - margin - tipRect.width);
+    }
+    if (left < margin) left = margin;
+    const anchorCenter = anchorRect.left + anchorRect.width / 2;
+    let arrowLeft = anchorCenter - left - 4;
+    arrowLeft = Math.max(6, Math.min(tipRect.width - 14, arrowLeft));
+    setPos({ top, left, direction, arrowLeft, ready: true });
+  }, [anchorRef]);
+
+  useLayoutEffect(() => {
+    if (!visible) {
+      setPos(p => ({ ...p, ready: false }));
+      return;
+    }
+    compute();
+    const raf = (typeof window !== 'undefined') ? window.requestAnimationFrame(compute) : null;
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scroll', compute, true);
+      window.addEventListener('resize', compute);
+    }
+    return () => {
+      if (raf != null && typeof window !== 'undefined') window.cancelAnimationFrame(raf);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('scroll', compute, true);
+        window.removeEventListener('resize', compute);
+      }
+    };
+  }, [visible, compute]);
+
+  if (!visible) return null;
+  if (typeof document === 'undefined') return null;
+  const arrowStyle = pos.direction === 'above'
+    ? { left: pos.arrowLeft, top: '100%', marginTop: '-4px' }
+    : { left: pos.arrowLeft, bottom: '100%', marginBottom: '-4px' };
+  return createPortal(
+    <div
+      ref={tipRef}
+      id={id}
+      role={role || 'tooltip'}
+      data-tooltip-portal="true"
+      style={{
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
+        maxWidth: w,
+        zIndex: 60,
+        opacity: pos.ready ? 1 : 0,
+        pointerEvents: 'none',
+      }}
+      className="bg-gray-900 text-white text-xs rounded-md px-3 py-2 leading-relaxed shadow-lg font-sans"
+    >
+      {children}
+      <div
+        className="absolute w-2 h-2 bg-gray-900 rotate-45"
+        style={arrowStyle}
+      />
+    </div>,
+    document.body
+  );
+}
+
 function BrightLineChip({ feature }) {
   const desc = BRIGHT_LINE_DESCRIPTIONS[feature];
+  const anchorRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const onEnter = () => setOpen(true);
+  const onLeave = () => setOpen(false);
   return (
-    <div className="group relative inline-block">
+    <span
+      ref={anchorRef}
+      className="relative inline-block"
+      onMouseEnter={desc ? onEnter : undefined}
+      onMouseLeave={desc ? onLeave : undefined}
+      onFocus={desc ? onEnter : undefined}
+      onBlur={desc ? onLeave : undefined}
+    >
       <span className="text-xs px-2.5 py-1 rounded-full font-mono bg-red-100 text-red-700 border border-red-200 cursor-default">
         {feature}
       </span>
       {desc && (
-        <div className="absolute bottom-full left-0 mb-2 w-72 bg-gray-900 text-white text-xs rounded-md px-3 py-2 leading-relaxed hidden group-hover:block z-10 shadow-lg">
-          {desc}
-          <div className="absolute top-full left-4 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
-        </div>
+        <PortalTooltip anchorRef={anchorRef} visible={open}>{desc}</PortalTooltip>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -1794,18 +1897,26 @@ function BrightLineChip({ feature }) {
 // vocabulary the reader may need explained (follow-up audit 3.1). Same hover
 // pattern as BrightLineChip / TriggerRow.
 function HoverChip({ value, description, className }) {
+  const anchorRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const onEnter = () => setOpen(true);
+  const onLeave = () => setOpen(false);
   return (
-    <div className="group relative inline-block">
+    <span
+      ref={anchorRef}
+      className="relative inline-block"
+      onMouseEnter={description ? onEnter : undefined}
+      onMouseLeave={description ? onLeave : undefined}
+      onFocus={description ? onEnter : undefined}
+      onBlur={description ? onLeave : undefined}
+    >
       <span className={`inline-flex items-center cursor-default ${className}`}>
         {value}
       </span>
       {description && (
-        <div className="absolute bottom-full left-0 mb-2 w-72 bg-gray-900 text-white text-xs rounded-md px-3 py-2 leading-relaxed hidden group-hover:block z-10 shadow-lg font-sans">
-          {description}
-          <div className="absolute top-full left-4 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
-        </div>
+        <PortalTooltip anchorRef={anchorRef} visible={open}>{description}</PortalTooltip>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -1847,9 +1958,13 @@ function ClassifierLabelChip({ value, descKey, size }) {
   const descriptions = CLASSIFIER_LABEL_DESCRIPTIONS[descKey] || {};
   const description = descriptions[value] || null;
   const small = size === 'small';
+  // overflow-wrap:anywhere + max-w-full + whitespace-normal allow long
+  // underscored tokens (e.g. payment_fraud_enablement) to break mid-label at
+  // <768px (display spec section 30.2). Desktop natural width is unaffected
+  // because wrap only triggers when content exceeds the flex container.
   const baseClass = small
-    ? 'text-[11px] font-mono px-1.5 py-0.5 rounded-[3px] border'
-    : 'text-xs font-mono px-2 py-0.5 rounded';
+    ? 'text-[11px] font-mono px-1.5 py-0.5 rounded-[3px] border max-w-full break-words [overflow-wrap:anywhere] whitespace-normal text-left'
+    : 'text-xs font-mono px-2 py-0.5 rounded max-w-full break-words [overflow-wrap:anywhere] whitespace-normal text-left';
   let chipClass;
   if (value === 'none_observed') {
     chipClass = `${baseClass} bg-slate-50 text-slate-500 ${small ? 'border-slate-200 italic' : ''}`;
@@ -1859,31 +1974,37 @@ function ClassifierLabelChip({ value, descKey, size }) {
     chipClass = `${baseClass} bg-slate-100 text-slate-800 ${small ? 'border-slate-300' : ''}`;
   }
   const tooltipId = `classifier-${descKey}-${value}`;
+  const anchorRef = useRef(null);
   // Dismiss-state pattern (spec section 12.2 keyboard + section 13.5 touch).
   // - Keyboard: Escape on focused chip dismisses tooltip (WCAG 2.1 SC 1.4.13).
   // - Touch: tap an already-focused chip toggles dismiss (section 13.5
   //   "second tap on the same chip dismisses").
-  // Reset on focus-IN, not blur-OUT. Blur-reset (the pilot 9e56860 pattern)
-  // raced with iOS touch-focus transience -- a transient blur during a tap
-  // gesture would silently un-dismiss the tooltip the user just dismissed.
-  // Resetting on focus-IN is functionally equivalent ("blurred-then-refocused"
-  // requires re-focus) and only fires when focus is demonstrably re-acquired.
+  // Reset on focus-IN, not blur-OUT (race-condition note preserved from
+  // pilot 9e56860; resetting on focus-IN avoids iOS touch-focus transience).
   const [dismissed, setDismissed] = useState(false);
+  const [hover, setHover] = useState(false);
+  const [focused, setFocused] = useState(false);
   const justFocusedRef = useRef(false);
+  const visible = !!description && !dismissed && (hover || focused);
   return (
-    <span className="group relative inline-block">
+    <span
+      className="relative inline-block max-w-full"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
       <button
+        ref={anchorRef}
         type="button"
-        aria-describedby={description && !dismissed ? tooltipId : undefined}
+        aria-describedby={visible ? tooltipId : undefined}
         onFocus={() => {
           justFocusedRef.current = true;
           setDismissed(false);
+          setFocused(true);
         }}
+        onBlur={() => setFocused(false)}
         onClick={() => {
           if (!description) return;
           if (justFocusedRef.current) {
-            // First click after focus arrival is part of the focusing gesture --
-            // tooltip surfaces via :focus-within; do not also toggle dismiss.
             justFocusedRef.current = false;
             return;
           }
@@ -1902,15 +2023,10 @@ function ClassifierLabelChip({ value, descKey, size }) {
       {value === 'other' && (
         <span className="ml-1 text-[10px] uppercase tracking-wide text-amber-700 font-semibold">audit me</span>
       )}
-      {description && !dismissed && (
-        <div
-          id={tooltipId}
-          role="tooltip"
-          className="absolute bottom-full left-0 mb-2 w-72 bg-gray-900 text-white text-xs rounded-md px-3 py-2 leading-relaxed hidden group-hover:block group-focus-within:block z-10 shadow-lg font-sans"
-        >
+      {description && (
+        <PortalTooltip anchorRef={anchorRef} visible={visible} id={tooltipId}>
           {description}
-          <div className="absolute top-full left-4 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
-        </div>
+        </PortalTooltip>
       )}
     </span>
   );
@@ -2085,6 +2201,30 @@ function ProcessFlagRow({ flag }) {
   );
 }
 
+function TriggerChipWithTooltip({ item, desc, chipClass }) {
+  const anchorRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const onEnter = () => setOpen(true);
+  const onLeave = () => setOpen(false);
+  return (
+    <span
+      ref={anchorRef}
+      className="relative inline-block"
+      onMouseEnter={desc ? onEnter : undefined}
+      onMouseLeave={desc ? onLeave : undefined}
+      onFocus={desc ? onEnter : undefined}
+      onBlur={desc ? onLeave : undefined}
+    >
+      <span className={`text-xs px-2.5 py-1 rounded-full font-mono border ${chipClass} cursor-default`}>
+        {item}
+      </span>
+      {desc && (
+        <PortalTooltip anchorRef={anchorRef} visible={open}>{desc}</PortalTooltip>
+      )}
+    </span>
+  );
+}
+
 function TriggerRow({ label, items, chipClass, descriptions }) {
   return (
     <div className="flex items-baseline gap-2">
@@ -2098,17 +2238,12 @@ function TriggerRow({ label, items, chipClass, descriptions }) {
           {items.map((item, i) => {
             const desc = descriptions ? descriptions[item] : null;
             return (
-              <div key={`${label}-${i}`} className="group relative inline-block">
-                <span className={`text-xs px-2.5 py-1 rounded-full font-mono border ${chipClass} cursor-default`}>
-                  {item}
-                </span>
-                {desc && (
-                  <div className="absolute bottom-full left-0 mb-2 w-72 bg-gray-900 text-white text-xs rounded-md px-3 py-2 leading-relaxed hidden group-hover:block z-10 shadow-lg">
-                    {desc}
-                    <div className="absolute top-full left-4 w-2 h-2 bg-gray-900 rotate-45 -mt-1" />
-                  </div>
-                )}
-              </div>
+              <TriggerChipWithTooltip
+                key={`${label}-${i}`}
+                item={item}
+                desc={desc}
+                chipClass={chipClass}
+              />
             );
           })}
         </div>
@@ -2641,9 +2776,38 @@ function PreviewConfirm({
 
 function PreviewTurnCard({ index, turn, modalityHint, updateTurn, deleteTurn, insertTurnAt, totalTurns }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const dotsRef = useRef(null);
+  const menuRef = useRef(null);
   const friendly = (turn.sender === '__user__')
     ? mapSelfLabel(modalityHint)
     : turn.sender;
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+    // Focus returns to dots button on dismiss (display spec section 29.3).
+    if (dotsRef.current) dotsRef.current.focus();
+  }, []);
+  // Click-outside + Escape dismiss for the overflow menu (section 29.3).
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDocClick(e) {
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      if (dotsRef.current && dotsRef.current.contains(e.target)) return;
+      setMenuOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closeMenu();
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen, closeMenu]);
+  const canDelete = totalTurns > 2;
   return (
     <div className="border border-slate-200 rounded-md bg-white p-3 space-y-2">
       <div className="flex items-start gap-3">
@@ -2668,8 +2832,10 @@ function PreviewTurnCard({ index, turn, modalityHint, updateTurn, deleteTurn, in
             <p className="text-[11px] text-slate-400 font-mono">{turn.timestamp}</p>
           )}
         </div>
-        {/* Desktop: icon buttons. Mobile: overflow menu. Display spec 22.2. */}
-        <div className="hidden sm:flex flex-col items-end gap-1 shrink-0">
+        {/* Desktop (>=768px): icon-button stack. Mobile (<768px): overflow
+            menu per display spec section 29.3 (path (a), three-vertical-dots
+            with text-labeled popover items). */}
+        <div className="hidden md:flex flex-col items-end gap-1 shrink-0">
           <button
             type="button"
             onClick={() => insertTurnAt(index)}
@@ -2682,7 +2848,7 @@ function PreviewTurnCard({ index, turn, modalityHint, updateTurn, deleteTurn, in
             type="button"
             onClick={() => deleteTurn(index)}
             aria-label={`Delete turn ${index + 1}`}
-            disabled={totalTurns <= 2}
+            disabled={!canDelete}
             className="text-slate-500 hover:text-red-700 disabled:text-slate-300 p-1 rounded focus:outline-none focus:ring-2 focus:ring-slate-400"
           >
             <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -2696,21 +2862,50 @@ function PreviewTurnCard({ index, turn, modalityHint, updateTurn, deleteTurn, in
             <Plus className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
-        <div className="sm:hidden relative shrink-0">
+        <div className="md:hidden relative shrink-0">
           <button
+            ref={dotsRef}
             type="button"
             onClick={() => setMenuOpen(o => !o)}
-            aria-label={`Actions for turn ${index + 1}`}
+            aria-label={`Turn ${index + 1} actions`}
+            aria-haspopup="menu"
             aria-expanded={menuOpen}
-            className="text-slate-500 hover:text-slate-800 p-1 rounded focus:outline-none focus:ring-2 focus:ring-slate-400"
+            className="text-slate-500 hover:text-slate-800 p-2 rounded focus:outline-none focus:ring-2 focus:ring-slate-400 min-w-[44px] min-h-[44px] inline-flex items-center justify-center"
           >
-            <MoreVertical className="w-4 h-4" aria-hidden="true" />
+            <MoreVertical className="w-5 h-5" aria-hidden="true" />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-7 z-10 bg-white border border-slate-200 rounded-md shadow-md text-xs w-44">
-              <button type="button" onClick={() => { insertTurnAt(index); setMenuOpen(false); }} className="block w-full text-left px-3 py-2 hover:bg-slate-50">Insert turn above</button>
-              <button type="button" onClick={() => { insertTurnAt(index + 1); setMenuOpen(false); }} className="block w-full text-left px-3 py-2 hover:bg-slate-50">Insert turn below</button>
-              <button type="button" onClick={() => { deleteTurn(index); setMenuOpen(false); }} disabled={totalTurns <= 2} className="block w-full text-left px-3 py-2 hover:bg-slate-50 text-red-700 disabled:text-slate-300">Delete turn</button>
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label={`Turn ${index + 1} actions`}
+              className="absolute right-0 top-[44px] z-20 bg-white border border-slate-200 rounded-md shadow-md text-sm w-52"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { insertTurnAt(index); closeMenu(); }}
+                className="block w-full text-left px-3 py-3 hover:bg-slate-50 focus:outline-none focus:bg-slate-50 min-h-[44px]"
+              >
+                Insert turn above
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { insertTurnAt(index + 1); closeMenu(); }}
+                className="block w-full text-left px-3 py-3 hover:bg-slate-50 focus:outline-none focus:bg-slate-50 min-h-[44px]"
+              >
+                Insert turn below
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { if (canDelete) { deleteTurn(index); closeMenu(); } }}
+                disabled={!canDelete}
+                className="block w-full text-left px-3 py-3 hover:bg-slate-50 focus:outline-none focus:bg-slate-50 min-h-[44px] text-red-700 disabled:text-slate-300 disabled:cursor-not-allowed"
+              >
+                Delete this turn
+              </button>
             </div>
           )}
         </div>
