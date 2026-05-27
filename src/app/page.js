@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Check, ShieldCheck, UserRound, Ban, TriangleAlert } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Check, ShieldCheck, UserRound, Ban, TriangleAlert, X, Plus, MoreVertical } from 'lucide-react';
 
 // Bright-line descriptions. MUST stay in sync with BRIGHT_LINE_FEATURES in
 // src/lib/safeeval-v5.js. Missing entries silently break tooltips. See
@@ -264,6 +264,20 @@ const CLASSIFIER_LABEL_DESCRIPTIONS = {
     none_observed:           'No pretext present in the prompt -- direct request without an impersonation frame.',
     other:                   "A pretext that doesn't fit. If `other` recurs, add a label.",
   },
+  // v5.1 conversation-eval L3 categories (memo 2026-05-28 sections 4.1 + 4.2).
+  // Verbatim tooltip descriptors. Multi-valued per arc. Suppressed for
+  // input.kind === 'prompt' at the render layer.
+  Arc: {
+    trust_ramp:             'The conversation builds rapport, intimacy, or perceived authority over multiple turns before any extraction signal appears. The trust ramp can be romantic (pig butchering, romance scams), professional (BEC, vendor BEC), or familial (grandparent scams, family-emergency). Multi-turn precondition is essential -- a single-turn "I trust you" does not fire this.',
+    money_ask_pivot:        'The conversation contains an identifiable pivot from a non-monetary topic (rapport, business correspondence, intimate exchange, threat) to a money-related ask (deposit, wire, transfer, refund, gift cards, crypto). The pivot turn is observably distinct from the prior turns. Fires on conversations where the position of the money-ask in the arc is the signal.',
+    contact_channel_jump:   'One side of the conversation proposes or executes a move to a different communication channel during the arc -- typically from a public/monitored channel (a dating app, LinkedIn, a marketplace) to a private/unmonitored channel (WhatsApp, Signal, private email, phone). The jump is itself the signal; the new channel is often beyond platform fraud detection.',
+    advisor_isolation:      'The arc contains explicit or implicit pressure to keep the conversation away from family, financial advisors, bank fraud teams, lawyers, or police. Multi-turn precondition -- a single-turn "do not tell anyone" is a Control flag (secrecy_directive) but does not fire arc-level isolation; the arc-level signal requires sustained isolation pressure across multiple turns.',
+    role_stability_breach:  'One side of the conversation breaks a previously-established role over the arc -- a "vendor" who suddenly asks for a payroll change; a "potential employer" who suddenly asks for credit-card info; an "executive" whose tone or knowledge level shifts mid-thread. The breach is the impersonation tell that single-turn BEC analysis misses.',
+  },
+  Cadence: {
+    always_available:       'One side of the conversation responds within minutes of every message from the other side, across hours, days, or weeks, regardless of time of day. Classic romance / pig-butchering signal -- a real human with a job and a life cannot respond this consistently; "always-available" is a botted or shift-coordinated operation. Requires timestamp data across enough turns to discriminate from polite responsiveness; the minimum turn count to fire is 6 turns over 24+ hours.',
+    escalation_compression: 'The interval between turns shortens markedly as the arc approaches a money-ask, threat, or critical pivot. The compression itself is the pressure tactic. Sextortion threat-cascades are the prototypical case (12 messages over 4 hours, with the final 4 messages over 30 minutes). Requires timestamp data and at least one identifiable pivot or threat turn in the arc.',
+  },
 };
 
 // Canonical row order for the v5.1 prompt-summary section (display spec
@@ -302,7 +316,10 @@ const LOW_CONFIDENCE_PCT = 65;
 const DEGRADED_FALLBACK_STRING = 'Model unavailable; rule-derived disposition.';
 
 // L3 categories in display order (mirrors L3_CATEGORIES in safeeval-v5.js).
-const L3_CATEGORY_ORDER = ['method', 'tactic', 'target', 'context_marker', 'overlap', 'risk_marker'];
+// arc + cadence appended for v5.1 conversation envelopes (memo 2026-05-28
+// section 4); they render only when input.kind === 'conversation' (display
+// spec section 21.4) -- gated at render time, not in the order array.
+const L3_CATEGORY_ORDER = ['method', 'tactic', 'target', 'context_marker', 'overlap', 'risk_marker', 'arc', 'cadence'];
 const L3_CATEGORY_LABELS = {
   method:         'Method',
   tactic:         'Tactic',
@@ -310,7 +327,80 @@ const L3_CATEGORY_LABELS = {
   context_marker: 'Context',
   overlap:        'Overlap',
   risk_marker:    'Risk marker',
+  arc:            'Arc',
+  cadence:        'Cadence',
 };
+
+// Mapping from L3 category prefix -> CLASSIFIER_LABEL_DESCRIPTIONS key. Used
+// to pass arc:/cadence: chips through ClassifierLabelChip so tooltips work
+// (HoverChip variant is used for L1/L2 only). null entries fall through to
+// the existing chip render (no descKey -> bare monospace chip).
+const L3_CATEGORY_DESC_KEY = {
+  arc:     'Arc',
+  cadence: 'Cadence',
+};
+
+// Arc-timeline 5-step risk ramp (display spec section 21.1).
+// Class strings are written LITERAL (not concatenated) so Tailwind JIT
+// compiles them at build time. The risk_band comes from
+// evidence.arc_signals.per_turn_risk[i].risk_band (engine emits one of
+// none/low/med/high/critical per the backend's section 7 notes).
+// Defense of palette divergence from disposition-tier colors: cross-section
+// consistency rule 1 (four disposition colors reserved for disposition-bearing
+// chrome; per-turn risk is a continuous-aggregate scalar, not a disposition).
+const RISK_BAND_RAMP = {
+  none:     { fill: 'bg-emerald-100', border: 'border-emerald-200', label: 'Low (benign-looking turn)' },
+  low:      { fill: 'bg-yellow-100',  border: 'border-yellow-200',  label: 'Low-moderate' },
+  med:      { fill: 'bg-amber-200',   border: 'border-amber-300',   label: 'Moderate (some signal)' },
+  high:     { fill: 'bg-orange-300',  border: 'border-orange-400',  label: 'Elevated' },
+  critical: { fill: 'bg-red-400',     border: 'border-red-500',     label: 'High (load-bearing turn)' },
+};
+
+// Engine's risk_band emission per backend archive section 7.0. Fallback if a
+// missing/unknown band ever lands: render as 'none' (lowest tier; the spec's
+// empty-state policy is to keep visual consistency rather than hide segments).
+function riskBandClasses(band) {
+  return RISK_BAND_RAMP[band] || RISK_BAND_RAMP.none;
+}
+
+// Sender canonicalization at render time (display spec section 20.4).
+// The engine emits the reserved string '__user__' for unnamed self-bubbles
+// (memo section 3.2). The UI maps that to a friendly per-modality label.
+// modality_hint is NOT exposed on the production envelope as of phase 3
+// (see assembleEnvelope in safeeval-v5.js -- conversation envelope carries
+// modality/turns/parse_confidence/parse_warnings only). Default 'Me' applies
+// to all cases until/unless a follow-up engine dispatch propagates the hint;
+// phase 5 qa surfaces this gap if it bites.
+const MODALITY_TO_SELF_LABEL = {
+  imessage:  'Me',
+  sms:       'Me',
+  email:     'Me',
+  slack:     'Me',
+  generic:   'Me',
+  whatsapp:  'You',
+};
+
+function mapSelfLabel(modalityHint) {
+  return MODALITY_TO_SELF_LABEL[modalityHint] || 'Me';
+}
+
+// Image upload cap (raw bytes). Spec section 20.1 lists 10 MB UI cap; the
+// shipped phase-3 API rejects base64 payloads >4 MB (~ 3 MB raw after ~33%
+// base64 inflation). To avoid the 3-10 MB band being UI-accepted but
+// API-rejected, the UI cap matches the API: 3 MB raw. Defended in archive.
+const IMAGE_RAW_CAP_BYTES = 3 * 1024 * 1024;
+
+// Text upload cap (display spec section 20.2). 100 KB matches the .txt file
+// picker contract -- well beyond any realistic conversation length.
+const TEXT_BODY_CAP_BYTES = 100 * 1024;
+
+// Stage 0 timeout (design spec section 20.1).
+const STAGE_0_TIMEOUT_MS = 30000;
+
+// Parse-confidence floor (display spec section 20.3.1). At or above 0.85 the
+// number is suppressed (uninformative per spike report section 4); below it
+// the amber strip + sonnet escalation offer surfaces.
+const PARSE_CONFIDENCE_FLOOR = 0.85;
 
 export default function Home() {
   const [prompt, setPrompt] = useState('');
@@ -321,15 +411,183 @@ export default function Home() {
   // Stale-result tracking (follow-up audit 3.2). Result card greys out when
   // the prompt changes after a result lands; clears on next evaluate.
   const [lastEvaluatedPrompt, setLastEvaluatedPrompt] = useState('');
-  const resultIsStale = result != null && prompt !== lastEvaluatedPrompt;
+
+  // v5.1 conversation-eval state (design spec sections 19-21).
+  // mode: 'prompt' | 'conversation'. Survives refresh via ?mode= URL param.
+  // subModality: 'image' | 'text' inside conversation mode (default image).
+  // imageBase64 + imageMediaType + imageName: attached image awaiting parse.
+  // convText: textarea body awaiting parse.
+  // parsedTurns: post-Stage-0 turn array (the preview's starting point).
+  // previewTurns: editable working copy of parsedTurns (edits land here).
+  // parseConfidence, parseWarnings, modalityHint: Stage 0 output companions.
+  // parsing: Stage 0 loading flag (toggles spinner over the upload zone).
+  // parseError: surface for fetch / 4xx Stage 0 failures.
+  // parseAbortRef: AbortController for cancellable Stage 0.
+  // activeTurnIndex: per-turn drawer open state on the result card (null=closed).
+  // confirmDialog: 4-scenario switch confirmation (null=closed).
+  // tipsOpen: "Show formatting tips" disclosure.
+  // sonnetEscalating: flag to render the right Stage 0 status line.
+  const [mode, setMode] = useState(() => {
+    if (typeof window === 'undefined') return 'prompt';
+    try {
+      return new URLSearchParams(window.location.search).get('mode') === 'conversation'
+        ? 'conversation'
+        : 'prompt';
+    } catch (e) {
+      return 'prompt';
+    }
+  });
+  const [subModality, setSubModality] = useState('image');
+  const [imageBase64, setImageBase64] = useState('');
+  const [imageMediaType, setImageMediaType] = useState('');
+  const [imageName, setImageName] = useState('');
+  const [convText, setConvText] = useState('');
+  const [parsedTurns, setParsedTurns] = useState(null);
+  const [previewTurns, setPreviewTurns] = useState(null);
+  const [parseConfidence, setParseConfidence] = useState(1);
+  const [parseWarnings, setParseWarnings] = useState([]);
+  const [modalityHint, setModalityHint] = useState(null);
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState('');
+  const [sonnetEscalating, setSonnetEscalating] = useState(false);
+  const [activeTurnIndex, setActiveTurnIndex] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [tipsOpen, setTipsOpen] = useState(false);
+  const [dragHover, setDragHover] = useState(false);
+  const [modeAnnouncement, setModeAnnouncement] = useState('');
+  const parseAbortRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const txtFileInputRef = useRef(null);
+
+  // Stale-tracking is mode-aware. In prompt mode the existing rule holds
+  // (text changed after evaluate -> stale). In conversation mode the working
+  // input is the previewTurns array; if the user edits a turn after evaluate
+  // OR switches mode, the result is stale. The stable-stringify key is
+  // sender + text + timestamp joined; small enough for 25-turn arcs.
+  function previewTurnsKey(turns) {
+    if (!Array.isArray(turns)) return '';
+    return turns.map(t => `${t.sender}|${t.text}|${t.timestamp || ''}`).join('||');
+  }
+  const [lastEvaluatedTurnsKey, setLastEvaluatedTurnsKey] = useState('');
+  const resultIsStale = (() => {
+    if (result == null) return false;
+    const rKind = result.input && result.input.kind;
+    if (rKind === 'conversation') {
+      if (mode !== 'conversation') return true;
+      return previewTurnsKey(previewTurns) !== lastEvaluatedTurnsKey;
+    }
+    if (mode !== 'prompt') return true;
+    return prompt !== lastEvaluatedPrompt;
+  })();
 
   // v5-only response shape. The route returns the v5 envelope at the root
   // (post-2026-05-27 sunset). result is null pre-evaluation, then the v5
   // envelope with an `id` field on success.
   const v5 = result;
+  const isConversationResult = !!(v5 && v5.input && v5.input.kind === 'conversation');
 
   function toggle(key) {
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  // URL persistence (design spec section 19.4). Initial mode is read by the
+  // useState initializer above so the first client paint already reflects
+  // ?mode=conversation (server SSG paints prompt; the client re-render
+  // post-hydration flips before the browser commits a paint). On mode
+  // change, history.replaceState (NOT pushState -- mode-switching should
+  // not pollute the browser back-stack).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (mode === 'conversation') url.searchParams.set('mode', 'conversation');
+    else url.searchParams.delete('mode');
+    const next = url.pathname + (url.search ? url.search : '') + url.hash;
+    window.history.replaceState({ mode }, '', next);
+  }, [mode]);
+
+  // Clear input-side state when switching modes (the confirm-dialog wrapper
+  // already gates user-visible discards). On a non-content-bearing switch
+  // (Scenario A) this is a no-op; on a confirmed B/C/D switch this cleans up
+  // the discarded transient state.
+  function resetConversationInputState() {
+    setImageBase64('');
+    setImageMediaType('');
+    setImageName('');
+    setConvText('');
+    setParsedTurns(null);
+    setPreviewTurns(null);
+    setParseConfidence(1);
+    setParseWarnings([]);
+    setModalityHint(null);
+    setParsing(false);
+    setParseError('');
+    setSonnetEscalating(false);
+    setActiveTurnIndex(null);
+    if (parseAbortRef.current) {
+      try { parseAbortRef.current.abort(); } catch (e) { /* no-op */ }
+      parseAbortRef.current = null;
+    }
+  }
+
+  // Mode-switch entry point. Inspects transient state to decide whether a
+  // confirm dialog fires (Scenarios B/C/D in display spec section 19.3).
+  function requestModeSwitch(target) {
+    if (target === mode) return;
+    if (target === 'conversation') {
+      // Scenario A or B: prompt -> conversation.
+      if (prompt.trim().length > 0) {
+        setConfirmDialog({
+          message: 'Switching modes will discard the text in your prompt. Switch anyway?',
+          onConfirm: () => {
+            setPrompt('');
+            setMode('conversation');
+            setModeAnnouncement('Switched to conversation evaluation');
+            setConfirmDialog(null);
+          },
+          onCancel: () => setConfirmDialog(null),
+        });
+        return;
+      }
+      setMode('conversation');
+      setModeAnnouncement('Switched to conversation evaluation');
+      return;
+    }
+    // target === 'prompt'. Scenarios C / D (image attached, or parsed turns).
+    const hasImage = imageBase64.length > 0;
+    const hasParsed = Array.isArray(previewTurns) && previewTurns.length > 0;
+    const hasText = convText.trim().length > 0;
+    if (hasParsed) {
+      const n = previewTurns.length;
+      setConfirmDialog({
+        message: `Switching modes will discard your parsed conversation (${n} turn${n === 1 ? '' : 's'}). Switch anyway?`,
+        onConfirm: () => {
+          resetConversationInputState();
+          setMode('prompt');
+          setModeAnnouncement('Switched to prompt evaluation');
+          setConfirmDialog(null);
+        },
+        onCancel: () => setConfirmDialog(null),
+      });
+      return;
+    }
+    if (hasImage || hasText) {
+      setConfirmDialog({
+        message: hasImage
+          ? 'Switching modes will discard the image you attached. Switch anyway?'
+          : 'Switching modes will discard the text you typed. Switch anyway?',
+        onConfirm: () => {
+          resetConversationInputState();
+          setMode('prompt');
+          setModeAnnouncement('Switched to prompt evaluation');
+          setConfirmDialog(null);
+        },
+        onCancel: () => setConfirmDialog(null),
+      });
+      return;
+    }
+    // Scenario A: nothing to discard.
+    setMode('prompt');
+    setModeAnnouncement('Switched to prompt evaluation');
   }
 
   async function handleEvaluate() {
@@ -354,6 +612,228 @@ export default function Home() {
     }
   }
 
+  // Stage 0 invocation. Calls /api/evaluate?parseOnly via body flag; aborts
+  // any in-flight parse on a fresh invocation. Cancellable via UI button.
+  // useSonnet=true forces sonnet-4-6 escalation per design spec section
+  // 20.3.3 (the parser route currently always uses haiku-4-5 default; sonnet
+  // escalation as a separate request is a phase-5 follow-up if the floor
+  // bites in real corpora -- v1 surfaces the affordance but does not yet
+  // wire a separate model dispatch).
+  async function invokeStage0(useSonnet) {
+    setParsing(true);
+    setParseError('');
+    setSonnetEscalating(!!useSonnet);
+    if (parseAbortRef.current) {
+      try { parseAbortRef.current.abort(); } catch (e) { /* no-op */ }
+    }
+    const ctrl = new AbortController();
+    parseAbortRef.current = ctrl;
+    const timeoutId = window.setTimeout(() => ctrl.abort(), STAGE_0_TIMEOUT_MS);
+    let body;
+    if (subModality === 'image') {
+      if (!imageBase64) {
+        setParsing(false);
+        return;
+      }
+      body = {
+        parseOnly: true,
+        input: {
+          kind: 'conversation',
+          conversation: { modality: 'image', image: { base64: imageBase64, mediaType: imageMediaType || 'image/png' } },
+        },
+      };
+    } else {
+      if (!convText.trim()) {
+        setParsing(false);
+        return;
+      }
+      body = {
+        parseOnly: true,
+        input: {
+          kind: 'conversation',
+          conversation: { modality: 'text', text: convText },
+        },
+      };
+    }
+    try {
+      const res = await fetch('/api/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      const data = await res.json();
+      window.clearTimeout(timeoutId);
+      if (!res.ok || !data.ok) {
+        setParseError(data.error || 'Parse failed');
+        setParsedTurns(null);
+        setPreviewTurns(null);
+        return;
+      }
+      const out = data.output || {};
+      const turns = Array.isArray(out.turns) ? out.turns : [];
+      setParsedTurns(turns);
+      setPreviewTurns(turns.map(t => ({ ...t })));
+      setParseConfidence(typeof out.parse_confidence === 'number' ? out.parse_confidence : 1);
+      setParseWarnings(Array.isArray(out.parse_warnings) ? out.parse_warnings : []);
+      setModalityHint(out.modality_hint || null);
+    } catch (err) {
+      window.clearTimeout(timeoutId);
+      if (err && err.name === 'AbortError') {
+        setParseError('Parse was canceled.');
+      } else if (err && err.message) {
+        setParseError(err.message);
+      } else {
+        setParseError('Parse failed.');
+      }
+    } finally {
+      setParsing(false);
+      setSonnetEscalating(false);
+      if (parseAbortRef.current === ctrl) parseAbortRef.current = null;
+    }
+  }
+
+  function cancelStage0() {
+    if (parseAbortRef.current) {
+      try { parseAbortRef.current.abort(); } catch (e) { /* no-op */ }
+      parseAbortRef.current = null;
+    }
+    setParsing(false);
+  }
+
+  // Confirm CTA: invokes Stages 1-4 with the (possibly user-edited)
+  // previewTurns array. Server-side runStage0 short-circuits when turns
+  // are caller-supplied (safeeval-v5.js runStage0 already handles this).
+  async function handleEvaluateConversation() {
+    if (!Array.isArray(previewTurns) || previewTurns.length === 0) return;
+    const turnsToSend = previewTurns
+      .map(t => ({
+        sender: (t.sender || '').trim() || '__user__',
+        text: (t.text || '').trim(),
+        ...(t.timestamp ? { timestamp: t.timestamp } : {}),
+      }))
+      .filter(t => t.text.length > 0);
+    if (turnsToSend.length < 2) {
+      setError('A conversation evaluation needs at least 2 turns.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setResult(null);
+    setActiveTurnIndex(null);
+    try {
+      const body = {
+        input: {
+          kind: 'conversation',
+          conversation: { modality: subModality === 'image' ? 'image' : 'text', turns: turnsToSend },
+        },
+      };
+      const res = await fetch('/api/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Evaluation failed');
+      setResult(data);
+      setLastEvaluatedTurnsKey(previewTurnsKey(turnsToSend));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startOverParse() {
+    setParsedTurns(null);
+    setPreviewTurns(null);
+    setParseConfidence(1);
+    setParseWarnings([]);
+    setParseError('');
+    setActiveTurnIndex(null);
+  }
+
+  // File handlers --------------------------------------------------------
+
+  function handleImageFile(file) {
+    if (!file) return;
+    const okType = /^image\/(png|jpe?g|heic|heif)$/i.test(file.type) || /\.(png|jpe?g|heic|heif)$/i.test(file.name || '');
+    if (!okType) {
+      setParseError('Unsupported file format. Please upload a PNG, JPG, or HEIC screenshot.');
+      return;
+    }
+    if (file.size > IMAGE_RAW_CAP_BYTES) {
+      const mb = (file.size / 1024 / 1024).toFixed(1);
+      setParseError(`Screenshot is too large (${mb} MB). Please upload an image under 3 MB.`);
+      return;
+    }
+    setParseError('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      const commaIdx = dataUrl.indexOf(',');
+      const headerPart = commaIdx > 0 ? dataUrl.slice(0, commaIdx) : '';
+      const mtMatch = headerPart.match(/^data:([^;]+);base64$/);
+      const mediaType = mtMatch ? mtMatch[1] : (file.type || 'image/png');
+      const base64 = commaIdx > 0 ? dataUrl.slice(commaIdx + 1) : '';
+      setImageBase64(base64);
+      setImageMediaType(mediaType);
+      setImageName(file.name || 'screenshot');
+      // Auto-invoke Stage 0 once the file is read. Per spec section 20.1
+      // the upload zone transitions into the spinner state immediately.
+    };
+    reader.onerror = () => setParseError('Could not read the image file.');
+    reader.readAsDataURL(file);
+  }
+
+  function handleTxtFile(file) {
+    if (!file) return;
+    if (file.size > TEXT_BODY_CAP_BYTES) {
+      const kb = (file.size / 1024).toFixed(0);
+      setParseError(`Text file is too large (${kb} KB). Please upload a file under 100 KB.`);
+      return;
+    }
+    const okType = /^text\//.test(file.type) || /\.(txt|md)$/i.test(file.name || '');
+    if (!okType) {
+      setParseError('Unsupported file format. Please upload a .txt or .md file.');
+      return;
+    }
+    setParseError('');
+    const reader = new FileReader();
+    reader.onload = () => setConvText(String(reader.result || ''));
+    reader.onerror = () => setParseError('Could not read the text file.');
+    reader.readAsText(file);
+  }
+
+  // Auto-fire Stage 0 once an image has been read in. Skipped while a parse
+  // is in flight (so re-attaching during parse doesn't double-fire).
+  useEffect(() => {
+    if (subModality !== 'image' || !imageBase64 || parsing || parsedTurns) return;
+    invokeStage0(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageBase64]);
+
+  // Per-turn drawer helpers
+  function updateTurn(i, patch) {
+    setPreviewTurns(prev => {
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.slice();
+      next[i] = { ...next[i], ...patch };
+      return next;
+    });
+  }
+  function deleteTurn(i) {
+    setPreviewTurns(prev => Array.isArray(prev) ? prev.filter((_, j) => j !== i) : prev);
+  }
+  function insertTurnAt(i) {
+    setPreviewTurns(prev => {
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.slice();
+      next.splice(i, 0, { sender: '', text: '' });
+      return next;
+    });
+  }
+
   // Group L3 tags by their "category:value" prefix.
   const l3Groups = {};
   if (v5 && v5.classification && Array.isArray(v5.classification.l3)) {
@@ -366,9 +846,22 @@ export default function Home() {
       l3Groups[cat].push({ value: val, raw, confidence: tag.confidence });
     }
   }
-  const orderedL3Cats = L3_CATEGORY_ORDER.filter(c => l3Groups[c] && l3Groups[c].length > 0);
+  // Suppress arc / cadence rows for prompt-mode envelopes (display spec
+  // section 21.4 -- "no conditional layout, only conditional content").
+  const ALWAYS_PROMPT_HIDDEN_CATS = isConversationResult ? new Set() : new Set(['arc', 'cadence']);
+  const orderedL3Cats = L3_CATEGORY_ORDER.filter(c =>
+    !ALWAYS_PROMPT_HIDDEN_CATS.has(c) && l3Groups[c] && l3Groups[c].length > 0,
+  );
   for (const c of Object.keys(l3Groups)) {
-    if (!orderedL3Cats.includes(c)) orderedL3Cats.push(c);
+    if (!orderedL3Cats.includes(c) && !ALWAYS_PROMPT_HIDDEN_CATS.has(c)) orderedL3Cats.push(c);
+  }
+  // Conversation envelopes additionally surface empty Arc + Cadence rows in
+  // section 2.3 (display spec section 21.4 -- empty rows render the standard
+  // L3 empty-state placeholder).
+  if (isConversationResult) {
+    for (const cat of ['arc', 'cadence']) {
+      if (!orderedL3Cats.includes(cat)) orderedL3Cats.push(cat);
+    }
   }
 
   const v5Action = v5 && v5.disposition && v5.disposition.action;
@@ -461,42 +954,78 @@ export default function Home() {
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Evaluate a prompt</h2>
-            <span className="text-xs text-gray-400">{prompt.length}/5000</span>
-          </div>
-          <textarea
-            className="w-full h-36 border border-gray-300 rounded-md px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none"
-            placeholder="Enter a prompt to evaluate for fraud and scam policy compliance..."
-            value={prompt}
-            onChange={e => setPrompt(e.target.value)}
-            maxLength={5000}
-          />
-          <div className="flex items-center justify-between">
-            <div className="flex flex-wrap gap-2">
-              {EXAMPLE_PROMPTS.map(ex => (
-                <button
-                  key={ex.label}
-                  type="button"
-                  onClick={() => setPrompt(ex.text)}
-                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors"
-                >
-                  {ex.label}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={handleEvaluate}
-              disabled={loading || !prompt.trim()}
-              className="ml-4 shrink-0 bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium px-5 py-2 rounded-md transition-colors"
-            >
-              {loading ? 'Evaluating...' : 'Evaluate'}
-            </button>
-          </div>
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>
+          {/* Mode-switch segmented control (display spec section 19). */}
+          <ModeSwitch mode={mode} onRequestSwitch={requestModeSwitch} />
+
+          {/* mode-switch announcement -- inside the existing aria-live region
+              already on the parent .space-y-8 wrapper below. We use a
+              dedicated hidden node here so the SR announces only the
+              mode-change message rather than the full result region. */}
+          <span className="sr-only" aria-live="polite">{modeAnnouncement}</span>
+
+          {mode === 'prompt' ? (
+            <PromptInput
+              prompt={prompt}
+              setPrompt={setPrompt}
+              loading={loading}
+              onEvaluate={handleEvaluate}
+              error={error}
+            />
+          ) : (
+            <ConversationInput
+              subModality={subModality}
+              setSubModality={setSubModality}
+              imageBase64={imageBase64}
+              imageName={imageName}
+              convText={convText}
+              setConvText={setConvText}
+              tipsOpen={tipsOpen}
+              setTipsOpen={setTipsOpen}
+              dragHover={dragHover}
+              setDragHover={setDragHover}
+              handleImageFile={handleImageFile}
+              handleTxtFile={handleTxtFile}
+              parsing={parsing}
+              sonnetEscalating={sonnetEscalating}
+              parseError={parseError}
+              cancelStage0={cancelStage0}
+              parsedTurns={parsedTurns}
+              previewTurns={previewTurns}
+              setPreviewTurns={setPreviewTurns}
+              parseConfidence={parseConfidence}
+              parseWarnings={parseWarnings}
+              modalityHint={modalityHint}
+              startOverParse={startOverParse}
+              onConfirm={handleEvaluateConversation}
+              loading={loading}
+              error={error}
+              updateTurn={updateTurn}
+              deleteTurn={deleteTurn}
+              insertTurnAt={insertTurnAt}
+              invokeStage0={invokeStage0}
+              fileInputRef={fileInputRef}
+              txtFileInputRef={txtFileInputRef}
+              clearAttachedImage={() => {
+                setImageBase64('');
+                setImageMediaType('');
+                setImageName('');
+                setParsedTurns(null);
+                setPreviewTurns(null);
+                setParseError('');
+              }}
+              parseFromText={() => invokeStage0(false)}
+            />
           )}
         </div>
+
+        {/* Confirm dialog for mode-switch scenarios B/C/D (spec 19.3). */}
+        {confirmDialog && (
+          <ConfirmDialog
+            message={confirmDialog.message}
+            onConfirm={confirmDialog.onConfirm}
+            onCancel={confirmDialog.onCancel}
+          />
+        )}
 
         <div aria-live="polite" aria-busy={loading} className="space-y-8">
 
@@ -562,6 +1091,45 @@ export default function Home() {
                 </span>
               </div>
             </div>
+
+            {/* section 21.1 Arc timeline (conversation envelopes only,
+                positioned between disposition banner and reasoning summary
+                per display spec section 21.1). */}
+            {isConversationResult && v5.evidence && v5.evidence.arc_signals && (
+              <ArcTimeline
+                arcSignals={v5.evidence.arc_signals}
+                perTurn={v5.evidence.per_turn || []}
+                turns={(v5.input && v5.input.conversation && v5.input.conversation.turns) || []}
+                modalityHint={null}
+                activeTurnIndex={activeTurnIndex}
+                setActiveTurnIndex={setActiveTurnIndex}
+              />
+            )}
+
+            {/* section 21.2 Per-turn drawer (conversation envelopes only) */}
+            {isConversationResult && activeTurnIndex != null && (
+              <PerTurnDrawer
+                turnIndex={activeTurnIndex}
+                turns={(v5.input && v5.input.conversation && v5.input.conversation.turns) || []}
+                perTurn={v5.evidence && v5.evidence.per_turn || []}
+                arcSignals={v5.evidence && v5.evidence.arc_signals}
+                modalityHint={null}
+                onClose={() => setActiveTurnIndex(null)}
+              />
+            )}
+
+            {/* section 21.3 Sender attribution panel (only when distinct
+                senders >= 2). */}
+            {isConversationResult && v5.evidence && v5.evidence.arc_signals
+              && v5.evidence.arc_signals.arc_shape
+              && v5.evidence.arc_signals.arc_shape.distinct_senders >= 2 && (
+              <SenderAttribution
+                arcSignals={v5.evidence.arc_signals}
+                perTurn={v5.evidence.per_turn || []}
+                classification={v5.classification}
+                modalityHint={null}
+              />
+            )}
 
             {/* section 2.2 Reasoning + narrative summary */}
             {(v5.disposition.reasoning_summary || v5.disposition.narrative_summary) && (
@@ -643,26 +1211,47 @@ export default function Home() {
                     <div className="pt-1">
                       <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">L3 tags</div>
                       <div className="space-y-2">
-                        {orderedL3Cats.map(cat => (
-                          <div key={cat} className="flex items-baseline gap-2">
-                            <span className="text-xs uppercase tracking-wide text-gray-400 w-20 shrink-0">
-                              {L3_CATEGORY_LABELS[cat] || cat}
-                            </span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {l3Groups[cat].map((t, i) => (
-                                <span
-                                  key={`${cat}-${i}`}
-                                  className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-gray-50 text-gray-800 border border-gray-200"
-                                >
-                                  {t.value}
-                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700">
-                                    {Math.round((t.confidence || 0) * 100)}%
+                        {orderedL3Cats.map(cat => {
+                          const descKey = L3_CATEGORY_DESC_KEY[cat]; // 'Arc' | 'Cadence' | undefined
+                          const tags = l3Groups[cat] || [];
+                          return (
+                            <div key={cat} className="flex items-baseline gap-2">
+                              <span className="text-xs uppercase tracking-wide text-gray-400 w-20 shrink-0">
+                                {L3_CATEGORY_LABELS[cat] || cat}
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {tags.length === 0 ? (
+                                  <span className="text-xs text-gray-400 italic">
+                                    {cat === 'arc'
+                                      ? 'No arc tags above emit threshold'
+                                      : cat === 'cadence'
+                                      ? 'No cadence tags above emit threshold'
+                                      : 'No tags'}
                                   </span>
-                                </span>
-                              ))}
+                                ) : tags.map((t, i) => (
+                                  descKey ? (
+                                    <span key={`${cat}-${i}`} className="inline-flex items-baseline gap-1.5">
+                                      <ClassifierLabelChip value={t.value} descKey={descKey} />
+                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700">
+                                        {Math.round((t.confidence || 0) * 100)}%
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span
+                                      key={`${cat}-${i}`}
+                                      className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-gray-50 text-gray-800 border border-gray-200"
+                                    >
+                                      {t.value}
+                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700">
+                                        {Math.round((t.confidence || 0) * 100)}%
+                                      </span>
+                                    </span>
+                                  )
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1300,6 +1889,840 @@ function TriggerRow({ label, items, chipClass, descriptions }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// --- v5.1 conversation-eval components --------------------------------------
+//
+// All component code below was added by phase 4 of the conversation-evaluation
+// goal (handoff archive: handoff/archive/2026-05/2026-05-28-conversation-eval-
+// phase-4-frontend.md). Spec authoritative source is
+// docs/ux/design-system/v5-result-card.md sections 19-26.
+
+// Mode-switch segmented control (display spec section 19.1).
+// ARIA tablist + arrow-key nav per section 19.5.
+function ModeSwitch({ mode, onRequestSwitch }) {
+  const promptRef = useRef(null);
+  const convRef = useRef(null);
+  function onKeyDown(e) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const next = mode === 'prompt' ? 'conversation' : 'prompt';
+      onRequestSwitch(next);
+      window.setTimeout(() => {
+        const target = next === 'prompt' ? promptRef.current : convRef.current;
+        if (target) target.focus();
+      }, 0);
+    }
+  }
+  return (
+    <div
+      role="tablist"
+      aria-label="Evaluation mode"
+      onKeyDown={onKeyDown}
+      className="inline-flex bg-slate-100 rounded-lg p-1 max-w-full"
+    >
+      <button
+        ref={promptRef}
+        role="tab"
+        type="button"
+        id="mode-tab-prompt"
+        aria-selected={mode === 'prompt'}
+        aria-controls="mode-panel-prompt"
+        tabIndex={mode === 'prompt' ? 0 : -1}
+        onClick={() => onRequestSwitch('prompt')}
+        className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 ${
+          mode === 'prompt'
+            ? 'bg-slate-900 text-white'
+            : 'text-slate-700 hover:bg-slate-200'
+        }`}
+      >
+        <span className="hidden sm:inline">Evaluate a prompt</span>
+        <span className="inline sm:hidden">Prompt</span>
+      </button>
+      <button
+        ref={convRef}
+        role="tab"
+        type="button"
+        id="mode-tab-conv"
+        aria-selected={mode === 'conversation'}
+        aria-controls="mode-panel-conv"
+        tabIndex={mode === 'conversation' ? 0 : -1}
+        onClick={() => onRequestSwitch('conversation')}
+        className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 ${
+          mode === 'conversation'
+            ? 'bg-slate-900 text-white'
+            : 'text-slate-700 hover:bg-slate-200'
+        }`}
+      >
+        <span className="hidden sm:inline">Evaluate a conversation</span>
+        <span className="inline sm:hidden">Conversation</span>
+      </button>
+    </div>
+  );
+}
+
+// Existing prompt input UI extracted to a component so the mode-switch
+// JSX can swap between it and the conversation input. Behavior unchanged.
+function PromptInput({ prompt, setPrompt, loading, onEvaluate, error }) {
+  return (
+    <div
+      id="mode-panel-prompt"
+      role="tabpanel"
+      aria-labelledby="mode-tab-prompt"
+      className="space-y-4"
+    >
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-gray-900">Evaluate a prompt</h2>
+        <span className="text-xs text-gray-400">{prompt.length}/5000</span>
+      </div>
+      <textarea
+        className="w-full h-36 border border-gray-300 rounded-md px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none"
+        placeholder="Enter a prompt to evaluate for fraud and scam policy compliance..."
+        value={prompt}
+        onChange={e => setPrompt(e.target.value)}
+        maxLength={5000}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {EXAMPLE_PROMPTS.map(ex => (
+            <button
+              key={ex.label}
+              type="button"
+              onClick={() => setPrompt(ex.text)}
+              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors"
+            >
+              {ex.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onEvaluate}
+          disabled={loading || !prompt.trim()}
+          className="shrink-0 bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium px-5 py-2 rounded-md transition-colors"
+        >
+          {loading ? 'Evaluating...' : 'Evaluate'}
+        </button>
+      </div>
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>
+      )}
+    </div>
+  );
+}
+
+// Conversation input UI (display spec sections 20.1, 20.2, 20.3).
+function ConversationInput(props) {
+  const {
+    subModality, setSubModality,
+    imageBase64, imageName,
+    convText, setConvText,
+    tipsOpen, setTipsOpen,
+    dragHover, setDragHover,
+    handleImageFile, handleTxtFile,
+    parsing, sonnetEscalating, parseError, cancelStage0,
+    parsedTurns, previewTurns,
+    parseConfidence, parseWarnings, modalityHint,
+    startOverParse, onConfirm, loading, error,
+    updateTurn, deleteTurn, insertTurnAt,
+    invokeStage0, fileInputRef, txtFileInputRef,
+    clearAttachedImage, parseFromText,
+  } = props;
+
+  const hasPreview = Array.isArray(previewTurns);
+  const showImagePanel = subModality === 'image' && !hasPreview;
+  const showTextPanel  = subModality === 'text'  && !hasPreview;
+
+  function onDrop(e) {
+    e.preventDefault();
+    setDragHover(false);
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) handleImageFile(f);
+  }
+
+  return (
+    <div
+      id="mode-panel-conv"
+      role="tabpanel"
+      aria-labelledby="mode-tab-conv"
+      className="space-y-4"
+    >
+      {!hasPreview && (
+        <>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="font-semibold text-gray-900">Evaluate a conversation</h2>
+            <SubModalitySwitch
+              subModality={subModality}
+              setSubModality={(m) => {
+                // Switching sub-modality while content is staged silently
+                // clears the other side's input (no preview to discard yet,
+                // so no confirm dialog).
+                if (m === 'image' && convText) setConvText('');
+                if (m === 'text' && imageBase64) clearAttachedImage();
+                setSubModality(m);
+              }}
+            />
+          </div>
+
+          {showImagePanel && (
+            <ImageUploadZone
+              imageBase64={imageBase64}
+              imageName={imageName}
+              parsing={parsing}
+              sonnetEscalating={sonnetEscalating}
+              parseError={parseError}
+              cancelStage0={cancelStage0}
+              dragHover={dragHover}
+              setDragHover={setDragHover}
+              onDrop={onDrop}
+              onPick={() => fileInputRef.current && fileInputRef.current.click()}
+              fileInputRef={fileInputRef}
+              handleImageFile={handleImageFile}
+              clearAttachedImage={clearAttachedImage}
+            />
+          )}
+
+          {showTextPanel && (
+            <TextUploadZone
+              convText={convText}
+              setConvText={setConvText}
+              parsing={parsing}
+              parseError={parseError}
+              tipsOpen={tipsOpen}
+              setTipsOpen={setTipsOpen}
+              txtFileInputRef={txtFileInputRef}
+              handleTxtFile={handleTxtFile}
+              parseFromText={parseFromText}
+            />
+          )}
+        </>
+      )}
+
+      {hasPreview && (
+        <PreviewConfirm
+          previewTurns={previewTurns}
+          parseConfidence={parseConfidence}
+          parseWarnings={parseWarnings}
+          modalityHint={modalityHint}
+          onConfirm={onConfirm}
+          loading={loading}
+          startOverParse={startOverParse}
+          updateTurn={updateTurn}
+          deleteTurn={deleteTurn}
+          insertTurnAt={insertTurnAt}
+          invokeStage0={invokeStage0}
+          parsing={parsing}
+          sonnetEscalating={sonnetEscalating}
+        />
+      )}
+
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>
+      )}
+    </div>
+  );
+}
+
+function SubModalitySwitch({ subModality, setSubModality }) {
+  return (
+    <div role="tablist" aria-label="Conversation input type" className="inline-flex bg-slate-100 rounded-lg p-0.5">
+      <button
+        role="tab"
+        type="button"
+        aria-selected={subModality === 'image'}
+        onClick={() => setSubModality('image')}
+        className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 ${
+          subModality === 'image' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-200'
+        }`}
+      >
+        Upload screenshot
+      </button>
+      <button
+        role="tab"
+        type="button"
+        aria-selected={subModality === 'text'}
+        onClick={() => setSubModality('text')}
+        className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 ${
+          subModality === 'text' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-200'
+        }`}
+      >
+        Paste text
+      </button>
+    </div>
+  );
+}
+
+function ImageUploadZone({
+  imageBase64, imageName, parsing, sonnetEscalating, parseError, cancelStage0,
+  dragHover, setDragHover, onDrop, onPick, fileInputRef, handleImageFile,
+  clearAttachedImage,
+}) {
+  const showAttached = imageBase64 && !parsing;
+  return (
+    <div className="space-y-2">
+      {parsing ? (
+        <div className="border border-slate-300 rounded-md bg-white p-6 flex flex-col items-center gap-3 text-center" aria-live="polite">
+          <svg className="w-6 h-6 text-slate-500 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" d="M12 3v3M12 18v3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M3 12h3M18 12h3M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
+          </svg>
+          <span className="text-sm text-slate-700">
+            {sonnetEscalating ? 'Re-parsing with a higher-quality model...' : 'Parsing your screenshot...'}
+          </span>
+          <button
+            type="button"
+            onClick={cancelStage0}
+            className="text-xs text-slate-500 hover:text-slate-700 underline"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div
+          onDragOver={e => { e.preventDefault(); setDragHover(true); }}
+          onDragLeave={() => setDragHover(false)}
+          onDrop={onDrop}
+          onClick={onPick}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(); } }}
+          role="button"
+          tabIndex={0}
+          aria-label="Upload a conversation screenshot"
+          className={`border-2 ${dragHover ? 'border-slate-400 bg-slate-50' : 'border-dashed border-slate-300 bg-white'} rounded-md p-8 flex flex-col items-center gap-2 text-center cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400`}
+        >
+          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 6h16a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z" />
+            <circle cx="9" cy="9" r="1.5" />
+          </svg>
+          <p className="text-sm text-slate-700">Drop a screenshot here, or click to choose a file</p>
+          <p className="text-xs text-slate-500">PNG, JPG, or HEIC. Max 3 MB.</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/heic,image/heif,.png,.jpg,.jpeg,.heic,.heif"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files && e.target.files[0];
+              if (f) handleImageFile(f);
+              e.target.value = '';
+            }}
+          />
+        </div>
+      )}
+      {showAttached && (
+        <div className="text-xs text-slate-600 flex items-center gap-2">
+          <Check className="w-3.5 h-3.5" aria-hidden="true" />
+          <span>Attached: {imageName}</span>
+          <button
+            type="button"
+            onClick={clearAttachedImage}
+            className="text-slate-500 hover:text-slate-700 underline"
+          >
+            Remove
+          </button>
+        </div>
+      )}
+      {parseError && !parsing && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{parseError}</p>
+      )}
+    </div>
+  );
+}
+
+function TextUploadZone({
+  convText, setConvText, parsing, parseError, tipsOpen, setTipsOpen,
+  txtFileInputRef, handleTxtFile, parseFromText,
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="block text-xs font-medium text-slate-700">
+        Paste a conversation, one turn per line, with sender labels
+      </label>
+      <textarea
+        className="w-full h-48 border border-gray-300 rounded-md px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 resize-y font-mono"
+        placeholder={'Alice: Hi! Long time no see.\nBob: Hey, how are you doing?\n...'}
+        value={convText}
+        onChange={e => setConvText(e.target.value)}
+        maxLength={100000}
+      />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => txtFileInputRef.current && txtFileInputRef.current.click()}
+            className="text-xs text-slate-600 hover:text-slate-800 underline"
+          >
+            Upload a .txt file instead
+          </button>
+          <input
+            ref={txtFileInputRef}
+            type="file"
+            accept=".txt,.md,text/plain,text/markdown"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files && e.target.files[0];
+              if (f) handleTxtFile(f);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setTipsOpen(!tipsOpen)}
+            className="text-xs text-slate-600 hover:text-slate-800 underline"
+            aria-expanded={tipsOpen}
+          >
+            {tipsOpen ? 'Hide formatting tips' : 'Show formatting tips'}
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={parseFromText}
+          disabled={parsing || convText.trim().length === 0}
+          className="shrink-0 bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium px-4 py-1.5 rounded-md transition-colors"
+        >
+          {parsing ? 'Parsing...' : 'Parse turns'}
+        </button>
+      </div>
+      {tipsOpen && (
+        <div className="rounded-md bg-slate-50 border border-slate-200 p-3 text-xs text-slate-700 leading-relaxed space-y-2">
+          <p><strong className="font-semibold">Best:</strong> <code className="font-mono">Alice: Hi!\nBob: Hey there</code> (one turn per line, <code>Sender: text</code> colon-separated).</p>
+          <p><strong className="font-semibold">Also works:</strong> iMessage / WhatsApp / Slack export formats with leading timestamps in <code>[brackets]</code> or <code>(parens)</code>.</p>
+          <p><strong className="font-semibold">Limits:</strong> If the parser can&apos;t tell who&apos;s speaking, you&apos;ll see warnings on the preview step and can re-label senders before evaluating.</p>
+        </div>
+      )}
+      {parseError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{parseError}</p>
+      )}
+    </div>
+  );
+}
+
+// --- Preview-confirm step (display spec section 20.3) -----------------------
+
+function PreviewConfirm({
+  previewTurns, parseConfidence, parseWarnings, modalityHint,
+  onConfirm, loading, startOverParse,
+  updateTurn, deleteTurn, insertTurnAt,
+  invokeStage0, parsing, sonnetEscalating,
+}) {
+  const n = previewTurns.length;
+  const lowConfidence = parseConfidence < PARSE_CONFIDENCE_FLOOR;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="text-sm font-semibold text-slate-800">We parsed {n} turn{n === 1 ? '' : 's'}. Please confirm before evaluating.</h3>
+        <button
+          type="button"
+          onClick={startOverParse}
+          className="text-xs text-slate-600 hover:text-slate-800 underline"
+        >
+          Start over
+        </button>
+      </div>
+
+      {lowConfidence && (
+        <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-3 space-y-2" role="status">
+          <p className="text-xs text-amber-900 font-semibold">
+            Parse confidence is low ({Math.round(parseConfidence * 100)}%). The preview may have missed or mis-attributed turns.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => invokeStage0(true)}
+              disabled={parsing}
+              className="text-xs px-3 py-1 rounded-md bg-amber-900 text-white disabled:bg-amber-700 hover:bg-amber-800"
+            >
+              {parsing && sonnetEscalating ? 'Re-parsing...' : 'Retry with higher-quality parser'}
+            </button>
+            <span className="text-xs text-amber-900">or edit the turns below before evaluating.</span>
+          </div>
+        </div>
+      )}
+
+      {Array.isArray(parseWarnings) && parseWarnings.length > 0 && (
+        <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-3" role="status">
+          <p className="text-xs font-semibold text-slate-700 mb-1">
+            Parse warning{parseWarnings.length === 1 ? '' : 's'} ({parseWarnings.length})
+          </p>
+          <ul role="list" className="text-xs text-slate-700 space-y-0.5 list-disc list-inside">
+            {parseWarnings.map((w, i) => (<li key={i}>{w}</li>))}
+          </ul>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {previewTurns.map((turn, i) => (
+          <PreviewTurnCard
+            key={i}
+            index={i}
+            turn={turn}
+            modalityHint={modalityHint}
+            updateTurn={updateTurn}
+            deleteTurn={deleteTurn}
+            insertTurnAt={insertTurnAt}
+            totalTurns={previewTurns.length}
+          />
+        ))}
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => insertTurnAt(previewTurns.length)}
+            className="text-xs text-slate-600 hover:text-slate-800 underline inline-flex items-center gap-1"
+          >
+            <Plus className="w-3 h-3" aria-hidden="true" /> Add turn at end
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-3 pt-2">
+        <button
+          type="button"
+          onClick={startOverParse}
+          className="text-sm text-slate-600 hover:text-slate-800"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={loading || previewTurns.length < 2}
+          className="bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium px-5 py-2 rounded-md transition-colors"
+        >
+          {loading ? 'Evaluating...' : `Evaluate ${n} turn${n === 1 ? '' : 's'}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PreviewTurnCard({ index, turn, modalityHint, updateTurn, deleteTurn, insertTurnAt, totalTurns }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const friendly = (turn.sender === '__user__')
+    ? mapSelfLabel(modalityHint)
+    : turn.sender;
+  return (
+    <div className="border border-slate-200 rounded-md bg-white p-3 space-y-2">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <input
+            type="text"
+            value={friendly || ''}
+            onChange={e => updateTurn(index, { sender: e.target.value === mapSelfLabel(modalityHint) ? '__user__' : e.target.value })}
+            placeholder="Sender"
+            aria-label={`Sender for turn ${index + 1}`}
+            className="w-full max-w-xs text-xs font-mono text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+          <textarea
+            value={turn.text || ''}
+            onChange={e => updateTurn(index, { text: e.target.value })}
+            placeholder="Turn text"
+            aria-label={`Text for turn ${index + 1}`}
+            className="w-full text-sm text-slate-800 bg-white border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-400 resize-y"
+            rows={Math.max(2, Math.ceil((turn.text || '').length / 80))}
+          />
+          {turn.timestamp && (
+            <p className="text-[11px] text-slate-400 font-mono">{turn.timestamp}</p>
+          )}
+        </div>
+        {/* Desktop: icon buttons. Mobile: overflow menu. Display spec 22.2. */}
+        <div className="hidden sm:flex flex-col items-end gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => insertTurnAt(index)}
+            aria-label={`Insert turn above turn ${index + 1}`}
+            className="text-slate-500 hover:text-slate-800 p-1 rounded focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => deleteTurn(index)}
+            aria-label={`Delete turn ${index + 1}`}
+            disabled={totalTurns <= 2}
+            className="text-slate-500 hover:text-red-700 disabled:text-slate-300 p-1 rounded focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => insertTurnAt(index + 1)}
+            aria-label={`Insert turn below turn ${index + 1}`}
+            className="text-slate-500 hover:text-slate-800 p-1 rounded focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="sm:hidden relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label={`Actions for turn ${index + 1}`}
+            aria-expanded={menuOpen}
+            className="text-slate-500 hover:text-slate-800 p-1 rounded focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            <MoreVertical className="w-4 h-4" aria-hidden="true" />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-7 z-10 bg-white border border-slate-200 rounded-md shadow-md text-xs w-44">
+              <button type="button" onClick={() => { insertTurnAt(index); setMenuOpen(false); }} className="block w-full text-left px-3 py-2 hover:bg-slate-50">Insert turn above</button>
+              <button type="button" onClick={() => { insertTurnAt(index + 1); setMenuOpen(false); }} className="block w-full text-left px-3 py-2 hover:bg-slate-50">Insert turn below</button>
+              <button type="button" onClick={() => { deleteTurn(index); setMenuOpen(false); }} disabled={totalTurns <= 2} className="block w-full text-left px-3 py-2 hover:bg-slate-50 text-red-700 disabled:text-slate-300">Delete turn</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Arc timeline + drawer + sender attribution (display spec section 21) ---
+
+function ArcTimeline({ arcSignals, perTurn, turns, modalityHint, activeTurnIndex, setActiveTurnIndex }) {
+  const perTurnRisk = Array.isArray(arcSignals && arcSignals.per_turn_risk) ? arcSignals.per_turn_risk : [];
+  if (perTurnRisk.length === 0) return null;
+  const segments = perTurnRisk;
+  const labelFor = sender => (sender === '__user__' ? mapSelfLabel(modalityHint) : sender);
+
+  function onKeyDown(e, i) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const next = e.key === 'ArrowRight' ? Math.min(i + 1, segments.length - 1) : Math.max(i - 1, 0);
+      const btn = document.getElementById(`arc-seg-${next}`);
+      if (btn) btn.focus();
+      if (activeTurnIndex != null) setActiveTurnIndex(next);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      const btn = document.getElementById('arc-seg-0');
+      if (btn) btn.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      const btn = document.getElementById(`arc-seg-${segments.length - 1}`);
+      if (btn) btn.focus();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setActiveTurnIndex(activeTurnIndex === i ? null : i);
+    } else if (e.key === 'Escape' && activeTurnIndex != null) {
+      setActiveTurnIndex(null);
+    }
+  }
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Arc timeline</h3>
+      <div className="relative">
+        <ol
+          role="list"
+          aria-label={`Conversation arc timeline, ${segments.length} turns`}
+          className="flex gap-1 overflow-x-auto bg-white border border-gray-200 rounded-md p-3"
+          style={{ scrollSnapType: 'x mandatory' }}
+        >
+          {segments.map((seg, i) => {
+            const band = riskBandClasses(seg.risk_band);
+            const senderLabel = labelFor(seg.sender);
+            const aggregate = typeof seg.aggregate === 'number' ? seg.aggregate : 0;
+            const bls = Array.isArray(seg.bright_lines) ? seg.bright_lines : [];
+            const blText = bls.length > 0 ? `Bright line: ${bls.join(', ')}` : 'No bright lines';
+            return (
+              <li key={i} className="shrink-0" style={{ scrollSnapAlign: 'start' }}>
+                <button
+                  id={`arc-seg-${i}`}
+                  type="button"
+                  onClick={() => setActiveTurnIndex(activeTurnIndex === i ? null : i)}
+                  onKeyDown={e => onKeyDown(e, i)}
+                  aria-label={`Turn ${i + 1}, sender ${senderLabel}, risk ${aggregate} of 15. ${blText}`}
+                  aria-expanded={activeTurnIndex === i}
+                  className={`group relative block min-w-[48px] h-10 rounded ${band.fill} border ${band.border} ${activeTurnIndex === i ? 'ring-2 ring-slate-700 ring-offset-1' : ''} focus:outline-none focus:ring-2 focus:ring-slate-500`}
+                >
+                  {bls.length > 0 && (
+                    <span aria-hidden="true" className="absolute left-1/2 top-1 bottom-1 w-[3px] -translate-x-1/2 bg-red-700 rounded-sm" />
+                  )}
+                  <span className="sr-only">{`Turn ${i + 1}: ${senderLabel}, risk ${aggregate}/15. ${blText}`}</span>
+                </button>
+                <div className="text-[10px] text-slate-500 text-center mt-1 font-mono">{i + 1}</div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500">
+        5-step risk ramp: lower = greener, higher = redder. Vertical marker = bright line fired on that turn. Click a segment for details.
+      </p>
+    </div>
+  );
+}
+
+function PerTurnDrawer({ turnIndex, turns, perTurn, arcSignals, modalityHint, onClose }) {
+  const turn = turns[turnIndex] || {};
+  const perTurnArr = Array.isArray(perTurn) ? perTurn : [];
+  const evidence = perTurnArr[turnIndex] || {};
+  const arcArr = Array.isArray(arcSignals && arcSignals.per_turn_risk) ? arcSignals.per_turn_risk : [];
+  const arcEntry = arcArr[turnIndex] || {};
+  const aggregate = typeof arcEntry.aggregate === 'number' ? arcEntry.aggregate : 0;
+  const components = evidence.component_scores || {};
+  const brightLines = Array.isArray(evidence.bright_lines) ? evidence.bright_lines : [];
+  const senderLabel = (turn.sender === '__user__') ? mapSelfLabel(modalityHint) : turn.sender;
+  const drawerRef = useRef(null);
+  useEffect(() => {
+    if (drawerRef.current) drawerRef.current.focus();
+  }, [turnIndex]);
+  return (
+    <div
+      ref={drawerRef}
+      role="region"
+      aria-label={`Turn ${turnIndex + 1} details`}
+      tabIndex={-1}
+      className="bg-white border border-slate-300 rounded-md p-4 space-y-3 focus:outline-none focus:ring-2 focus:ring-slate-500"
+      onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
+    >
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-slate-800">Turn {turnIndex + 1}</h4>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close turn details"
+          className="text-slate-500 hover:text-slate-800 p-1 rounded focus:outline-none focus:ring-2 focus:ring-slate-400"
+        >
+          <X className="w-4 h-4" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="text-xs text-slate-600">Sender: <span className="font-mono text-slate-800">{senderLabel || '--'}</span></div>
+      <blockquote className="border-l-4 border-slate-300 pl-3 py-1 text-sm text-slate-700 italic whitespace-pre-wrap">
+        {turn.text || '(no text)'}
+      </blockquote>
+      <div className="text-xs text-slate-700">
+        Risk: <strong className="font-semibold">{aggregate}/15</strong>
+        <div className="text-[11px] font-mono text-slate-600 mt-0.5">
+          target: {components.target ?? 0}  lure: {components.lure ?? 0}  trust: {components.trust ?? 0}  extract: {components.extract ?? 0}  evade: {components.evade ?? 0}
+        </div>
+      </div>
+      {brightLines.length > 0 && (
+        <div>
+          <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1">Bright lines fired</div>
+          <div className="flex flex-wrap gap-1.5">
+            {brightLines.map(f => (<BrightLineChip key={f} feature={f} />))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SenderAttribution({ arcSignals, perTurn, classification, modalityHint }) {
+  const arcArr = Array.isArray(arcSignals && arcSignals.per_turn_risk) ? arcSignals.per_turn_risk : [];
+  const perTurnArr = Array.isArray(perTurn) ? perTurn : [];
+  // Aggregate per-sender driven signals.
+  const senderOrder = [];
+  const drivenBrightLines = {};
+  arcArr.forEach((seg, i) => {
+    const s = seg.sender;
+    if (!senderOrder.includes(s)) senderOrder.push(s);
+    const bls = Array.isArray(seg.bright_lines) ? seg.bright_lines : [];
+    if (bls.length > 0) {
+      if (!drivenBrightLines[s]) drivenBrightLines[s] = [];
+      bls.forEach(bl => drivenBrightLines[s].push({ bl, turn: i + 1 }));
+    }
+  });
+  const senderTurnCounts = {};
+  arcArr.forEach(seg => {
+    senderTurnCounts[seg.sender] = (senderTurnCounts[seg.sender] || 0) + 1;
+  });
+  // Arc-level L3s -- attributed to the conversation, not per-turn.
+  const arcL3s = (classification && Array.isArray(classification.l3))
+    ? classification.l3.filter(t => t.value && (t.value.startsWith('arc:') || t.value.startsWith('cadence:')))
+    : [];
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Sender attribution</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {senderOrder.map((s, idx) => {
+          const friendly = (s === '__user__') ? mapSelfLabel(modalityHint) : s;
+          const count = senderTurnCounts[s] || 0;
+          const senderBLs = drivenBrightLines[s] || [];
+          return (
+            <div
+              key={s}
+              role="group"
+              aria-label={`Sender ${friendly} drove ${senderBLs.length} bright-line signal${senderBLs.length === 1 ? '' : 's'}`}
+              className={`bg-white border border-slate-200 rounded-md p-3 ${idx === 1 ? 'md:text-right' : ''}`}
+            >
+              <div className="text-sm font-semibold text-slate-800">{friendly} <span className="text-xs text-slate-500 font-normal">({count} turn{count === 1 ? '' : 's'})</span></div>
+              <div className="text-[11px] text-slate-500 uppercase tracking-wide mt-2 mb-1">Drove</div>
+              {senderBLs.length === 0 && idx > 0 ? (
+                <div className="text-xs text-slate-400 italic">(none)</div>
+              ) : senderBLs.length === 0 ? (
+                <div className="text-xs text-slate-400 italic">(none)</div>
+              ) : (
+                <ul role="list" className={`flex flex-wrap gap-1.5 ${idx === 1 ? 'md:justify-end' : ''}`}>
+                  {senderBLs.map((bl, j) => (
+                    <li key={j} className="inline-flex items-center gap-1">
+                      <BrightLineChip feature={bl.bl} />
+                      <span className="text-[10px] text-slate-500 font-mono">T{bl.turn}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {/* Arc-level L3 signals listed on the first column only -- they
+                  are arc-attributed, not turn-attributed; rendering them
+                  twice would mislead the reader. */}
+              {idx === 0 && arcL3s.length > 0 && (
+                <>
+                  <div className="text-[11px] text-slate-500 uppercase tracking-wide mt-2 mb-1">Arc-level signals</div>
+                  <ul role="list" className="flex flex-wrap gap-1.5">
+                    {arcL3s.map((t, j) => (
+                      <li key={j} className="inline-flex">
+                        <ClassifierLabelChip
+                          value={t.value.replace(/^arc:|^cadence:/, '')}
+                          descKey={t.value.startsWith('arc:') ? 'Arc' : 'Cadence'}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Confirm dialog for mode-switch (display spec section 19.3). Modal-style
+// overlay with primary/secondary buttons; Escape cancels; focus traps to
+// the dialog while open.
+function ConfirmDialog({ message, onConfirm, onCancel }) {
+  const confirmRef = useRef(null);
+  useEffect(() => {
+    if (confirmRef.current) confirmRef.current.focus();
+  }, []);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Switch mode confirmation"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onKeyDown={e => { if (e.key === 'Escape') onCancel(); }}
+    >
+      <div className="bg-white rounded-lg border border-slate-300 shadow-lg max-w-sm w-full p-5 space-y-4">
+        <p className="text-sm text-slate-800">{message}</p>
+        <div className="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-sm text-slate-600 hover:text-slate-800 px-3 py-1.5 rounded-md"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            ref={confirmRef}
+            onClick={onConfirm}
+            className="text-sm bg-slate-900 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            Switch
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

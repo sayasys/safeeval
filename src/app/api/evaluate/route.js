@@ -46,6 +46,15 @@
 //   Passes { debug: true } to the engine so pipeline_trace is included in
 //   the v5 envelope. No other query params are recognized.
 //
+// body.parseOnly === true (conversation mode only):
+//   Runs Stage 0 only (the parser) and returns the parsed-turns envelope
+//   without invoking Stages 1-4. Used by the phase 4 UI to drive the
+//   preview-confirm step required by design spec section 20.3. Response:
+//     { ok, output: { turns, parse_confidence, parse_warnings, modality_hint? },
+//       model, duration_ms, input_kind }
+//   On parser failure: { ok: false, error: "..." } at HTTP 200 (the parser's
+//   degraded path is a user-facing condition, not an HTTP error).
+//
 // All errors are JSON envelopes -- no raw exceptions, no HTML error pages.
 
 import { NextResponse } from 'next/server';
@@ -58,6 +67,10 @@ import {
   CONVERSATION_MODALITY_VALUES,
   CONVERSATION_TURNS_MIN,
 } from '@/lib/safeeval-v5';
+import {
+  parseConversationFromImage,
+  parseConversationFromText,
+} from '@/lib/conversation-parser';
 
 function badRequest(code, detail) {
   const body = { error: code };
@@ -171,6 +184,27 @@ export async function POST(request) {
     // input.kind === 'conversation'
     const cvErr = validateConversationInput(input.conversation);
     if (cvErr) return badRequest('invalid_conversation', cvErr);
+
+    // body.parseOnly: Stage 0 only. Drives the preview-confirm step
+    // (design spec 20.3) without burning Stages 1-4 on an un-confirmed parse.
+    // Image: vision parse via parseConversationFromImage.
+    // Text: deterministic regex via parseConversationFromText.
+    // (Caller-supplied turns arrays bypass parseOnly; the UI only invokes
+    // this path when starting from a raw text body or image.)
+    if (body && body.parseOnly === true) {
+      try {
+        const stage0 = input.conversation.modality === 'image'
+          ? await parseConversationFromImage(input.conversation.image || {})
+          : parseConversationFromText(
+              typeof input.conversation.text === 'string' ? input.conversation.text : '',
+            );
+        return NextResponse.json(stage0);
+      } catch (err) {
+        console.error('v5 conversation parse-only error:', err);
+        return serverError('evaluation_failed', err && err.message ? err.message : err);
+      }
+    }
+
     try {
       v5Result = await evaluateConversationV5(input, { debug: wantDebug });
     } catch (err) {
