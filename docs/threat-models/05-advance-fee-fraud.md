@@ -92,12 +92,6 @@ AFF's core dependency is **formal, official-sounding narrative and document gene
 
 ---
 
-## Ecommerce Parallel
-
-Return abuse and AFF share a fundamental mechanic: **exploiting a perceived entitlement through a process that will never deliver the promised outcome**. In return abuse, the fraudster navigates the returns process — understanding policy thresholds and exception criteria — to extract a refund they are not entitled to. In AFF, the victim navigates a fee payment process that will never release the promised funds. The adversarial mindset is identical: exploit the gap between what the policy or process claims and what it can actually enforce.
-
----
-
 ## Policy Triggers
 
 1. Inheritance, lottery, or business opportunity copy requiring the recipient to pay fees to claim funds

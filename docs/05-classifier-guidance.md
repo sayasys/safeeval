@@ -232,7 +232,7 @@ The recommended architecture uses a shared encoder (transformer-based) with sepa
 | FRAUD_INFRASTRUCTURE | Medium | Balanced (money mule/mule recruitment); Precision > Recall for fake reviews (high false positive risk in creative use) |
 | RECOVERY | High | Recall > Precision |
 | ACCOUNT_TAKEOVER | High | Recall > Precision |
-| AI_ENABLED_ABUSE | Critical | Recall >> Precision (highest-priority enforcement surface for Anthropic) |
+| AI_ENABLED_ABUSE | Critical | Recall >> Precision (highest-priority enforcement surface for any AI platform operator) |
 
 ### 6.3 Bright line classifier tuning
 

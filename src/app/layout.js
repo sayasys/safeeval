@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'SafeEval -- AI Fraud Detection Framework',
-  description: 'A policy-driven fraud and scam evaluation framework for AI platforms, built on the Universal Fraud Analysis Framework (UFAF).',
+  title: 'SafeEval -- AI trust & safety policy framework',
+  description: 'An AI trust & safety policy framework, demonstrated through fraud and scams enforcement. Built on the Fraud Analysis Framework (FAF).',
 };
 
 export default function RootLayout({ children }) {

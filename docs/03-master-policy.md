@@ -6,12 +6,12 @@
 
 ## 1. Purpose & Scope
 
-This policy governs Anthropic's enforcement stance on fraud and scam-related content generated through or with the assistance of Claude models, across all product surfaces and API access tiers.
+This policy governs the enforcement stance described in this document on fraud and scam-related content generated through or with the assistance of AI models, across all product surfaces and API access tiers.
 
 **This policy applies to:**
-- Consumer products (Claude.ai, mobile applications)
+- Consumer products (chat applications, mobile applications)
 - API access (direct and via third-party operators)
-- Enterprise deployments operating under Anthropic's usage policies
+- Enterprise deployments operating under the platform's usage policies
 
 **This policy does not govern:**
 - Purely informational content about fraud (educational, journalistic, research)

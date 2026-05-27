@@ -90,12 +90,6 @@ Secondary vectors:
 
 ---
 
-## Ecommerce Parallel
-
-Account takeover mechanics are structurally identical to romance fraud's trust-exploitation sequence. In ATO, the fraudster exploits trust already established between the legitimate account holder and the platform. In romance fraud, the fraudster builds and then exploits manufactured trust. The enforcement logic is the same: detecting anomalous extraction requests within an otherwise-legitimate-appearing trust context.
-
----
-
 ## Policy Triggers
 
 1. Scripts simulating romantic relationships for financial solicitation

@@ -112,12 +112,6 @@ Impersonation scams depend on **authentic institutional voice** — sounding lik
 
 ---
 
-## Ecommerce Parallel
-
-Seller impersonation of legitimate brands (fake storefronts mimicking well-known retailers) uses the same authority-borrowing mechanic. Return abuse often involves policy impersonation — the fraudster claims policies that don't exist to pressure agents into exceptions. The detection signal in both cases is the same: does the claimed authority have verifiable standing?
-
----
-
 ## Policy Triggers
 
 1. Communications purporting to be from named government agencies with payment demands or legal threats

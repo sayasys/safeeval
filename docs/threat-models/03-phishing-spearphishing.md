@@ -90,12 +90,6 @@ The historical detection signal for phishing was **quality degradation** — poo
 
 ---
 
-## Ecommerce Parallel
-
-Phishing is the primary ATO enabler in ecommerce. Malicious sellers submitting fake dispute documentation to override buyer protections — a pattern common in marketplace fraud — use the same authority impersonation mechanics. The enforcement signal is identical: does the communication accurately represent the claimed sender, and does it request an action that benefits the communicator at the target's expense?
-
----
-
 ## Policy Triggers
 
 1. Email or message copy impersonating a named real organization for credential harvesting or financial fraud

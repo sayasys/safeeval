@@ -925,7 +925,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">SafeEval</h1>
-            <p className="text-sm text-gray-500 mt-0.5">AI Fraud &amp; Scam Detection - Fraud Analysis Framework</p>
+            <p className="text-sm text-gray-500 mt-0.5">AI trust &amp; safety policy framework</p>
           </div>
           <a
             href="https://github.com/sayasys/safeeval"
@@ -945,7 +945,7 @@ export default function Home() {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="font-semibold text-gray-900 mb-2">About this tool</h2>
           <p className="text-sm text-gray-600 leading-relaxed">
-            SafeEval evaluates prompts against Anthropic&apos;s Fraud &amp; Scams policy using the{' '}
+            SafeEval evaluates prompts against a fraud and scams policy framework, applied through the{' '}
             <strong>Fraud Analysis Framework (FAF)</strong> -- a structured decomposition model that analyzes
             prompts across five scored components. Enter a prompt below to see a full typology analysis,
             escalation decision, and policy rationale.

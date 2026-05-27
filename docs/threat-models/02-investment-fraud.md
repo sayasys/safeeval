@@ -90,21 +90,6 @@ Investment fraud's core dependency is **persuasive financial content generation 
 
 ---
 
-## Ecommerce Parallel
-
-Investment fraud is structurally identical to marketplace seller fraud:
-
-| Seller Fraud | Investment Fraud |
-|---|---|
-| Fake storefront with seeded positive reviews | Fake platform with seeded "returns" |
-| Small successful transactions to build history | Small early withdrawals to prove legitimacy |
-| Large fraudulent transaction after trust established | Large investment after trust established |
-| Disappear or manufacture dispute barrier | Disappear or manufacture fee barrier |
-
-The enforcement pattern is identical: watch for trust-building followed by a disproportionate extraction ask.
-
----
-
 ## Policy Triggers
 
 1. Investment pitch content with extraordinary return claims for a specific platform

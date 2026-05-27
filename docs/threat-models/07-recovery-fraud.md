@@ -115,14 +115,6 @@ Recovery fraud's core dependency is **authoritative, personalized recovery narra
 
 ---
 
-## Ecommerce Parallel: Return Abuse Escalation
-
-In ecommerce fraud, a close structural parallel is the escalation pattern in return abuse where a fraudster, having had a return claim denied, submits increasingly official-seeming follow-ups — citing consumer protection law, threatening regulatory complaints, or impersonating attorneys. The tactic is the same: use the prior interaction (the denied return) as the basis for a new, more authoritative approach.
-
-The enforcement logic is identical: a second-contact fraud that references the first contact as its credibility anchor should receive elevated scrutiny, not reduced scrutiny because the victim "already knows" the entity.
-
----
-
 ## Policy Triggers
 
 1. Generating personalized recovery notifications claiming to have located or frozen funds from a prior fraud
