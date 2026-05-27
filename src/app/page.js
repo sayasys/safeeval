@@ -722,10 +722,15 @@ export default function Home() {
     setResult(null);
     setActiveTurnIndex(null);
     try {
+      // Confirm always sends modality='text' + already-canonical turns.
+      // The route's modality='image' branch requires image.base64; after
+      // Stage 0 the image is no longer the input -- the parsed turns are.
+      // The engine's runStage0 short-circuits to caller-supplied-turns
+      // canonicalization regardless of modality (safeeval-v5.js).
       const body = {
         input: {
           kind: 'conversation',
-          conversation: { modality: subModality === 'image' ? 'image' : 'text', turns: turnsToSend },
+          conversation: { modality: 'text', turns: turnsToSend },
         },
       };
       const res = await fetch('/api/evaluate', {
