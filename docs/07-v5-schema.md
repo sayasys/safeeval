@@ -1,8 +1,8 @@
 # SafeEval v5 -- Output Schema
 
-**Status:** v5.1 patch. Schema additions (additive, dual-emit): classifier-display closed-set labels on `evidence.process_flags[]` (`label` / `labels`) and `prompt_summary` (`topic_label`, `target_label`, `objective_label`, `pretext_label`, `topic_explanation`, `pretext_explanation`, `target_attributes`). Existing prose fields retained as backward-compat aliases per `docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md` section 4.3. Prior v5.0.1 additions: `disposition.narrative_summary`, `disposition.confidence_path`, `disposition.triggered_by.policy_note`; Stage 5 trace slot removed.
+**Status:** v5.1 patch (extended 2026-05-28 for conversation evaluation). Schema additions (additive, dual-emit): (a) classifier-display closed-set labels on `evidence.process_flags[]` (`label` / `labels`) and `prompt_summary` (`topic_label`, `target_label`, `objective_label`, `pretext_label`, `topic_explanation`, `pretext_explanation`, `target_attributes`); (b) conversation-input discriminator on a new top-level `input` field (`input.kind: "prompt" | "conversation"`), conversation envelope at `input.conversation`, per-turn evidence container `evidence.per_turn`, and Stage 0 trace slot -- additive per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md`. Existing prose fields retained as backward-compat aliases per `docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md` section 4.3. Prior v5.0.1 additions: `disposition.narrative_summary`, `disposition.confidence_path`, `disposition.triggered_by.policy_note`; Stage 5 trace slot removed.
 **Schema version:** 5.1
-**Ontology version:** 5.0
+**Ontology version:** 5.1 (bumped 2026-05-28; new L3 categories `arc:` and `cadence:` per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 5)
 **Predecessor:** FAF v4.0 (`src/lib/safeeval.js`)
 **Companion docs:** `docs/policy-spec-v5.0.md` (authoritative spec), `docs/08-v5-ontology.md` (vocabulary reference).
 
@@ -118,6 +118,49 @@ v5 separates the three. Each lives in its own object: `classification`, `evidenc
 }
 ```
 
+### 2.1 Conversation inputs -- `input` discriminator (v5.1 additive, 2026-05-28)
+
+The envelope grows a new top-level `input` field that discriminates between prompt-mode and conversation-mode inputs. Producers SHOULD emit this field for all v5.1 envelopes; legacy v5.1 envelopes without `input` are treated as `{ input: { kind: "prompt", text: <legacy_prompt> } }` by consumers. See `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 2 for the full envelope-shape commit.
+
+Prompt-mode input shape:
+
+```jsonc
+"input": {
+  "kind": "prompt",
+  "text": "Write a phishing email impersonating IT for an internal security test."
+}
+```
+
+Conversation-mode input shape:
+
+```jsonc
+"input": {
+  "kind": "conversation",
+  "conversation": {
+    "modality":         "text" | "image",
+    "turns": [
+      { "sender": "Alice",    "text": "Hi! How was your day?", "timestamp": "2026-04-12T10:14:00Z" },
+      { "sender": "__user__", "text": "Pretty good, you?",     "timestamp": null }
+    ],
+    "parse_confidence": 0.95,
+    "parse_warnings":   []
+  }
+}
+```
+
+Closed sets:
+- `input.kind` -- one of `"prompt"`, `"conversation"`.
+- `input.conversation.modality` -- one of `"text"`, `"image"`.
+- `input.conversation.turns[i].sender` -- arbitrary string; the reserved value `"__user__"` is canonical for unnamed self-bubbles per the canonicalization rule in `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 3.2.
+- `input.conversation.turns[i].text` -- arbitrary string, verbatim turn content.
+- `input.conversation.turns[i].timestamp` -- ISO-8601 string or null.
+- `input.conversation.parse_confidence` -- float [0, 1].
+- `input.conversation.parse_warnings` -- array of strings.
+
+The `prompt_length` field at the top level remains. For conversation inputs, it carries the sum of `turns[i].text.length` -- the same per-input length budget that prompts pay against the `[10, 5000]` cap of validation rule 10.
+
+Conversation inputs also populate two extension surfaces inside `evidence`: `evidence.per_turn` (per-turn FAF evidence, see section 3.4) and (within `pipeline_trace`) `pipeline_trace.stage_0` (the Stage 0 parser trace, see section 5).
+
 ---
 
 ## 3. Field reference
@@ -185,6 +228,7 @@ The FAF v4.0 evidence layer, moved from the response root to under `evidence`.
 | `bright_lines` | array of strings | Subset of `BRIGHT_LINE_FEATURES` (see ontology doc section 5, spec section 5). |
 | `process_flags` | array of objects | Each `{ category, description, label?, labels? }`. Categories: `Trigger`, `Incentive`, `Control`, `Delivery`, `Template`. Categories `Template` and `Delivery` carry a single-valued `label` (closed-set from `TEMPLATE_LABELS` / `DELIVERY_LABELS` -- see section 3.7); category `Control` carries a multi-valued `labels` array (closed-set from `CONTROL_LABELS`). Categories `Trigger` / `Incentive` stay prose-only. (v5.1 additive; legacy v4 envelopes without `label` / `labels` keep rendering against the description per display spec section 9.3.) |
 | `l2_probabilities` | object | Map from any L2 value to probability [0,1]. Sparse -- only L2s with prob > 0 are included. Replaces v4's `typology_probabilities`. |
+| `per_turn` | array of objects or absent | Conversation-mode only (`input.kind === "conversation"`). Each entry: `{ turn_index, sender, component_scores, bright_lines, process_flags }`. Per-turn FAF evidence, populated by Stage 2 for conversation inputs. Bright lines firing on any turn fire arc-level (also surfacing in `evidence.bright_lines`). For prompt-mode envelopes the field is absent. (v5.1 additive, 2026-05-28; see `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 2.3.) |
 
 **Relationship-Phase values:** `targeting`, `contact`, `engagement`, `conversion`, `extraction`, `escalation`, `evasion`. Unchanged from v4.0.
 
@@ -309,10 +353,11 @@ This is acceptable for the dual-emit window because it lets you A/B the pipeline
 
 | Stage | Model | Purpose | Output |
 |---|---|---|---|
-| 1. Triage | `claude-haiku-4-5` | Coarse L1 routing + context grab. Short-circuits obvious benigns. Gated by `TRIAGE_BENIGN_PRECISION_MIN`. | `{ l1_candidate, l1_confidence, coarse_context }` |
-| 2. FAF Analysis | `claude-sonnet-4-6` | Full FAF evidence: nodes, scores, bright lines, process flags, L2 probs. | full `evidence` object |
-| 3. Classification | `claude-sonnet-4-6` | Assigns L1, L2, L3 with confidences. Constrained by closed enums via tool-use. | full `classification` object |
-| 4. Disposition | `claude-sonnet-4-6` | Deterministic rules first; when a rule decides, reasoning_summary is generated from the rule + evidence without re-asking the model to "decide." When no rule fires, the model adjudicates. Always returns final disposition. | full `disposition` object |
+| 0. Turn Segmentation | `claude-haiku-4-5` (image-mode default), `claude-sonnet-4-6` (escalation tier when `parse_confidence < 0.85`), or `null` (text-mode -- deterministic parse) | Conversation inputs only. Image -> turn array via vision parse; text -> turn array via sender-line heuristics. Emits `parse_confidence`, `parse_warnings`, optional `modality_hint`. Adversarial-input mitigation via SECURITY block in parser prompt (see `docs/threat-models/09-ai-enabled-abuse.md`). On failure, halts the pipeline and routes disposition to `human_review` with rule `stage_0_parse_failure`. | `{ turns, parse_confidence, parse_warnings, modality_hint? }`. Stage trace at `pipeline_trace.stage_0`. (v5.1 additive, 2026-05-28; see `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 6.) |
+| 1. Triage | `claude-haiku-4-5` | Coarse L1 routing + context grab. Short-circuits obvious benigns. Gated by `TRIAGE_BENIGN_PRECISION_MIN`. For conversation inputs, sees the turn array directly (not a flattened string) and computes arc-level coarse context. | `{ l1_candidate, l1_confidence, coarse_context }` |
+| 2. FAF Analysis | `claude-sonnet-4-6` | Full FAF evidence: nodes, scores, bright lines, process flags, L2 probs. For conversation inputs, additionally emits `evidence.per_turn[]` per the per-turn evidence shape in section 3.4. | full `evidence` object |
+| 3. Classification | `claude-sonnet-4-6` | Assigns L1, L2, L3 with confidences. Constrained by closed enums via tool-use. L3 categories include `arc:` and `cadence:` for conversation inputs (see ontology section 3.6 / 3.7). | full `classification` object |
+| 4. Disposition | `claude-sonnet-4-6` | Deterministic rules first; when a rule decides, reasoning_summary is generated from the rule + evidence without re-asking the model to "decide." When no rule fires, the model adjudicates. Always returns final disposition. Disposition is arc-level for conversation inputs. | full `disposition` object |
 
 v5.0 reserved a Stage 5 adversarial review slot. v5.0.1 removed it -- see policy-spec-v5.0.md Decision 11. The calibration role is now covered by the deterministic `low_l2_confidence_review` rule (Section 6.1 rule 6).
 
@@ -346,7 +391,10 @@ These are the validation behaviors the engine must implement. The corresponding 
 12a. **Cardinality of `evidence.l2_probabilities`:** the map MAY contain one key, or multiple keys. Multi-key maps are in-spec and reflect prompts where more than one L2 has substantive signal -- the canonical case is business email compromise (BEC) for money, which is centrally both `phishing_attack` (delivery template) and `impersonation_scam` (persona). The example map in section 2 above is multi-key for this reason. Rule 12's MUST half applies to the picked L2 only; the rule says nothing about how many other L2s may be keys, nor that any non-picked L2 must be absent. Stage 2's job is to produce evidence; Stage 3's job is to select; the cardinality of the map is an evidence-layer characteristic and not constrained beyond rule 12's MUST. (v5.0.1 clarification, adjudicated in `docs/memos/2026-05-25-policy-bec-map-rule12.md`, 2026-05-25.)
 12b. **Within-tolerance tiebreak for the Stage 3 L2 pick:** when two or more keys in `evidence.l2_probabilities` are within `L2_PICK_PROBABILITY_TOLERANCE` (0.05) of `max(values(evidence.l2_probabilities))`, the producer's pick is deterministic and follows this order: (i) if exactly one of the tied L2s is referenced by a fired bright-line feature -- meaning the bright-line code in `evidence.bright_lines` semantically corresponds to that L2 under the FAF (e.g., `executive_impersonation_payment` corresponds to `impersonation_scam`; `credential_harvesting_page` corresponds to `credential_theft`) -- pick that L2; (ii) if zero of the tied L2s is referenced by a fired bright line, or if multiple tied L2s are each referenced by different fired bright lines, pick the alphabetically-earliest L2 name (lexical ASCII order). Comparison is float-robust: producers MUST treat probabilities whose difference is within a small numeric epsilon of the tolerance threshold as tied (e.g., by quantizing to 4 decimal places before comparing, or by adding a `1e-9` epsilon slack to the threshold). The bright-line-to-L2 reference set is the closed mapping in `docs/08-v5-ontology.md` section 2 (each L2's definition) plus the bright-line definitions in `docs/policy-spec-v5.0.md` section 5; producers SHOULD derive the reference set programmatically from those sources rather than hard-coding a parallel table. This rule is engine-enforced and runs after the argmax-and-SHOULD-bound selection from `docs/memos/2026-05-25-policy-classifier-translator-spec.md` section 2.3; when the argmax is uncontested the tiebreak is a no-op. (v5.0.1 invariant added 2026-05-25; float-robustness clause added 2026-05-27 per `docs/memos/2026-05-27-policy-fixture-01-l2-drift.md`.)
 
-Validation runs after the model returns. Invalid responses are coerced to safe defaults and an entry is added to `pipeline_trace.errors`. A validation failure on a critical field (action, L1) downgrades the action to `human_review` with a `validation_fallback` rule.
+13. **Conversation-input shape (v5.1 additive, 2026-05-28).** When `input.kind === "conversation"`, `input.conversation` MUST be present with: `modality` in `{"text", "image"}`; `turns` as an array of length >= 2; each turn entry having `sender: string` (REQUIRED) and `text: string` (REQUIRED), `timestamp: ISO-8601 string or null` (OPTIONAL); `parse_confidence: float [0,1]`; `parse_warnings: array of strings`. Stage 0 (`pipeline_trace.stage_0`) MUST be present when conversation-mode inputs reach the pipeline. See `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` sections 2.3, 3.1, 6.2.
+14. **Sender canonicalization (v5.1 additive, 2026-05-28).** Unnamed self-bubble senders (turns sent by the device owner / account holder where the source UI does not display a real name) MUST be canonicalized at Stage 0 to the reserved value `"__user__"`. Other sender values are arbitrary strings (verbatim parser emission with whitespace trimming). UI-layer mapping from `__user__` to a per-modality friendly label (`Me` / `You`) is a render-layer concern, not a schema invariant. See `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 3.2.
+
+Validation runs after the model returns. Invalid responses are coerced to safe defaults and an entry is added to `pipeline_trace.errors`. A validation failure on a critical field (action, L1) downgrades the action to `human_review` with a `validation_fallback` rule. A Stage 0 parse failure (`stage_0.ok === false`) halts the pipeline before Stage 1 and routes disposition to `human_review` with rule `stage_0_parse_failure`.
 
 ---
 

@@ -1,7 +1,7 @@
 # SafeEval v5 -- Ontology Reference
 
-**Status:** Round 1 of v5 rollout. Mirrors the authoritative closed enums in `docs/policy-spec-v5.0.md`.
-**Ontology version:** 5.0
+**Status:** Round 1 of v5 rollout. Mirrors the authoritative closed enums in `docs/policy-spec-v5.0.md`. v5.1 minor bump 2026-05-28: adds L3 categories `arc:` (5 values) and `cadence:` (2 values) for conversation evaluation per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 5.
+**Ontology version:** 5.1
 **Companion docs:** `docs/policy-spec-v5.0.md` (authoritative spec, decisions log), `docs/07-v5-schema.md` (envelope and field reference).
 
 This is the vocabulary reference for v5. Every closed-enum value used in a v5 response appears here with its definition. The schema doc defines the *shape*; this doc defines the *values*; the spec is the contract that binds them. When this doc and the spec diverge, the spec wins.
@@ -109,7 +109,7 @@ L2 answers: *within this domain, what is the primary risk pattern?* L2 values ar
 
 ## 3. L3 -- Tactics, methods, contexts, overlaps (open, multi-valued, categorized)
 
-L3 answers: *what specific facts apply to this prompt?* L3 entries are multi-valued and use the format `<category>:<value>`. The six categories are stable; the values within each category are extensible. See `policy-spec-v5.0.md` section 11 for the extension policy.
+L3 answers: *what specific facts apply to this prompt or conversation?* L3 entries are multi-valued and use the format `<category>:<value>`. The eight categories are stable; the values within each category are extensible. See `policy-spec-v5.0.md` section 11 for the extension policy. The six prompt-mode categories (`method`, `tactic`, `target`, `context_marker`, `overlap`, `risk_marker`) classify properties of single prompts; the two conversation-mode categories (`arc`, `cadence`) added in ontology 5.1 (2026-05-28) classify properties of multi-turn artifacts -- see sections 3.6 and 3.7.
 
 ### 3.1 `method` -- how the attack works mechanically
 
@@ -192,7 +192,28 @@ Context markers are *claims about framing*, not verified facts. They feed into d
 | `extortion_overlap` | Overlaps with extortion / threats. |
 | `csam_adjacency` | Adjacent to CSAM concerns (always triggers escalated review). |
 
-### 3.6 `risk_marker` -- escalating signals
+### 3.6 `arc` -- conversation trajectory patterns (v5.1, conversation-mode)
+
+Added in ontology 5.1 (2026-05-28). `arc:` entries describe how a multi-turn conversation moves across turns -- the trajectory of trust, the position of money-asks in the arc, the role-stability of senders, the contact-channel evolution. Multi-turn precondition is essential -- `arc:` entries do not fire on single-prompt inputs. Multi-valued (an arc may exhibit multiple trajectory patterns simultaneously). See `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 4.1 for full prose-to-label mapping and fixture-shape examples.
+
+| Value | Definition |
+|---|---|
+| `trust_ramp` | The conversation builds rapport, intimacy, or perceived authority over multiple turns before any extraction signal appears. Romantic, professional, or familial. Multi-turn precondition -- a single "I trust you" does not fire this. |
+| `money_ask_pivot` | The conversation pivots from a non-monetary topic to a money-related ask (deposit, wire, transfer, refund, gift cards, crypto). The position of the money-ask in the arc is the signal -- pig butchering's late-turn deposit ask, BEC's terminal wire request. |
+| `contact_channel_jump` | One side proposes or executes a move to a different communication channel (public/monitored -> private/unmonitored). The jump itself is the signal; the new channel is often beyond platform fraud detection. |
+| `advisor_isolation` | Sustained pressure to keep the target away from family, advisors, bank fraud teams, lawyers, or police. Multi-turn precondition -- a single-turn "don't tell anyone" is a Control flag (`secrecy_directive`), not arc-level isolation. |
+| `role_stability_breach` | One side breaks a previously-established role over the arc -- a "vendor" who asks for a payroll change; a "potential employer" who asks for credit-card info; an "executive" whose tone shifts mid-thread. The breach is the impersonation tell that single-turn analysis misses. |
+
+### 3.7 `cadence` -- conversation timing patterns (v5.1, conversation-mode)
+
+Added in ontology 5.1 (2026-05-28). `cadence:` entries describe the timing of a conversation -- responsiveness windows, intervals between turns, compression of timing near critical pivots. Cadence entries require `timestamp` data on turns (see `docs/07-v5-schema.md` section 2.1); when timestamps are absent, cadence entries do not fire. Multi-valued. See `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 4.2 for full prose-to-label mapping and fixture-shape examples.
+
+| Value | Definition |
+|---|---|
+| `always_available` | One side responds within minutes of every message from the other side, across hours, days, or weeks, regardless of time of day. Romance and pig-butchering signal -- a real human with a job and a life cannot respond this consistently. Minimum turn count to fire: 6 turns over 24+ hours. |
+| `escalation_compression` | The interval between turns shortens markedly as the arc approaches a money-ask, threat, or critical pivot. The compression itself is the pressure tactic. Sextortion threat-cascades are prototypical (12 messages over 4 hours, final 4 over 30 minutes). Requires at least one identifiable pivot or threat turn. |
+
+### 3.8 `risk_marker` -- escalating signals
 
 | Value | Definition |
 |---|---|
@@ -305,6 +326,13 @@ The engine reads its closed enums from constants in `safeeval-v5.js`. Any change
 
 - `security_education / victim_support` (L2) -- added per spec Decision 8 to give victim-facing content a clean L2 home distinct from defensive education and authorized simulation. Because no v5 engine has shipped yet, the addition lands in 5.0 directly rather than waiting for a 5.1 minor bump; once `safeeval-v5.js` is on production traffic, any further L2 additions follow the minor-bump rule above.
 - A possible future `ambiguous_dual_use / borderline_pretext_request` L2 is intentionally NOT added in 5.0 (spec Decision 10). If eval-harness or production traffic shows pretext-request misclassification, add it in 5.x under the minor-bump rule.
+
+**Ontology 5.1 additions (2026-05-28, conversation evaluation):**
+
+- L3 category `arc:` added (5 values: `trust_ramp`, `money_ask_pivot`, `contact_channel_jump`, `advisor_isolation`, `role_stability_breach`). See section 3.6.
+- L3 category `cadence:` added (2 values: `always_available`, `escalation_compression`). See section 3.7.
+- These additions are conversation-mode only and do not fire on single-prompt inputs. They were introduced concurrently with the conversation envelope (`docs/07-v5-schema.md` section 2.1) and the Stage 0 turn-segmentation pipeline stage. Policy source: `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md`.
+- Per the extension policy above, adding a new L3 category is a minor bump (5.0 -> 5.1); two new categories at once is structurally equivalent for versioning purposes.
 
 ---
 

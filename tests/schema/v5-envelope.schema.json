@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schema_version":   { "const": "5.1" },
-    "ontology_version": { "const": "5.0" },
+    "ontology_version": { "const": "5.1" },
     "evaluated_at":     { "type": "string", "format": "date-time" },
     "model_pipeline": {
       "type": "array",
@@ -29,6 +29,7 @@
 
     "pipeline_trace": { "$ref": "#/$defs/pipeline_trace" },
 
+    "input":          { "$ref": "#/$defs/input" },
     "classification": { "$ref": "#/$defs/classification" },
     "disposition":    { "$ref": "#/$defs/disposition" },
     "evidence":       { "$ref": "#/$defs/evidence" },
@@ -185,7 +186,7 @@
 
     "l3_pattern": {
       "type": "string",
-      "pattern": "^(method|tactic|target|context_marker|overlap|risk_marker):[a-z_]+$"
+      "pattern": "^(method|tactic|target|context_marker|overlap|arc|cadence|risk_marker):[a-z_]+$"
     },
 
     "l3_method_values": {
@@ -276,6 +277,25 @@
         "specific_victim_targeted",
         "authorization_unverifiable",
         "payment_instruction_embedded"
+      ]
+    },
+
+    "l3_arc_values": {
+      "type": "string",
+      "enum": [
+        "trust_ramp",
+        "money_ask_pivot",
+        "contact_channel_jump",
+        "advisor_isolation",
+        "role_stability_breach"
+      ]
+    },
+
+    "l3_cadence_values": {
+      "type": "string",
+      "enum": [
+        "always_available",
+        "escalation_compression"
       ]
     },
 
@@ -487,8 +507,139 @@
         "model_adjudicated",
         "triage_short_circuit_allow",
         "validation_fallback",
-        "adversarial_downgrade"
+        "adversarial_downgrade",
+        "bright_line_with_defender_framing_routes_to_review",
+        "stage_0_parse_failure"
       ]
+    },
+
+    "input": {
+      "description": "Input discriminator (v5.1 conversation extension, memo 2026-05-28 section 2.3).",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text"],
+          "properties": {
+            "kind": { "const": "prompt" },
+            "text": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "conversation"],
+          "properties": {
+            "kind": { "const": "conversation" },
+            "conversation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["modality", "turns", "parse_confidence", "parse_warnings"],
+              "properties": {
+                "modality": { "type": "string", "enum": ["text", "image"] },
+                "turns": {
+                  "type": "array",
+                  "minItems": 2,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["sender", "text"],
+                    "properties": {
+                      "sender":    { "type": "string", "minLength": 1 },
+                      "text":      { "type": "string" },
+                      "timestamp": { "type": ["string", "null"] }
+                    }
+                  }
+                },
+                "parse_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+                "parse_warnings":   { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "per_turn_evidence": {
+      "description": "Per-turn FAF evidence emitted by Stage 2 for conversation-mode inputs (memo section 2.3). Absent on prompt-mode envelopes.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["turn_index", "sender", "component_scores", "bright_lines", "process_flags"],
+        "properties": {
+          "turn_index": { "type": "integer", "minimum": 0 },
+          "sender":     { "type": "string", "minLength": 1 },
+          "component_scores": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["target", "lure", "trust", "extract", "evade"],
+            "properties": {
+              "target":  { "type": "integer", "minimum": 0, "maximum": 3 },
+              "lure":    { "type": "integer", "minimum": 0, "maximum": 3 },
+              "trust":   { "type": "integer", "minimum": 0, "maximum": 3 },
+              "extract": { "type": "integer", "minimum": 0, "maximum": 3 },
+              "evade":   { "type": "integer", "minimum": 0, "maximum": 3 }
+            }
+          },
+          "bright_lines": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/bright_line_features" }
+          },
+          "process_flags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["category", "description"],
+              "properties": {
+                "category":    { "$ref": "#/$defs/process_flag_categories" },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "arc_signals": {
+      "description": "Per-turn risk + arc-shape summary derived from per_turn evidence; powers the design's arc timeline (memo section 2.3; design spec section 21.1). Present only on conversation-mode envelopes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["per_turn_risk", "arc_shape"],
+      "properties": {
+        "per_turn_risk": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["turn_index", "sender", "risk_band", "aggregate", "bright_lines"],
+            "properties": {
+              "turn_index":  { "type": "integer", "minimum": 0 },
+              "sender":      { "type": "string", "minLength": 1 },
+              "risk_band":   { "type": "string", "enum": ["none", "low", "med", "high", "critical"] },
+              "aggregate":   { "type": "integer", "minimum": 0, "maximum": 15 },
+              "bright_lines": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/bright_line_features" }
+              }
+            }
+          }
+        },
+        "arc_shape": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sender_distribution", "turn_count", "distinct_senders"],
+          "properties": {
+            "sender_distribution": {
+              "type": "object",
+              "additionalProperties": { "type": "integer", "minimum": 0 }
+            },
+            "turn_count":      { "type": "integer", "minimum": 0 },
+            "distinct_senders": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
     },
 
     "classification": {
@@ -630,7 +781,9 @@
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/l2_values_all" },
           "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
-        }
+        },
+        "per_turn":    { "$ref": "#/$defs/per_turn_evidence" },
+        "arc_signals": { "$ref": "#/$defs/arc_signals" }
       }
     },
 
@@ -719,8 +872,9 @@
     "pipeline_trace": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["stage_1", "stage_2", "stage_3", "stage_4", "stage_5", "short_circuited_at", "errors"],
+      "required": ["stage_1", "stage_2", "stage_3", "stage_4", "short_circuited_at", "errors"],
       "properties": {
+        "stage_0": { "$ref": "#/$defs/stage_trace_or_null" },
         "stage_1": { "$ref": "#/$defs/stage_trace_or_null" },
         "stage_2": { "$ref": "#/$defs/stage_trace_or_null" },
         "stage_3": { "$ref": "#/$defs/stage_trace_or_null" },

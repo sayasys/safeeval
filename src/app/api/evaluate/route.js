@@ -1,27 +1,63 @@
 // src/app/api/evaluate/route.js
 // POST /api/evaluate
 //
-// v5-only handler. The v4 engine and the dual-emit envelope have been
-// sunset; v5 is the single classification surface. The response is the v5
-// envelope at the root:
+// v5-only handler. The response is the v5 envelope at the root:
 //
 //   { id, ...v5Envelope }
 //
-// where v5Envelope is the schema-5.1 shape returned by evaluatePromptV5
-// (classification, disposition, evidence, model_pipeline, prompt_summary,
-// prompt_length, evaluated_at, etc.). storeEvaluation persists the v5 shape
-// and the /api/evaluations listing endpoint filters by disposition.action.
+// Two input modes (memo 2026-05-28 section 2):
+//
+//   Prompt mode (legacy and continued default):
+//     { "prompt": "string..." }
+//   OR explicit shape (also accepted):
+//     { "input": { "kind": "prompt", "text": "string..." } }
+//
+//   Conversation mode (new in v5.1 conversation extension):
+//     { "input": { "kind": "conversation", "conversation": {
+//          "modality": "text",
+//          "turns":   [{ "sender": "Alice", "text": "hi", "timestamp": "2026-04-12T10:14:00Z" }, ...]
+//        } } }
+//   OR text body (parser-driven segmentation):
+//     { "input": { "kind": "conversation", "conversation": {
+//          "modality": "text", "text": "Alice: hi\nBob: hello\n..." } } }
+//   OR image:
+//     { "input": { "kind": "conversation", "conversation": {
+//          "modality": "image",
+//          "image": { "base64": "<base64-encoded image bytes>",
+//                     "mediaType": "image/png" } } } }
+//
+// Image-handling decision (defended in phase-3 archive): base64-in-JSON.
+// Rationale:
+//   (a) Keeps the API contract pure JSON-in / JSON-out -- the existing prompt
+//       path is JSON; conversation extends without introducing a multipart
+//       parser to Next.js route handlers.
+//   (b) The phase 0 spike validated this exact base64 input shape; the parser
+//       module (src/lib/conversation-parser.js) consumes
+//       { base64, mediaType } directly.
+//   (c) Phase 4 UI can FileReader.readAsDataURL -> strip prefix -> POST. The
+//       envelope's input.conversation surface does not need to expose the
+//       raw image bytes back to the consumer; the envelope returns the
+//       parsed turns only.
+//   (d) Vercel body size default is 4.5MB; chat screenshots are typically
+//       <1MB. Out of scope for v1: multi-image upload (would benefit
+//       multipart). Phase 5 calibrates whether to lift to multipart.
 //
 // ?debug=1:
-//   Passes { debug: true } to evaluatePromptV5 so pipeline_trace is included
-//   in the v5 envelope. No other query params are recognized.
-//
-// Validation thresholds are sourced from POLICY_CONFIG (no hardcoded 10/5000).
+//   Passes { debug: true } to the engine so pipeline_trace is included in
+//   the v5 envelope. No other query params are recognized.
 //
 // All errors are JSON envelopes -- no raw exceptions, no HTML error pages.
 
 import { NextResponse } from 'next/server';
-import { evaluatePromptV5, storeEvaluation, POLICY_CONFIG } from '@/lib/safeeval-v5';
+import {
+  evaluatePromptV5,
+  evaluateConversationV5,
+  storeEvaluation,
+  POLICY_CONFIG,
+  INPUT_KIND_VALUES,
+  CONVERSATION_MODALITY_VALUES,
+  CONVERSATION_TURNS_MIN,
+} from '@/lib/safeeval-v5';
 
 function badRequest(code, detail) {
   const body = { error: code };
@@ -47,6 +83,51 @@ function validatePrompt(prompt) {
   return null;
 }
 
+function validateConversationInput(conv) {
+  if (!conv || typeof conv !== 'object') {
+    return 'input.conversation must be an object';
+  }
+  if (CONVERSATION_MODALITY_VALUES.indexOf(conv.modality) < 0) {
+    return 'input.conversation.modality must be one of: ' + CONVERSATION_MODALITY_VALUES.join(', ');
+  }
+  if (conv.modality === 'image') {
+    if (!conv.image || typeof conv.image !== 'object') {
+      return 'input.conversation.image is required for modality=image';
+    }
+    if (typeof conv.image.base64 !== 'string' || conv.image.base64.length === 0) {
+      return 'input.conversation.image.base64 must be a non-empty base64 string';
+    }
+    // Soft cap on image bytes (Vercel default 4.5MB; we cap at 3MB pre-decode
+    // so the base64 payload stays under 4MB).
+    if (conv.image.base64.length > 4 * 1024 * 1024) {
+      return 'input.conversation.image.base64 exceeds 4 MB (Vercel body size cap)';
+    }
+  } else {
+    // modality === 'text'
+    const hasTurns = Array.isArray(conv.turns) && conv.turns.length > 0;
+    const hasText  = typeof conv.text === 'string' && conv.text.trim().length > 0;
+    if (!hasTurns && !hasText) {
+      return 'input.conversation.text or input.conversation.turns is required for modality=text';
+    }
+    if (hasTurns && conv.turns.length < CONVERSATION_TURNS_MIN) {
+      return 'input.conversation.turns must contain at least ' + CONVERSATION_TURNS_MIN + ' entries';
+    }
+    if (hasTurns) {
+      for (let i = 0; i < conv.turns.length; i++) {
+        const t = conv.turns[i];
+        if (!t || typeof t !== 'object') return 'input.conversation.turns[' + i + '] must be an object';
+        if (typeof t.sender !== 'string' || t.sender.length === 0) {
+          return 'input.conversation.turns[' + i + '].sender is required and must be a non-empty string';
+        }
+        if (typeof t.text !== 'string') {
+          return 'input.conversation.turns[' + i + '].text is required and must be a string';
+        }
+      }
+    }
+  }
+  return null;
+}
+
 export async function POST(request) {
   let url;
   try {
@@ -62,13 +143,52 @@ export async function POST(request) {
   } catch (e) {
     return badRequest('invalid_json', 'request body must be valid JSON');
   }
-  const prompt = body && body.prompt;
-  const vErr = validatePrompt(prompt);
-  if (vErr) {
-    return badRequest('invalid_prompt', vErr);
+
+  // Branch on input shape.
+  //   1. Legacy { prompt: "..." }                       -> prompt mode
+  //   2. { input: { kind: "prompt", text: "..." } }     -> prompt mode (explicit)
+  //   3. { input: { kind: "conversation", ... } }       -> conversation mode
+  const input = body && body.input;
+  let v5Result;
+
+  if (input && typeof input === 'object') {
+    if (INPUT_KIND_VALUES.indexOf(input.kind) < 0) {
+      return badRequest('invalid_input_kind', 'input.kind must be one of: ' + INPUT_KIND_VALUES.join(', '));
+    }
+    if (input.kind === 'prompt') {
+      const text = input.text;
+      const vErr = validatePrompt(text);
+      if (vErr) return badRequest('invalid_prompt', vErr);
+      try {
+        v5Result = await evaluatePromptV5(text, { debug: wantDebug });
+      } catch (err) {
+        console.error('v5 pipeline error:', err);
+        return serverError('evaluation_failed', err && err.message ? err.message : err);
+      }
+      const id = safeStore(text, v5Result);
+      return NextResponse.json(Object.assign({ id }, v5Result));
+    }
+    // input.kind === 'conversation'
+    const cvErr = validateConversationInput(input.conversation);
+    if (cvErr) return badRequest('invalid_conversation', cvErr);
+    try {
+      v5Result = await evaluateConversationV5(input, { debug: wantDebug });
+    } catch (err) {
+      console.error('v5 conversation pipeline error:', err);
+      return serverError('evaluation_failed', err && err.message ? err.message : err);
+    }
+    // Store key for conversation: the canonical formatted turns string the
+    // pipeline saw, capped to PROMPT_LENGTH_MAX for the preview field.
+    const previewText = describeConversationForStore(input.conversation, v5Result);
+    const id = safeStore(previewText, v5Result);
+    return NextResponse.json(Object.assign({ id }, v5Result));
   }
 
-  let v5Result;
+  // Legacy path: { prompt: "..." }.
+  const prompt = body && body.prompt;
+  const vErr = validatePrompt(prompt);
+  if (vErr) return badRequest('invalid_prompt', vErr);
+
   try {
     v5Result = await evaluatePromptV5(prompt, { debug: wantDebug });
   } catch (err) {
@@ -76,13 +196,24 @@ export async function POST(request) {
     return serverError('evaluation_failed', err && err.message ? err.message : err);
   }
 
-  let id = null;
+  const id = safeStore(prompt, v5Result);
+  return NextResponse.json(Object.assign({ id }, v5Result));
+}
+
+function safeStore(promptText, v5Result) {
   try {
-    const record = storeEvaluation(prompt, v5Result);
-    id = record.id;
+    const record = storeEvaluation(promptText, v5Result);
+    return record.id;
   } catch (e) {
     console.error('storeEvaluation error:', e);
+    return null;
   }
+}
 
-  return NextResponse.json(Object.assign({ id: id }, v5Result));
+function describeConversationForStore(conv, v5Result) {
+  const turns = v5Result && v5Result.input && v5Result.input.conversation && v5Result.input.conversation.turns;
+  if (!Array.isArray(turns) || turns.length === 0) return '[conversation: 0 turns]';
+  const head = turns[0];
+  return '[conversation: ' + turns.length + ' turns | first: ' + head.sender + ': ' +
+    String(head.text || '').slice(0, 60) + (head.text && head.text.length > 60 ? '...' : '') + ']';
 }
