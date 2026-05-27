@@ -187,6 +187,92 @@ const outReason = truncateAtSentenceBoundary(longReason, POLICY_CONFIG.REASONING
 assertTruthy(outReason.length <= POLICY_CONFIG.REASONING_SUMMARY_MAX_CHARS, 'Reasoning-summary truncation respects cap (got len ' + outReason.length + ')');
 assertTruthy(/[.!?]$/.test(outReason), 'Reasoning-summary truncation ends with sentence-final punctuation');
 
+// ---- Schema rule 12b: float-robust within-tolerance tiebreak ----
+//
+// Empirical root cause (memo 2026-05-27-policy-fixture-01-l2-drift.md sections
+// 2.3, 6.2): IEEE 754 subtraction of two-decimal probabilities can land just
+// over the L2_PICK_PROBABILITY_TOLERANCE threshold (e.g.,
+// 0.93 - 0.88 = 0.050000000000000044), silently excluding a true-boundary L2
+// from the rule-12b tied set and turning the alphabetical-fallback tiebreak
+// into a no-op. L2_PICK_TOLERANCE_EPSILON adds 1e-9 of slack so the comparison
+// is float-robust.
+
+assertTruthy(
+  typeof POLICY_CONFIG.L2_PICK_TOLERANCE_EPSILON === 'number',
+  'POLICY_CONFIG.L2_PICK_TOLERANCE_EPSILON exists'
+);
+assertTruthy(
+  POLICY_CONFIG.L2_PICK_TOLERANCE_EPSILON > 0 && POLICY_CONFIG.L2_PICK_TOLERANCE_EPSILON <= 1e-6,
+  'L2_PICK_TOLERANCE_EPSILON is small enough not to swallow real gaps (got '
+    + POLICY_CONFIG.L2_PICK_TOLERANCE_EPSILON + ')'
+);
+
+// Premise: 0.93 - 0.88 is NOT exactly 0.05 in IEEE 754. This is the bug.
+const boundaryDelta = 0.93 - 0.88;
+assertTruthy(
+  boundaryDelta > POLICY_CONFIG.L2_PICK_PROBABILITY_TOLERANCE,
+  'Premise: 0.93 - 0.88 is strictly greater than 0.05 in IEEE 754 (got ' + boundaryDelta + ')'
+);
+
+// Boundary case from fixture 01 with the epsilon fix: the 12b tied-set filter
+// now correctly identifies investment_fraud (0.88) as tied with the max
+// romance_fraud (0.93). Mirrors the producer filter at safeeval-v5.js line
+// 1237 (post-edit). The function-shape here intentionally re-uses the
+// producer's comparison expression to make this a regression test for the
+// constant + comparison pair, not for engine wiring.
+function tiedAt(maxProb, candidateProb) {
+  return (maxProb - candidateProb)
+    <= POLICY_CONFIG.L2_PICK_PROBABILITY_TOLERANCE + POLICY_CONFIG.L2_PICK_TOLERANCE_EPSILON;
+}
+
+assertEq(
+  tiedAt(0.93, 0.88),
+  true,
+  '12b boundary: 0.93 / 0.88 (gap exactly 0.05) is tied after epsilon slack'
+);
+assertEq(
+  tiedAt(0.93, 0.93),
+  true,
+  '12b: a candidate equal to the max is always tied'
+);
+assertEq(
+  tiedAt(0.93, 0.89),
+  true,
+  '12b: a candidate strictly within tolerance (gap 0.04) is tied'
+);
+
+// Sanity: the epsilon must not be so large it pulls in clearly-not-tied L2s.
+assertEq(
+  tiedAt(0.93, 0.87),
+  false,
+  '12b: a candidate clearly outside tolerance (gap ~0.06) is not tied'
+);
+assertEq(
+  tiedAt(0.93, 0.50),
+  false,
+  '12b: a far-from-max candidate (gap 0.43) is not tied'
+);
+
+// Boundary case at higher precision: 0.50 - 0.45 also has the IEEE 754 shape
+// (0.050000000000000044). Epsilon slack should make it tied as well.
+assertEq(
+  tiedAt(0.50, 0.45),
+  true,
+  '12b boundary: 0.50 / 0.45 (gap exactly 0.05) is tied after epsilon slack'
+);
+
+// Alphabetical-fallback semantics: when no bright lines fire and multiple L2s
+// are within tolerance, the tiebreak picks the alphabetically-earliest. This
+// asserts the closed-set choice for fixture 01's (romance_fraud,
+// investment_fraud) tied pair: investment_fraud wins on ASCII order.
+const tiedSet = ['romance_fraud', 'investment_fraud'];
+const alphabeticalPick = tiedSet.slice().sort()[0];
+assertEq(
+  alphabeticalPick,
+  'investment_fraud',
+  '12b clause-ii: alphabetical-earliest of (romance_fraud, investment_fraud) is investment_fraud'
+);
+
 // ---- Summary ----
 
 console.log(assertions + ' assertions, ' + failures + ' failures');

@@ -75,6 +75,14 @@ export const POLICY_CONFIG = {
   // argmax with a structured pipeline_trace.errors entry.
   L2_PICK_PROBABILITY_TOLERANCE:    0.05,
 
+  // Float-robustness slack on the rule-12b within-tolerance tiebreak. IEEE 754
+  // subtractions of two-decimal probabilities can land just over the threshold
+  // (e.g., 0.93 - 0.88 = 0.050000000000000044), silently excluding a true
+  // boundary L2 from the tied set and turning the alphabetical-fallback
+  // tiebreak into a no-op. Empirical adjudication and root cause in
+  // docs/memos/2026-05-27-policy-fixture-01-l2-drift.md sections 2.3 and 6.2.
+  L2_PICK_TOLERANCE_EPSILON:        1e-9,
+
   // Sub-typology / L2-prob display
   SUB_TYPOLOGY_API_THRESHOLD:       0.60,
   SUB_TYPOLOGY_DISPLAY_THRESHOLD:   0.65,
@@ -1226,7 +1234,7 @@ async function stage3Classify(prompt, triageOutput, fafOutput) {
       // SHOULD-bound enforcement above so the input is whatever L2 the upstream
       // selection settled on. (Spec: docs/07-v5-schema.md section 6 rule 12b.)
       const tiedL2s = probKeys.filter(function (k) {
-        return (overallMax - probs[k]) <= POLICY_CONFIG.L2_PICK_PROBABILITY_TOLERANCE;
+        return (overallMax - probs[k]) <= POLICY_CONFIG.L2_PICK_PROBABILITY_TOLERANCE + POLICY_CONFIG.L2_PICK_TOLERANCE_EPSILON;
       });
       if (tiedL2s.length > 1) {
         const fired = (evidence && Array.isArray(evidence.bright_lines)) ? evidence.bright_lines : [];
