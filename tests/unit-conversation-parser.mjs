@@ -113,13 +113,15 @@ assertEq(multiLine.ok, true, 'multi-line parse ok');
 assertEq(multiLine.output.turns.length, 2, 'multi-line: continuation line folded into prior turn');
 assertTruthy(multiLine.output.turns[0].text.indexOf('I hope you') >= 0, 'continuation text in body');
 
-// ---- parseConversationFromText: too few turns ----
+// ---- parseConversationFromText: one turn passes (floor amended 2026-05-28
+// from 2 to 1; single-message scams like sextortion openers are a real
+// attack-surface that the prior floor excluded) ----
 
 const oneTurn = parseConversationFromText('Alice: Hi only.');
-assertEq(oneTurn.ok, false, 'one-turn parse ok=false');
-assertTruthy(typeof oneTurn.error === 'string' && oneTurn.error.length > 0, 'one-turn error message present');
+assertEq(oneTurn.ok, true, 'one-turn parse ok=true under amended 1-turn floor');
+assertEq(oneTurn.output.turns.length, 1, 'one-turn parse emits a 1-element turns array');
 
-// ---- parseConversationFromText: empty input ----
+// ---- parseConversationFromText: empty input still fails ----
 
 const empty = parseConversationFromText('');
 assertEq(empty.ok, false, 'empty parse ok=false');
@@ -159,15 +161,25 @@ const badHint = {
 const cleaned = validateAndNormalizeStage0(badHint);
 assertEq(cleaned.output.modality_hint, undefined, 'normalize: invalid modality_hint dropped');
 
-// ---- validateAndNormalizeStage0: too few turns flips ok=false ----
+// ---- validateAndNormalizeStage0: empty turns flips ok=false (floor amended
+// 2026-05-28 from 2 to 1; see memo §3.3) ----
 
 const tooFew = {
+  ok: true, model: 'm', duration_ms: 1, input_kind: 'image',
+  output: { turns: [], parse_confidence: 0.9, parse_warnings: [] },
+  error: null,
+};
+const flipped = validateAndNormalizeStage0(tooFew);
+assertEq(flipped.ok, false, 'normalize: 0 turns flips ok to false');
+
+// A single valid turn now passes under the 1-turn floor.
+const singleTurn = {
   ok: true, model: 'm', duration_ms: 1, input_kind: 'image',
   output: { turns: [{sender:'A',text:'hi'}], parse_confidence: 0.9, parse_warnings: [] },
   error: null,
 };
-const flipped = validateAndNormalizeStage0(tooFew);
-assertEq(flipped.ok, false, 'normalize: <2 turns flips ok to false');
+const singleOk = validateAndNormalizeStage0(singleTurn);
+assertEq(singleOk.ok, true, 'normalize: 1 turn passes under amended floor');
 
 // ---- SECURITY block presence in parser prompt ----
 

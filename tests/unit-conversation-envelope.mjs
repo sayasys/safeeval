@@ -65,7 +65,7 @@ for (const v of CADENCE_L3_VALUES) assertTruthy(snake.test(v), 'CADENCE_L3 value
 
 assertDeepEq(INPUT_KIND_VALUES.slice().sort(), ['conversation', 'prompt'], 'INPUT_KIND_VALUES is {prompt, conversation}');
 assertDeepEq(CONVERSATION_MODALITY_VALUES.slice().sort(), ['image', 'text'], 'CONVERSATION_MODALITY_VALUES is {text, image}');
-assertEq(CONVERSATION_TURNS_MIN, 2, 'CONVERSATION_TURNS_MIN is 2 (memo section 3.3)');
+assertEq(CONVERSATION_TURNS_MIN, 1, 'CONVERSATION_TURNS_MIN is 1 (memo section 3.3, amended 2026-05-28)');
 assertEq(STAGE_0_PARSE_FAILURE_RULE, 'stage_0_parse_failure', 'STAGE_0_PARSE_FAILURE_RULE matches memo section 6.5');
 
 // ---- Schema-side closed set agreement (parse the schema JSON, compare) ----

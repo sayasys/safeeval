@@ -283,14 +283,14 @@ export function parseConversationFromText(text, opts) {
     }
   }
 
-  if (turns.length < 2) {
+  if (turns.length < 1) {
     return {
       ok: false,
       model: null,
       duration_ms: Date.now() - t0,
       input_kind: 'text',
       output: { turns, parse_confidence: 0, parse_warnings: warnings.concat(['too_few_turns_parsed']) },
-      error: 'parsed fewer than 2 turns; text must contain at least two recognizable "Sender: message" lines',
+      error: 'parsed no turns; text must contain at least one recognizable "Sender: message" line',
     };
   }
 
@@ -366,10 +366,10 @@ export function validateAndNormalizeStage0(stage0) {
     }
   }
 
-  // Stage 0 ok flag: true when output has at least 2 turns with sender + text.
-  if (out.turns.length < 2) {
+  // Stage 0 ok flag: true when output has at least 1 turn with sender + text.
+  if (out.turns.length < 1) {
     stage0.ok = false;
-    if (!stage0.error) stage0.error = 'parsed fewer than 2 turns';
+    if (!stage0.error) stage0.error = 'parsed no turns';
   }
   return stage0;
 }

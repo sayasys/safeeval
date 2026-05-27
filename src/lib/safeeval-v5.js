@@ -51,10 +51,12 @@ export const CONVERSATION_MODALITY_VALUES = ['text', 'image'];
 // human_review with this rule.
 export const STAGE_0_PARSE_FAILURE_RULE = 'stage_0_parse_failure';
 
-// Lower bound on conversation turn count (memo section 3.3). A 1-turn
-// "conversation" is structurally a prompt and is rejected at the API boundary
-// rather than coerced.
-export const CONVERSATION_TURNS_MIN = 2;
+// Lower bound on conversation turn count (memo section 3.3, amended
+// 2026-05-28 from 2 to 1). A 1-turn conversation admits the single-message
+// scam class (unsolicited investment-pitch SMS, sextortion openers, romance
+// "wrong number" first contacts) where `sender` attribution is meaningful
+// evidence that `input.kind: "prompt"` would discard.
+export const CONVERSATION_TURNS_MIN = 1;
 
 // --------------------------------------------------------------------------
 // POLICY_CONFIG (mirrored from docs/policy-spec-v5.0.md Section 1)

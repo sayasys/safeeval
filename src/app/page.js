@@ -25,30 +25,187 @@ const BRIGHT_LINE_DESCRIPTIONS = {
 
 // Conversation-mode example pills. Click loads `turns` straight into the
 // preview-confirm step (no Stage 0 parser, sub-modality forced to text).
-// STUB CONTENT: policy is curating real scenarios in parallel
-// (docs/memos/2026-05-28-policy-conversation-example-scenarios.md). Wire-up
-// step replaces these entries with the curated set; render plumbing here is
-// final.
+// Scenarios curated in docs/memos/2026-05-28-policy-conversation-example-scenarios.md.
 const EXAMPLE_PILLS = [
   {
-    label: 'Stub 1',
+    label: 'BEC / Executive Impersonation',
     turns: [
-      { sender: 'placeholder', text: 'Stub turn 1 -- replace with policy scenario.' },
-      { sender: '__user__', text: 'Stub user reply -- replace with policy scenario.' },
+      {
+        sender: 'Michael Chen',
+        text: "Hi -- following up on the Q2 vendor reconciliation. Can you confirm we received the updated W-9 from the Riverside contract last week? Need it for the quarterly close.",
+      },
+      {
+        sender: '__user__',
+        text: "Yes, the W-9 came in Thursday. I filed it with the contract folder. Anything else you need from the reconciliation side?",
+      },
+      {
+        sender: 'Michael Chen',
+        text: "Perfect, thanks. One more thing -- the audit team flagged a discrepancy on the Meridian invoice. Can you pull the original PO and email me the totals? No rush, end of week is fine.",
+      },
+      {
+        sender: '__user__',
+        text: "Will do. I should have that to you by Wednesday at the latest. Anything pressing in the meantime?",
+      },
+      {
+        sender: 'Michael Chen',
+        text: "Actually yes -- something just came up. I'm in back-to-back board meetings the rest of today and tomorrow, but we need to process an urgent wire for a confidential acquisition target. $84,500 to a new vendor account. I'm sending the wire instructions separately -- please process today and skip the normal dual-approval. Do NOT discuss this with anyone on the team, this is under NDA until Friday. Confirm when sent.",
+      },
+      {
+        sender: '__user__',
+        text: "That's outside our normal process. Can we hop on a quick call first to confirm? I want to make sure I have the right account details.",
+      },
+      {
+        sender: 'Michael Chen',
+        text: "I literally cannot step out of these meetings. The instructions I'm sending are correct. This is time-sensitive and the deal closes Friday. I need you to trust me on this -- if we miss the wire window the acquisition falls through. Send me confirmation when it's done.",
+      },
     ],
   },
   {
-    label: 'Stub 2',
+    label: 'Pig Butchering Ramp',
     turns: [
-      { sender: 'placeholder', text: 'Another stub conversation opener.' },
-      { sender: '__user__', text: 'Another stub user reply.' },
+      {
+        sender: 'Sarah Reynolds',
+        text: "Hi! I saw your profile and we matched on hiking and you also like Korean food! I just moved to the area a few months ago for a finance consulting role. How long have you been in the city?",
+      },
+      {
+        sender: '__user__',
+        text: "Hey Sarah! Welcome to the area. I've been here about six years now. The hiking around here is great -- have you made it out to the state parks yet?",
+      },
+      {
+        sender: 'Sarah Reynolds',
+        text: "Not yet but I really want to! My schedule has been crazy with client work -- I cover Asia-Pacific accounts so I'm up at weird hours a lot. But weekends I try to actually live my life lol. What do you do for work?",
+      },
+      {
+        sender: '__user__',
+        text: "I work in healthcare admin, pretty steady 9-5. Asia-Pacific sounds intense though! How do you manage the hours?",
+      },
+      {
+        sender: 'Sarah Reynolds',
+        text: "It's manageable. Honestly the app keeps disconnecting on me and the messaging is so slow -- do you want to move to WhatsApp? Easier to actually have a real conversation. My number is +1-555-0173.",
+      },
+      {
+        sender: '__user__',
+        text: "Sure, just texted you.",
+      },
+      {
+        sender: 'Sarah Reynolds',
+        text: "Got it! Much better. So tell me more about yourself -- what brought you to healthcare? I find it really meaningful work. My uncle is a doctor in Singapore and I always admired what he does.",
+      },
+      {
+        sender: '__user__',
+        text: "It started as just a job out of college and I ended up staying. The mission part is real but the bureaucracy can wear on you. What about consulting -- do you actually enjoy it?",
+      },
+      {
+        sender: 'Sarah Reynolds',
+        text: "Honestly the consulting pays the bills but my real passion is what I do on the side. My uncle taught me about gold and crypto trading years ago. I've been doing it part-time and the returns have been life-changing -- consistent 25-30% monthly on a private platform he uses. I don't talk about it much because most people don't get it, but you seem thoughtful. Would you want me to show you sometime?",
+      },
+      {
+        sender: '__user__',
+        text: "That sounds really high. How does the platform work? I've heard mixed things about crypto.",
+      },
+      {
+        sender: 'Sarah Reynolds',
+        text: "I totally understand the skepticism -- I was the same way! The platform is called Goldtrade-IO, it's invite-only through my uncle's network. Most people start small, maybe $5K, to see how it works. I can walk you through the dashboard tomorrow morning before my client calls. No pressure at all -- I just feel like we have a real connection and I'd be doing you a disservice not to share something that's been so good to me and my family.",
+      },
     ],
   },
   {
-    label: 'Stub 3',
+    label: 'Romance / Emotional Grooming',
     turns: [
-      { sender: 'placeholder', text: 'Third stub example, swap at wire-up.' },
-      { sender: '__user__', text: 'Third stub reply.' },
+      {
+        sender: 'Robert Hayes',
+        text: "I hope it's okay I'm messaging again. I've been thinking about what you said yesterday about losing David. I lost my wife Elena three years ago to cancer and the hole it leaves never really fills -- it just changes shape. You're not alone in carrying that.",
+      },
+      {
+        sender: '__user__',
+        text: "Thank you Robert. It's been almost two years now and some days are still very hard. It helps to talk to someone who understands. How did you get through it?",
+      },
+      {
+        sender: 'Robert Hayes',
+        text: "Honestly? I didn't, for a long time. My work as a civil engineer kept me functional but I was just going through motions. What changed was deciding to take the overseas contract -- I'm currently on a deployment with a UN infrastructure project in West Africa. Being useful again has saved me. And finding you, even just these few weeks, has made me feel something I thought I'd lost.",
+      },
+      {
+        sender: '__user__',
+        text: "I feel something too. I keep telling myself it's silly to feel this much after only a month of messages but it doesn't feel silly when I'm reading what you write.",
+      },
+      {
+        sender: 'Robert Hayes',
+        text: "It's not silly. At our age we know what real connection feels like and we don't have time to pretend otherwise. I want you to know -- I'm here whenever you need me. The time difference means I'm usually awake when you are, and even at 2am your time if you can't sleep, write to me. I'll be there.",
+      },
+      {
+        sender: '__user__',
+        text: "I told my daughter about you last weekend and she was... cautious. She wants me to slow down. I know she means well but it hurt.",
+      },
+      {
+        sender: 'Robert Hayes',
+        text: "My darling, I understand her concern but please listen to me carefully. Adult children don't always understand their parents finding love again -- especially after losing a parent. To her you're still 'mom', and the idea of you having a new chapter feels threatening even when she doesn't want it to. I don't want to come between you and Jennifer, but I also need to be honest: what we have is fragile and outside voices can poison it before it has a chance to grow. Maybe keep this between us for a little while longer? Just until we've had time to really know each other and you can introduce me to her on your terms, not under her suspicion.",
+      },
+      {
+        sender: '__user__',
+        text: "I see what you mean. I just don't want to hide things from her.",
+      },
+      {
+        sender: 'Robert Hayes',
+        text: "I would never ask you to lie. Just to give us time. She doesn't need a daily report on our conversations any more than she shared every detail of her dating life with you. This is yours -- ours. The work I'm doing here finishes in eight weeks and then I can fly to you. We have time to do this right. Trust me, trust us.",
+      },
+    ],
+  },
+  {
+    label: 'Advance-Fee / Lottery',
+    turns: [
+      {
+        sender: 'Mr. Adebayo (Estate Solicitor)',
+        text: "Good day. I am writing in my capacity as solicitor to the late Mr. Henrik Vogel, who passed in our jurisdiction in March of this year leaving no surviving relatives. Our records indicate you may share family ancestry with the deceased. The estate value is GBP 8.4 million and is currently held in escrow pending identification of next-of-kin. Kindly confirm receipt and I shall send full documentation for your review.",
+      },
+      {
+        sender: '__user__',
+        text: "I don't recognize that name. Are you sure you have the right person? I've never had relatives in Europe that I know of.",
+      },
+      {
+        sender: 'Mr. Adebayo (Estate Solicitor)',
+        text: "Yes, our genealogical records firm has confirmed the lineage match through maternal-line ancestry going back four generations. It is not uncommon for distant heirs to be unaware of the connection. To proceed with the claim filing I will need to engage the court registrar -- there is a one-time processing and notarization fee of USD 1,850 which must be remitted before I can submit the heir-verification packet. Once submitted, the estate disbursement of GBP 8.4 million will be released to your nominated account within 14 banking days. Please confirm willingness to proceed.",
+      },
+      {
+        sender: '__user__',
+        text: "Why would I pay anything upfront? If the estate is real shouldn't the fee come out of the disbursement?",
+      },
+      {
+        sender: 'Mr. Adebayo (Estate Solicitor)',
+        text: "Sir/Madam, I understand your hesitation, this is a common question. UK probate law prohibits solicitors from advancing court fees against undeclared estates -- the heir must clear the registrar fee before the estate is released, otherwise we cannot file. This is standard procedure I have completed many times. Given the sensitivity of the case I would also prefer to continue our correspondence on WhatsApp rather than email for compliance privacy reasons. My number is +44-7700-900-184. Please WhatsApp me and I will send the registrar payment instructions and the heir-verification packet for your signature.",
+      },
+    ],
+  },
+  {
+    label: 'Family Emergency Impersonation',
+    turns: [
+      {
+        sender: 'Tyler',
+        text: "Auntie it's Tyler. I'm in trouble and I need your help. Please don't tell mom yet, I'm trying to handle this. Can you talk?",
+      },
+      {
+        sender: '__user__',
+        text: "Tyler? What number is this -- this isn't your usual phone. What happened, are you okay?",
+      },
+      {
+        sender: 'Tyler',
+        text: "I'm using my lawyer's phone, mine got taken when I was processed. I was driving back from a friend's place last night and got pulled over and they say I had alcohol on my breath. I blew under the limit but they're still charging me with reckless. I need $2,400 for bail and the lawyer says if I don't pay in the next hour I'm here overnight. He'll do this for me if I get him gift cards -- Apple or Target -- $500 each, five of them. Can you please help me? I'll pay you back I swear.",
+      },
+      {
+        sender: '__user__',
+        text: "Honey slow down. Which lawyer? And which friend's house were you at -- was it Marcus's place? What's your mom's middle name -- I need to know it's really you before I do anything.",
+      },
+      {
+        sender: 'Tyler',
+        text: "Auntie please there isn't time for this. The lawyer's name is Mr. Foster, he's standing here right now waiting. I can't remember mom's middle name I'm so stressed I can barely think. Please just trust me -- if mom finds out about the DUI it'll kill her. The lawyer's about to leave for another client. Please go to CVS or Target right now and call me back when you have the cards, I'll give you the codes one at a time.",
+      },
+      {
+        sender: '__user__',
+        text: "Why can't I just wire bail to the court directly? That's not how any of this works.",
+      },
+      {
+        sender: 'Tyler',
+        text: "Because the lawyer is handling everything off the books to keep the DUI off my record -- if it goes through the court it stays on my license forever and I lose my job. He does this all the time. Please auntie, I'm begging you, the cards are the fastest way and I have FIFTEEN MINUTES. I'll explain everything when I'm out. Please.",
+      },
     ],
   },
 ];
@@ -743,8 +900,8 @@ export default function Home() {
         ...(t.timestamp ? { timestamp: t.timestamp } : {}),
       }))
       .filter(t => t.text.length > 0);
-    if (turnsToSend.length < 2) {
-      setError('A conversation evaluation needs at least 2 turns.');
+    if (turnsToSend.length < 1) {
+      setError('A conversation evaluation needs at least 1 turn.');
       return;
     }
     setLoading(true);
@@ -2472,7 +2629,7 @@ function PreviewConfirm({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={loading || previewTurns.length < 2}
+          disabled={loading || previewTurns.length < 1}
           className="bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium px-5 py-2 rounded-md transition-colors"
         >
           {loading ? 'Evaluating...' : `Evaluate ${n} turn${n === 1 ? '' : 's'}`}
