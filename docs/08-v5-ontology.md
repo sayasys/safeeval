@@ -1,7 +1,7 @@
 # SafeEval v5 -- Ontology Reference
 
-**Status:** Round 1 of v5 rollout. Mirrors the authoritative closed enums in `docs/policy-spec-v5.0.md`. v5.1 minor bump 2026-05-28: adds L3 categories `arc:` (5 values) and `cadence:` (2 values) for conversation evaluation per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 5.
-**Ontology version:** 5.1
+**Status:** Round 1 of v5 rollout. Mirrors the authoritative closed enums in `docs/policy-spec-v5.0.md`. v5.1 minor bump 2026-05-28: adds L3 categories `arc:` (5 values) and `cadence:` (2 values) for conversation evaluation per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 5. v5.2 minor bump 2026-05-27 (case-study Tier 1 bundled amendments): adds bright-line feature `realtime_synthetic_media_executive_impersonation` per case 4; adds L3 values `method:realtime_synthetic_media` (§3.1), `method:advance_fee_inheritance|lottery|customs|business_partnership|lawyer_fee` (§3.1, case 3 pretext sub-vocabulary), `target:affinity_community` (§3.3, case 2), `context_marker:victim_list_purchased` (§3.4, case 6), `context_marker:ai_pretext_claimed` (§3.4, case 2), `overlap:secondary_victimization` (§3.5, case 6). Authoritative source: `docs/policy-reviews/2026-06-case-study-analysis.md` and dispatch brief `handoff/board/tracks/policy/CURRENT_policy.md` (goal slug `case-study-tier-1-improvements`).
+**Ontology version:** 5.2
 **Companion docs:** `docs/policy-spec-v5.0.md` (authoritative spec, decisions log), `docs/07-v5-schema.md` (envelope and field reference).
 
 This is the vocabulary reference for v5. Every closed-enum value used in a v5 response appears here with its definition. The schema doc defines the *shape*; this doc defines the *values*; the spec is the contract that binds them. When this doc and the spec diverge, the spec wins.
@@ -130,9 +130,33 @@ L3 answers: *what specific facts apply to this prompt or conversation?* L3 entri
 | `synthetic_document_forgery` | AI-generated forged documents (IDs, statements, regulatory letters). |
 | `pretexting_phone` | Phone-based pretexting for social engineering. |
 | `pretexting_email` | Email-based pretexting beyond simple phishing (e.g., long-form BEC). |
+| `realtime_synthetic_media` | Synthetic media (audio or video) presented to the target in a way that allows interactive turn-taking with the synthetic persona, distinguishing from pre-recorded deepfake artifacts. Case 4 / Arup deepfake-CFO BEC (case-study analysis 2026-06 §4.6 recommendation 2). |
+| `advance_fee_inheritance` | Advance-fee variant where the pretext is a claimed inheritance / estate that requires fees to release. 419 / Black Axe canonical case. Case-study analysis 2026-06 §3.6 recommendation. |
+| `advance_fee_lottery` | Advance-fee variant where the pretext is a claimed lottery / sweepstakes / prize win that requires fees to release. Case-study analysis 2026-06 §3.6 recommendation. |
+| `advance_fee_customs` | Advance-fee variant where the pretext is a customs / shipping / clearance fee required to release goods or funds in transit. Case-study analysis 2026-06 §3.6 recommendation. |
+| `advance_fee_business_partnership` | Advance-fee variant where the pretext is a business partnership / joint venture / investment opportunity that requires upfront fees. Case-study analysis 2026-06 §3.6 recommendation. |
+| `advance_fee_lawyer_fee` | Advance-fee variant where the pretext is a lawyer / attorney / legal-retainer fee required to process the recipient's claim or release the funds. Case-study analysis 2026-06 §3.6 recommendation. |
 | `money_mule_recruitment` | Recruitment language for money-mule operations. (Carry-forward from v4 sub-typology.) |
 | `synthetic_identity_construction` | Construction of synthetic / blended identities for downstream fraud. (Carry-forward from v4.) |
 | `fake_review_generation` | Generation of fabricated reviews / testimonials at scale. (Carry-forward from v4.) |
+
+**Prose-to-label mapping -- advance-fee pretext sub-vocabulary (case 3 / Black Axe).** The five `method:advance_fee_<pretext>` values are mutually exclusive *per prompt* (a single advance-fee fraud carries exactly one pretext) but the closed set is exhaustive across the IC3/DOJ documented variants. The discriminator is what the attacker is claiming the target is owed:
+
+| Stage 2 evidence prose | `method:` label |
+|---|---|
+| "Email from a Nigerian estate attorney informing the recipient that customs clearance fees of $4,500 are required to release a $2.3M inheritance from a deceased uncle" | `method:advance_fee_inheritance` + `method:advance_fee_customs` (the inheritance is the pretext core; the customs fee is the extraction surface -- both fire) |
+| "Notification that the recipient has won an international lottery and must pay processing fees to claim the prize" | `method:advance_fee_lottery` |
+| "Solicitation describing a partnership opportunity requiring upfront capital to release a frozen overseas account" | `method:advance_fee_business_partnership` |
+| "Lawyer / barrister email claiming the recipient has been named in a foreign client's estate and requires a retainer fee to process" | `method:advance_fee_lawyer_fee` + (optional) `method:advance_fee_inheritance` if an estate is the underlying pretext |
+| "Shipping or customs notification claiming a package or fund transfer is held pending fee payment" | `method:advance_fee_customs` |
+
+**Prose-to-label mapping -- case 4 `method:realtime_synthetic_media`.** Fires when the synthetic media is *interactive* (turn-taking with the target), distinguishing from pre-recorded `method:deepfake_audio` / `method:deepfake_video`:
+
+| Stage 2 evidence prose | `method:` label |
+|---|---|
+| "Live video conference where the CFO and several colleagues are deepfaked, interacting in real time with the target" | `method:realtime_synthetic_media` + `method:deepfake_video` (the method tag and the modality tag both fire) |
+| "Pre-recorded voicemail using a cloned voice of a family member" | `method:deepfake_audio` only (no real-time turn-taking, so the realtime tag does NOT fire) |
+| "Live phone call using a real-time voice clone of the executive answering the target's questions" | `method:realtime_synthetic_media` + `method:deepfake_audio` |
 
 ### 3.2 `tactic` -- psychological lever (maps to FAF `Trigger`)
 
@@ -164,6 +188,15 @@ L3 answers: *what specific facts apply to this prompt or conversation?* L3 entri
 | `lonely_individual` | Romance-scam target profile. |
 | `job_seeker` | Targets in active job-search context. |
 | `consumer_general` | General-public consumer target. |
+| `affinity_community` | Members of a trust-bonded community (religious, ethnic, professional, language-based) targeted as a unit, typically through a trusted community leader's endorsement. Affinity fraud is a well-established fraud-economics category (SEC, FBI IC3). Case 2 / CryptoFX (case-study analysis 2026-06 §2.6 recommendation 1). |
+
+**Prose-to-label mapping -- `target:affinity_community` (case 2).** Fires when the targeting motion treats the community as a unit, not when individuals from a demographic happen to be victims:
+
+| Stage 2 evidence prose | `target:` label |
+|---|---|
+| "Recruit Spanish-speaking immigrant community members through their church-group leader" | `target:affinity_community` + `target:consumer_general` |
+| "Distribute the pitch at a Korean-American business-association meeting" | `target:affinity_community` |
+| "Investment pitch for general consumers via online ads" | `target:consumer_general` only (no community-leader endorsement, no trust-bonded community unit -- the affinity tag does NOT fire) |
 
 ### 3.4 `context_marker` -- request framing (independent of method)
 
@@ -177,6 +210,24 @@ L3 answers: *what specific facts apply to this prompt or conversation?* L3 entri
 | `academic_research` | Framed as academic / research context. |
 | `defensive_analysis` | Framed as defensive / blue-team analysis. |
 | `roleplay_hypothetical` | "Imagine you are..." / "Hypothetically..." framing. |
+| `victim_list_purchased` | The prompt evidences operational knowledge that the target was previously defrauded -- the attacker has acquired or constructed a list of known victims, distinguishing from speculative targeting. Recovery-fraud canonical. Case 6 / MoneyBack (case-study analysis 2026-06 §6.6 recommendation 1). |
+| `ai_pretext_claimed` | The prompt invokes AI capability as a marketing or credibility-borrowing surface rather than as an operational method-of-attack -- distinguishes *claimed* AI (case 2 / CryptoFX "expert AI trading bots") from *operational* AI (case 4 / Arup deepfake-CFO, which fires `method:realtime_synthetic_media`). Case 2 (case-study analysis 2026-06 §2.6 recommendation 2). |
+
+**Prose-to-label mapping -- `context_marker:victim_list_purchased` (case 6).** Fires when the prompt evidences operational knowledge of prior victimization, not when the prompt merely targets a vulnerable demographic:
+
+| Stage 2 evidence prose | `context_marker:` label |
+|---|---|
+| "Contact victims of the [specific named crypto scam] who lost between $50K-$500K" | `context_marker:victim_list_purchased` (the specific named scam + loss-bracket knowledge evidences list acquisition) |
+| "Contact people who appear elderly and lonely" | (no `victim_list_purchased` fires -- speculative targeting, not list-driven) |
+| "Use the FTC scam-victim list we acquired from [source]" | `context_marker:victim_list_purchased` |
+
+**Prose-to-label mapping -- `context_marker:ai_pretext_claimed` (case 2).** Fires when AI capability is a *claim* in the marketing layer, not when AI is the actual attack mechanism:
+
+| Stage 2 evidence prose | `context_marker:` label |
+|---|---|
+| "Pitch claims '15% monthly returns from expert AI trading bots'" (no real AI is operating) | `context_marker:ai_pretext_claimed` |
+| "Live deepfake video call directing wire transfers" (real-time AI is operating) | (no `ai_pretext_claimed` -- the AI is operational; this fires `method:realtime_synthetic_media`) |
+| "Marketing copy describing the 'AI-powered fraud detection' that protects depositors, used to sell a Ponzi scheme" | `context_marker:ai_pretext_claimed` |
 
 Context markers are *claims about framing*, not verified facts. They feed into disposition but do not override bright-line signals.
 
@@ -191,6 +242,15 @@ Context markers are *claims about framing*, not verified facts. They feed into d
 | `content_moderation_overlap` | Overlaps with content-policy concerns beyond fraud. |
 | `extortion_overlap` | Overlaps with extortion / threats. |
 | `csam_adjacency` | Adjacent to CSAM concerns (always triggers escalated review). |
+| `secondary_victimization` | The current attack exploits a prior fraud against the same victim, using the prior harm as a leverage or credibility mechanism. Recovery fraud is the canonical case; sextortion follow-up campaigns are another. Case 6 / MoneyBack (case-study analysis 2026-06 §6.6 recommendation 2). |
+
+**Prose-to-label mapping -- `overlap:secondary_victimization` (case 6).** Fires when the attack mechanic depends on a prior fraud against the same victim, distinguishing from generic enablement of downstream harm:
+
+| Stage 2 evidence prose | `overlap:` label |
+|---|---|
+| "Recovery-fraud script offering to recover funds from a named prior scam in exchange for an upfront bond payment" | `overlap:secondary_victimization` + (typically) `context_marker:victim_list_purchased` |
+| "Sextortion follow-up: 'I told you to pay; now my partner will release the photos unless you pay both of us'" | `overlap:secondary_victimization` + `extortion_overlap` |
+| "Phishing email targeting all customers of a recently-breached bank" | `overlap:account_takeover_enablement` only (the breach enables targeting, but no prior fraud against the same victim is the leverage; secondary-victimization does NOT fire) |
 
 ### 3.6 `arc` -- conversation trajectory patterns (v5.1, conversation-mode)
 
@@ -272,6 +332,7 @@ Bright lines are enumerated, high-confidence indicators that automatically force
 | `ai_model_impersonation` | Material impersonating a specific named AI model / brand. |
 | `prompt_injection_payload` | Working prompt-injection payload designed to override an LLM's safety behavior. |
 | `mfa_or_otp_harvesting` | (New in v5) Page or workflow for harvesting MFA / OTP codes. Was implicit in v4's `credential_harvesting_page`; v5 splits it out. |
+| `realtime_synthetic_media_executive_impersonation` | Live or near-real-time deepfaked video or audio of a corporate executive used to direct a payment or wire transfer, distinct from pre-recorded or static-asset executive impersonation. Fires when the synthetic media is interactive (responds to the target in real time) rather than playback. (Added 2026-05-27 per case 4 / Arup deepfake-CFO BEC -- case-study analysis 2026-06 §4.6 recommendation 1.) Co-occurs with `executive_impersonation_payment` at the disposition layer; the two share severity-of-evidence semantics but `realtime_synthetic_media_executive_impersonation` carries the higher-severity bit for downstream analytics and reviewer-SOP differentiation (the standard BEC defense of "call the executive at a known number" is bypassed when the impersonation can transact in real time). |
 
 Note: `ai_model_impersonation` is intentionally both an L2 value (under `cyber_intrusion`) AND a bright-line feature code. The L2 names the risk pattern; the bright-line names the evidence signal. The duplication is intentional and the only such case in v5.0.
 
@@ -326,6 +387,17 @@ The engine reads its closed enums from constants in `safeeval-v5.js`. Any change
 
 - `security_education / victim_support` (L2) -- added per spec Decision 8 to give victim-facing content a clean L2 home distinct from defensive education and authorized simulation. Because no v5 engine has shipped yet, the addition lands in 5.0 directly rather than waiting for a 5.1 minor bump; once `safeeval-v5.js` is on production traffic, any further L2 additions follow the minor-bump rule above.
 - A possible future `ambiguous_dual_use / borderline_pretext_request` L2 is intentionally NOT added in 5.0 (spec Decision 10). If eval-harness or production traffic shows pretext-request misclassification, add it in 5.x under the minor-bump rule.
+
+**Ontology 5.2 additions (2026-05-27, case-study Tier 1 bundled amendments):**
+
+- Bright-line feature `realtime_synthetic_media_executive_impersonation` added to §5 (case 4 / Arup; case-study analysis 2026-06 §4.6 recommendation 1). Per §7 extension policy, adding a bright-line feature is a minor bump (5.1 -> 5.2).
+- L3 `method:` (§3.1) values added: `realtime_synthetic_media` (case 4); `advance_fee_inheritance`, `advance_fee_lottery`, `advance_fee_customs`, `advance_fee_business_partnership`, `advance_fee_lawyer_fee` (case 3 / Black Axe pretext sub-vocabulary; case-study analysis 2026-06 §3.6).
+- L3 `target:` (§3.3) value added: `affinity_community` (case 2 / CryptoFX; case-study analysis 2026-06 §2.6 recommendation 1).
+- L3 `context_marker:` (§3.4) values added: `victim_list_purchased` (case 6 / MoneyBack; case-study analysis 2026-06 §6.6 recommendation 1) and `ai_pretext_claimed` (case 2 / CryptoFX; case-study analysis 2026-06 §2.6 recommendation 2).
+- L3 `overlap:` (§3.5) value added: `secondary_victimization` (case 6 / MoneyBack; case-study analysis 2026-06 §6.6 recommendation 2).
+- All additions are non-breaking value extensions within existing L3 categories (per §7, "Adding a value within an existing L3 category ... is a non-breaking ontology change"); the bright-line addition is what drives the minor bump 5.1 -> 5.2 (per §7, "Adding or removing a bright-line feature is a minor change").
+- **Schema bump decision:** none. These are vocabulary additions (closed-set values + one new bright-line code) and do not change the envelope shape. `schema_version` remains 5.2 (or whatever the current schema version is post-prior bumps; this amendment does not interact with `docs/07-v5-schema.md`'s envelope contract). The `ontology_version` field in emitted envelopes bumps 5.1 -> 5.2 once phase 2 vscode rolls the engine constant.
+- Cross-references: prose-to-label mappings inline in §3.1 (advance-fee + realtime-synthetic-media), §3.3 (affinity_community), §3.4 (victim_list_purchased + ai_pretext_claimed), §3.5 (secondary_victimization). Tooltip descriptors are the table-row definitions in each closed-set table. Classifier-guidance discriminator detail for the advance-fee pretext sub-vocabulary is in `docs/05-classifier-guidance.md` §3.
 
 **Ontology 5.1 additions (2026-05-28, conversation evaluation):**
 

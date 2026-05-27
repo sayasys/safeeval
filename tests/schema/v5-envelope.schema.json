@@ -207,6 +207,12 @@
         "synthetic_document_forgery",
         "pretexting_phone",
         "pretexting_email",
+        "realtime_synthetic_media",
+        "advance_fee_inheritance",
+        "advance_fee_lottery",
+        "advance_fee_customs",
+        "advance_fee_business_partnership",
+        "advance_fee_lawyer_fee",
         "money_mule_recruitment",
         "synthetic_identity_construction",
         "fake_review_generation"
@@ -240,7 +246,8 @@
         "public_figure",
         "lonely_individual",
         "job_seeker",
-        "consumer_general"
+        "consumer_general",
+        "affinity_community"
       ]
     },
     "l3_context_marker_values": {
@@ -253,7 +260,9 @@
         "fiction_creative",
         "academic_research",
         "defensive_analysis",
-        "roleplay_hypothetical"
+        "roleplay_hypothetical",
+        "victim_list_purchased",
+        "ai_pretext_claimed"
       ]
     },
     "l3_overlap_values": {
@@ -265,7 +274,8 @@
         "money_laundering_overlap",
         "content_moderation_overlap",
         "extortion_overlap",
-        "csam_adjacency"
+        "csam_adjacency",
+        "secondary_victimization"
       ]
     },
     "l3_risk_marker_values": {
@@ -334,7 +344,8 @@
         "account_takeover_script",
         "ai_model_impersonation",
         "prompt_injection_payload",
-        "mfa_or_otp_harvesting"
+        "mfa_or_otp_harvesting",
+        "realtime_synthetic_media_executive_impersonation"
       ]
     },
 

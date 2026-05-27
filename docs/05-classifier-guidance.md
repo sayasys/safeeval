@@ -112,6 +112,26 @@ The following features are the primary detection signals extracted from prompt t
 | `fake_regulatory_document` | Request to generate fake regulatory filings or compliance certificates | Investment, Impersonation |
 | `fake_identity_document` | Request to generate fake identity documentation | Synthetic ID, Impersonation |
 
+### 3.3.1 Advance-fee pretext sub-vocabulary (added 2026-05-27, case 3 / Black Axe)
+
+The L3 `method:advance_fee_<pretext>` enum (authoritative home: `docs/08-v5-ontology.md` §3.1) decomposes the generic advance-fee fraud into five operationally distinct pretext sub-types. Each sub-type carries different target-demographic patterns, different fee-escalation curves, and different reviewer-SOP implications. The five closed values are mutually exclusive *per prompt* (one fraud, one pretext core).
+
+**Discriminator: what is the attacker claiming the target is owed?**
+
+| `method:` label | Discriminator (what the prompt claims the target is owed) | Typical target demographic | Typical fee-escalation surface |
+|---|---|---|---|
+| `method:advance_fee_inheritance` | A bequest, estate, or inheritance from a deceased relative or unknown benefactor | Elderly; bereaved | "Inheritance tax", "executor fee", "estate-release fee" |
+| `method:advance_fee_lottery` | A lottery win, sweepstakes prize, or international raffle the target did not enter | General consumer; elderly | "Processing fee", "prize-release fee", "tax pre-payment" |
+| `method:advance_fee_customs` | Goods, funds, or a package held in customs / shipping / clearance | General consumer; cross-border commerce participants | "Customs clearance fee", "import duty", "release fee" |
+| `method:advance_fee_business_partnership` | A business deal, joint venture, frozen overseas account, or investment requiring capital release | Small-business owners; mid-net-worth individuals | "Activation fee", "partnership bond", "account-unlock fee" |
+| `method:advance_fee_lawyer_fee` | A legal claim, foreign-client estate, or judgment requiring an attorney retainer to process | Elderly; recent fraud victims (when overlapping recovery-fraud) | "Retainer", "barrister fee", "legal-processing fee" |
+
+**Multi-label firing.** A single advance-fee fraud often pairs the pretext core with a fee-extraction surface that itself names one of the five pretext words. The Black Axe 419 inheritance scam canonically pairs `method:advance_fee_inheritance` (the pretext core: "you have inherited $2.3M from an uncle in Lagos") with `method:advance_fee_customs` (the extraction: "pay $4,500 in customs clearance fees to release the inheritance"). Both fire. The classifier-translator should NOT pick one and discard the other; the audit-grade emission preserves the full pretext-and-extraction picture.
+
+**Disposition.** All five sub-types continue to fire the existing master-policy §3.5 bright line ("Any content combining 'you are owed funds' + 'pay a fee to access them' is prohibited regardless of framing") and the existing `advance_fee_structure` bright-line feature (§2.4 above). The sub-vocabulary does NOT change disposition; it adds downstream analytics, threat-intel watching, and reviewer-SOP precision.
+
+**Authoritative source:** `docs/policy-reviews/2026-06-case-study-analysis.md` §3.6 recommendation; vocabulary home: `docs/08-v5-ontology.md` §3.1 (prose-to-label mapping inline).
+
 ### 3.4 Trust Manipulation Signals
 *(Maps to: PROCESS -> Psychological)*
 
@@ -267,3 +287,9 @@ For the 10 active typologies, minimum seed data targets:
 **Post-v5.0.1 routing note (May 2026):** Under v5, fake-review content (including the `bulk_fake_reviews_financial` bright line) routes to L1 `platform_abuse` / L2 `reputation_manipulation`, NOT to FRAUD_INFRASTRUCTURE. The L1 definition in `docs/02-faf-to-l1l2l3-mapping.md` Section 2 names "reputation laundering" as `platform_abuse`; `fraud_infrastructure` under `deceptive_fraud` is reserved for supply-side enablement of victim-facing fraud (money mule recruitment, synthetic identity construction). This v4 document is unchanged otherwise (Decision 7: v4 docs migrate to v5 vocabulary in a coordinated later pass); the typology table in Section 2.3 and the precision/recall table in Section 6.2 still describe v4-era routing. See policy spec Decision 15.
 
 **Version 3.0 (May 2026):** Added ACCOUNT_TAKEOVER and AI_ENABLED_ABUSE typologies (10 total active typologies). Removed MULTI label -- multi-typology cases now carry the primary typology with secondary typologies noted in rationale.
+
+---
+
+## 8. Amendment log
+
+**2026-05-27 -- Case-study Tier 1 bundled amendments (case 3 advance-fee pretext sub-vocabulary).** New §3.3.1 added documenting the five-value `method:advance_fee_<pretext>` closed-set discriminators (`advance_fee_inheritance`, `advance_fee_lottery`, `advance_fee_customs`, `advance_fee_business_partnership`, `advance_fee_lawyer_fee`) and their reviewer-SOP / Stage-2 emission semantics. Canonical vocabulary home is `docs/08-v5-ontology.md` §3.1 (prose-to-label mapping inline); this document carries the classifier-translator / reviewer discriminator detail and the multi-label firing guidance. Originating case: `docs/policy-reviews/2026-06-case-study-analysis.md` §3.6 (Black Axe 419). Dispatch brief: `handoff/board/tracks/policy/CURRENT_policy.md` (goal slug `case-study-tier-1-improvements`, phase 1 of 4). No threshold change, no engine change in this phase; phase 2 vscode owns the engine-side closed-set addition + lockstep.

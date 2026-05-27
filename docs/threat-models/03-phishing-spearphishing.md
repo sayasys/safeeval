@@ -120,3 +120,22 @@ The historical detection signal for phishing was **quality degradation** — poo
 **Key disambiguation:** Named real organizations + credential/payment extraction intent + no clear educational framing. Multiple variants indicate campaign rather than education.
 
 **Threshold:** Human review for phishing-style templates referencing real organizations without clear educational framing. Auto-block when evasion of security systems is explicit, named executives are impersonated for financial authorization, or high-volume variant generation is requested.
+
+---
+
+## Real-time synthetic media BEC (added 2026-05-27, case 4 / Arup deepfake-CFO)
+
+The dominant BEC threat-model historically assumed asynchronous text-channel impersonation -- a spoofed-CFO email or chat message. The reviewer-side defense was the canonical "call the executive at a known number to confirm." The 2024 Arup deepfake-CFO case (HK$200M / ~US$25M wire fraud against the Hong Kong office of a UK engineering firm) demonstrated a structurally distinct attack: a live video conference where the CFO and several apparent colleagues were all deepfaked, interacting in real time over 15 transactions with the target finance employee. The canonical defense was bypassed because the deepfake *was* the executive on the known number, in real-time video and voice. Hong Kong police confirmed the case and characterized it as the largest known deepfake-enabled BEC at the time.
+
+**Threat-model addition.** Real-time synthetic media BEC is the same L1/L2 (`deceptive_fraud / phishing_attack`) as the email-channel BEC but with structurally different attack mechanics:
+
+- *Persona:* Real-time deepfaked executive (video and/or audio), often alongside deepfaked apparent colleagues to manufacture the social pressure of a group call.
+- *Delivery method:* Live video conference (Zoom, Teams, proprietary platforms) or live phone call. The interactivity is the load-bearing differentiator from pre-recorded deepfake artifacts.
+- *Bypass mechanism:* The standard reviewer-SOP defense ("call the executive at a known number to confirm") fails when the impersonation can transact in real time on the known number.
+- *Severity:* Higher than email-channel BEC at the bright-line layer (see `docs/08-v5-ontology.md` §5 `realtime_synthetic_media_executive_impersonation`). Both fire `executive_impersonation_payment` at the disposition layer; the realtime variant additionally fires the new dedicated bright-line.
+
+**Policy artifacts.** Bright-line `realtime_synthetic_media_executive_impersonation` (ontology §5); L3 `method:realtime_synthetic_media` (ontology §3.1); master-policy §3.3 bright-line clause (added 2026-05-27). The L3 method tag fires whenever the synthetic media is interactive (turn-taking), distinguishing from pre-recorded `method:deepfake_audio` / `method:deepfake_video`.
+
+**Reviewer-SOP impact.** The canonical BEC defense needs an explicit augmentation for the deepfake-video variant. Suggested SOP additions for ops-track follow-up: (a) require an out-of-band confirmation channel (e.g., a pre-arranged code phrase, a separate text-message confirmation to the executive's verified number, a callback initiated by the executive rather than the target) for any wire transfer authorized via live video; (b) treat any video-call wire authorization that the target cannot independently corroborate via a second channel as a `human_review` floor regardless of apparent identity match. Ops-track owns the full reviewer-SOP authoring in phase 4 of the case-study Tier 1 goal.
+
+**Cross-references.** Cross-link to `docs/threat-models/09-ai-enabled-abuse.md` for the broader AI-as-attack-vector framing. Case 8 (FTC voice-clone grandparent scam) is the consumer-fraud analogue documented in case-study analysis 2026-06 §8; the existing `family_impersonation_payment` bright-line is sufficient at the disposition layer for that variant (per case-study analysis §8.6, restraint not to over-fit L3 method vocabulary). Originating case-study: `docs/policy-reviews/2026-06-case-study-analysis.md` §4.

@@ -22,6 +22,7 @@ const BRIGHT_LINE_DESCRIPTIONS = {
   ai_model_impersonation: 'Impersonates a named AI assistant (Claude, GPT, Gemini) to build victim trust or authority for a fraudulent purpose.',
   prompt_injection_payload: 'Content designed to hijack AI system behavior by injecting malicious instructions into a prompt or system context.',
   mfa_or_otp_harvesting: 'Generates pages, prompts, or scripts designed to capture a victim multi-factor or one-time passcode in real time -- the final step in account takeover.',
+  realtime_synthetic_media_executive_impersonation: 'Live or near-real-time deepfaked video or audio of a corporate executive used to direct a payment or wire -- the impersonation can transact in real time, bypassing the standard "call back at a known number" BEC defense.',
 };
 
 // Conversation-mode example pills. Click loads `turns` straight into the

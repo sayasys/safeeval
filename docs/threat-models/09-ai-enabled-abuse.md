@@ -197,3 +197,13 @@ Phase 5 fixture authoring MUST include real-screenshot adversarial fixtures to v
 
 **Source memo:** `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 8.
 **Empirical source:** `handoff/reference/10a-vision-spike-report.md` sections 3.5 and 6.
+
+---
+
+## Real-time synthetic media as AI-enabled attack vector (added 2026-05-27, cross-reference)
+
+Case 4 / Arup deepfake-CFO BEC (2024, HK$200M wire fraud) is the canonical operational-AI corporate-fraud case. The dominant policy treatment lives in `docs/threat-models/03-phishing-spearphishing.md` under "Real-time synthetic media BEC" because the L1/L2 is `deceptive_fraud / phishing_attack` (BEC for money), not `cyber_intrusion`. The AI-Enabled Abuse threat-model carries the cross-reference because real-time synthetic media is the AI-as-attack-vector framing for a fraud that uses (rather than targets) the AI system.
+
+**Contrast with case 2 / CryptoFX.** Case 2 (Ponzi scheme marketing "expert AI trading bots") fires `context_marker:ai_pretext_claimed` rather than `method:realtime_synthetic_media` because the AI is *claimed* in the marketing layer, not operational. The two cases together demonstrate the L3 distinction the case-study analysis surfaced: operational AI (case 4, method tag) vs. claimed AI (case 2, context-marker tag). Reviewers and policy-track analysts should use this distinction to discriminate "AI capability gap is what made this fraud possible" (case 4) from "AI claim is what made this fraud sellable" (case 2).
+
+**Canonical surfaces.** Bright-line `realtime_synthetic_media_executive_impersonation` (ontology §5); L3 `method:realtime_synthetic_media` (ontology §3.1); L3 `context_marker:ai_pretext_claimed` (ontology §3.4). Originating case-study: `docs/policy-reviews/2026-06-case-study-analysis.md` §§2 and 4.

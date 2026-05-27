@@ -78,6 +78,8 @@ This policy governs the enforcement stance described in this document on fraud a
 
 **Bright line:** Content that explicitly requests evasion of security detection systems is prohibited regardless of stated purpose.
 
+**Bright line (added 2026-05-27, case 4 / Arup deepfake-CFO):** `realtime_synthetic_media_executive_impersonation` -- Live or near-real-time deepfaked video or audio of a corporate executive used to direct a payment or wire transfer, distinct from pre-recorded or static-asset executive impersonation. Fires when the synthetic media is interactive (responds to the target in real time) rather than playback. Co-occurs with `executive_impersonation_payment` at the disposition layer; the two share severity-of-evidence semantics but the realtime variant carries the higher-severity bit because the standard BEC defense ("call the executive at a known number") is bypassed when the impersonation can transact in real time. Authoritative case definition and prose-to-label discriminators: `docs/08-v5-ontology.md` §5 + §3.1. Originating case-study: `docs/policy-reviews/2026-06-case-study-analysis.md` §4.6 recommendation 1.
+
 ---
 
 ### 3.4 Impersonation Scams
@@ -277,3 +279,9 @@ Policy changes follow a three-step process:
 **Bright-line rule:** A policy rule that triggers automatic BLOCK escalation regardless of aggregate score or stated context. Bright-line rules apply to categories of content where the harm is sufficiently severe, the legitimate use cases sufficiently rare, and the risk of false negatives sufficiently high that case-by-case review is not appropriate.
 
 **Typology:** A named fraud scheme category used to classify content by its operational pattern. The 9 active typologies in this policy are: ROMANCE, INVESTMENT, PHISHING, IMPERSONATION, ADVANCE_FEE, FRAUD_INFRASTRUCTURE, RECOVERY, ACCOUNT_TAKEOVER, AI_ENABLED_ABUSE.
+
+---
+
+## 8. Amendment log
+
+**2026-05-27 -- Case 4 bright-line `realtime_synthetic_media_executive_impersonation` added to §3.3 (Phishing & Spearphishing).** Case-study Tier 1 bundled amendments, phase 1 of goal `case-study-tier-1-improvements` (dispatch brief `handoff/board/tracks/policy/CURRENT_policy.md`). Originating case: `docs/policy-reviews/2026-06-case-study-analysis.md` §4 (Arup deepfake-CFO BEC, HK$200M / ~US$25M). The bright-line co-occurs with the existing `executive_impersonation_payment` at the disposition layer but carries higher-severity semantics because the standard BEC defense ("call the executive at a known number") is bypassed when the impersonation can transact in real time. Canonical closed-set home: `docs/08-v5-ontology.md` §5; companion L3 method `method:realtime_synthetic_media` lives in ontology §3.1. Ontology bumped 5.1 -> 5.2 per §7 extension policy (adding a bright-line feature is a minor change). No schema bump (vocabulary-only additive change). Phase 2 vscode owns the engine-side closed-set addition + lockstep.

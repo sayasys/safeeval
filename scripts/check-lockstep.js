@@ -642,6 +642,152 @@ function checkV51ConversationEvalLockstep() {
   return true;
 }
 
+// v5.2 case-study Tier 1 lockstep (ontology 5.2, 2026-05-27). Validates that
+// the case-study amendments -- 1 new bright-line + 9 new L3 closed-set values
+// across method/target/context_marker/overlap -- are consistent across:
+//   (a) engine constants in src/lib/safeeval-v5.js (BRIGHT_LINE_FEATURES,
+//       L3_VALUES_BY_CATEGORY.method/target/context_marker/overlap),
+//   (b) JSON Schema validator (tests/schema/v5-envelope.schema.json) --
+//       $defs.bright_line_features, $defs.l3_method_values, $defs.l3_target_values,
+//       $defs.l3_context_marker_values, $defs.l3_overlap_values,
+//   (c) ontology doc (docs/08-v5-ontology.md) -- section 5 (bright lines), 3.1
+//       (method), 3.3 (target), 3.4 (context_marker), 3.5 (overlap).
+// Method extraction reuses extractEngineLabelArray for BRIGHT_LINE_FEATURES;
+// L3 values are pulled out of L3_VALUES_BY_CATEGORY (single object literal).
+// Spec: docs/08-v5-ontology.md section 7 ("Ontology 5.2 additions").
+const V52_CASE_STUDY_L3_SETS = [
+  { l3Category: 'method',         schemaDef: 'l3_method_values',         ontologySection: '### 3.1 `method`' },
+  { l3Category: 'target',         schemaDef: 'l3_target_values',         ontologySection: '### 3.3 `target`' },
+  { l3Category: 'context_marker', schemaDef: 'l3_context_marker_values', ontologySection: '### 3.4 `context_marker`' },
+  { l3Category: 'overlap',        schemaDef: 'l3_overlap_values',        ontologySection: '### 3.5 `overlap`' },
+];
+
+function extractEngineL3Category(engineSrc, category) {
+  const objMatch = engineSrc.match(/export\s+const\s+L3_VALUES_BY_CATEGORY\s*=\s*\{([\s\S]*?)\n\};/);
+  if (!objMatch) throw new Error('L3_VALUES_BY_CATEGORY not found in engine source');
+  const body = objMatch[1];
+  // Locate `<category>: [ ... ],` -- non-greedy across newlines, stop at the
+  // matching closing bracket. Identifier references (e.g., `arc: ARC_L3_VALUES`)
+  // are skipped here (use extractEngineLabelArray on the referenced constant).
+  const re = new RegExp('\\b' + category + '\\s*:\\s*\\[([\\s\\S]*?)\\]', 'm');
+  const m = body.match(re);
+  if (!m) throw new Error('L3 category not found in L3_VALUES_BY_CATEGORY: ' + category);
+  return m[1]
+    .split(',')
+    .map(s => s.trim().replace(/^["']|["']$/g, ''))
+    .filter(s => s.length > 0 && !s.startsWith('//'));
+}
+
+function checkV52CaseStudyLockstep() {
+  const engineSrc = fs.readFileSync(V5_ENGINE, 'utf-8');
+  const schema = JSON.parse(fs.readFileSync(V5_SCHEMA, 'utf-8'));
+  const ontologySrc = fs.readFileSync(V5_ONTOLOGY_DOC, 'utf-8');
+
+  let totalMisses = 0;
+
+  // (a) Bright-line set: engine BRIGHT_LINE_FEATURES == schema bright_line_features
+  // == ontology section 5 table. The new bright-line in 5.2 is
+  // realtime_synthetic_media_executive_impersonation (case 4 / Arup).
+  let engineBL, schemaBL, ontologyBL;
+  try { engineBL = extractEngineLabelArray(engineSrc, 'BRIGHT_LINE_FEATURES'); }
+  catch (e) { console.error('FAIL BRIGHT_LINE_FEATURES: ' + e.message); totalMisses++; }
+  try { schemaBL = extractSchemaLabelArray(schema, 'bright_line_features'); }
+  catch (e) { console.error('FAIL schema bright_line_features: ' + e.message); totalMisses++; }
+  try { ontologyBL = extractOntologyTableLabels(ontologySrc, '## 5. Bright line features'); }
+  catch (e) { console.error('FAIL ontology section 5: ' + e.message); totalMisses++; }
+
+  if (engineBL && schemaBL && ontologyBL) {
+    let ok = true;
+    if (!setsEqual(engineBL, schemaBL)) {
+      ok = false;
+      console.error('LOCKSTEP FAIL BRIGHT_LINE_FEATURES (engine vs schema):');
+      const ex1 = setDiff(engineBL, schemaBL);
+      const ex2 = setDiff(schemaBL, engineBL);
+      if (ex1.length > 0) console.error('  engine has but schema lacks: ' + ex1.join(', '));
+      if (ex2.length > 0) console.error('  schema has but engine lacks: ' + ex2.join(', '));
+    }
+    if (!setsEqual(engineBL, ontologyBL)) {
+      ok = false;
+      console.error('LOCKSTEP FAIL BRIGHT_LINE_FEATURES (engine vs ontology section 5):');
+      const ex1 = setDiff(engineBL, ontologyBL);
+      const ex2 = setDiff(ontologyBL, engineBL);
+      if (ex1.length > 0) console.error('  engine has but ontology lacks: ' + ex1.join(', '));
+      if (ex2.length > 0) console.error('  ontology has but engine lacks: ' + ex2.join(', '));
+    }
+    if (ok) {
+      console.log('OK BRIGHT_LINE_FEATURES (' + engineBL.length + ' values; engine=schema=ontology)');
+    } else {
+      totalMisses++;
+    }
+  }
+
+  // (b) L3 closed-sets per category.
+  for (const ent of V52_CASE_STUDY_L3_SETS) {
+    let engineLabels;
+    try { engineLabels = extractEngineL3Category(engineSrc, ent.l3Category); }
+    catch (e) { console.error('FAIL L3 ' + ent.l3Category + ': ' + e.message); totalMisses++; continue; }
+
+    let schemaLabels;
+    try { schemaLabels = extractSchemaLabelArray(schema, ent.schemaDef); }
+    catch (e) { console.error('FAIL L3 ' + ent.l3Category + ' (schema): ' + e.message); totalMisses++; continue; }
+
+    let ontologyLabels;
+    try { ontologyLabels = extractOntologyTableLabels(ontologySrc, ent.ontologySection); }
+    catch (e) { console.error('FAIL L3 ' + ent.l3Category + ' (ontology parse): ' + e.message); totalMisses++; continue; }
+
+    let ok = true;
+    if (!setsEqual(engineLabels, schemaLabels)) {
+      ok = false;
+      console.error('LOCKSTEP FAIL L3 ' + ent.l3Category + ' (engine vs schema):');
+      const ex1 = setDiff(engineLabels, schemaLabels);
+      const ex2 = setDiff(schemaLabels, engineLabels);
+      if (ex1.length > 0) console.error('  engine has but schema lacks: ' + ex1.join(', '));
+      if (ex2.length > 0) console.error('  schema has but engine lacks: ' + ex2.join(', '));
+    }
+    if (!setsEqual(engineLabels, ontologyLabels)) {
+      ok = false;
+      console.error('LOCKSTEP FAIL L3 ' + ent.l3Category + ' (engine vs ontology ' + ent.ontologySection + '):');
+      const ex1 = setDiff(engineLabels, ontologyLabels);
+      const ex2 = setDiff(ontologyLabels, engineLabels);
+      if (ex1.length > 0) console.error('  engine has but ontology lacks: ' + ex1.join(', '));
+      if (ex2.length > 0) console.error('  ontology has but engine lacks: ' + ex2.join(', '));
+    }
+    if (ok) {
+      console.log('OK L3 ' + ent.l3Category + ' (' + engineLabels.length + ' values; engine=schema=ontology)');
+    } else {
+      totalMisses++;
+    }
+  }
+
+  // (c) Engine ontology_version constant matches the ontology doc header.
+  // The engine constant is the assignment in the prompt-mode envelope. The
+  // ontology doc header line is "**Ontology version:** X.Y".
+  const engineOntMatch = engineSrc.match(/ontology_version:\s*'([0-9.]+)'/);
+  const docOntMatch = ontologySrc.match(/\*\*Ontology version:\*\*\s*([0-9.]+)/);
+  if (!engineOntMatch) {
+    console.error('FAIL engine ontology_version literal not found in safeeval-v5.js');
+    totalMisses++;
+  }
+  if (!docOntMatch) {
+    console.error('FAIL ontology doc header ontology version line missing');
+    totalMisses++;
+  }
+  if (engineOntMatch && docOntMatch && engineOntMatch[1] !== docOntMatch[1]) {
+    console.error('LOCKSTEP FAIL ontology_version: engine=' + engineOntMatch[1] + ', doc=' + docOntMatch[1]);
+    totalMisses++;
+  } else if (engineOntMatch && docOntMatch) {
+    console.log('OK ontology_version (engine=' + engineOntMatch[1] + ' = doc=' + docOntMatch[1] + ')');
+  }
+
+  if (totalMisses > 0) {
+    console.error('');
+    console.error('v5.2 case-study Tier 1 lockstep failed with ' + totalMisses + ' miss(es).');
+    return false;
+  }
+  console.log('v5.2 case-study Tier 1 lockstep passed.');
+  return true;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -650,7 +796,9 @@ function main() {
   const classifierDisplayOk = checkV51ClassifierDisplayLockstep();
   console.log('');
   const conversationEvalOk = checkV51ConversationEvalLockstep();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk) {
+  console.log('');
+  const caseStudyOk = checkV52CaseStudyLockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk) {
     process.exit(1);
   }
   console.log('');

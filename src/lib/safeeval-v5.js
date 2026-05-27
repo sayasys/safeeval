@@ -270,6 +270,12 @@ export const L3_VALUES_BY_CATEGORY = {
     'prompt_injection', 'jailbreak_framing',
     'synthetic_document_forgery',
     'pretexting_phone', 'pretexting_email',
+    'realtime_synthetic_media',
+    'advance_fee_inheritance',
+    'advance_fee_lottery',
+    'advance_fee_customs',
+    'advance_fee_business_partnership',
+    'advance_fee_lawyer_fee',
     'money_mule_recruitment',
     'synthetic_identity_construction',
     'fake_review_generation',
@@ -286,18 +292,21 @@ export const L3_VALUES_BY_CATEGORY = {
     'crypto_holder', 'elderly_individual',
     'recent_fraud_victim', 'public_figure',
     'lonely_individual', 'job_seeker', 'consumer_general',
+    'affinity_community',
   ],
   context_marker: [
     'security_training', 'internal_simulation_claimed',
     'authorized_pentest_claimed', 'journalism_claimed',
     'fiction_creative', 'academic_research',
     'defensive_analysis', 'roleplay_hypothetical',
+    'victim_list_purchased', 'ai_pretext_claimed',
   ],
   overlap: [
     'account_takeover_enablement', 'payment_fraud_enablement',
     'identity_fraud_enablement', 'money_laundering_overlap',
     'content_moderation_overlap', 'extortion_overlap',
     'csam_adjacency',
+    'secondary_victimization',
   ],
   arc: ARC_L3_VALUES,
   cadence: CADENCE_L3_VALUES,
@@ -447,7 +456,10 @@ export const PRETEXT_LABELS = [
 const SINGLE_VALUED_FLAG_CATEGORIES = { Template: TEMPLATE_LABELS, Delivery: DELIVERY_LABELS };
 const MULTI_VALUED_FLAG_CATEGORIES  = { Control:  CONTROL_LABELS };
 
-// 14 bright-line features per spec section 5 (13 v4 carry-forward + mfa_or_otp_harvesting new in v5).
+// 15 bright-line features per spec section 5 (13 v4 carry-forward + mfa_or_otp_harvesting
+// new in v5 + realtime_synthetic_media_executive_impersonation added in ontology 5.2,
+// case 4 / Arup deepfake-CFO BEC -- docs/policy-reviews/2026-06-case-study-analysis.md
+// section 4.6 recommendation 1).
 export const BRIGHT_LINE_FEATURES = [
   'fake_regulatory_document',
   'executive_impersonation_payment',
@@ -463,6 +475,7 @@ export const BRIGHT_LINE_FEATURES = [
   'ai_model_impersonation',
   'prompt_injection_payload',
   'mfa_or_otp_harvesting',
+  'realtime_synthetic_media_executive_impersonation',
 ];
 
 // Bright lines that constrain the L2 set the classifier may choose from.
@@ -478,6 +491,7 @@ export const BRIGHT_LINE_FORCED_L2 = {
   ai_model_impersonation:            ['ai_model_impersonation'],
   fake_regulatory_document:          ['impersonation_scam', 'investment_fraud'],
   executive_impersonation_payment:   ['impersonation_scam', 'phishing_attack'],
+  realtime_synthetic_media_executive_impersonation: ['phishing_attack', 'impersonation_scam'],
   government_impersonation_payment:  ['impersonation_scam'],
   family_impersonation_payment:      ['impersonation_scam'],
   bank_evasion_script:               ['romance_fraud', 'investment_fraud', 'advance_fee_fraud'],
@@ -740,7 +754,18 @@ const SYSTEM_STAGE_2_FAF = [
   '  family_impersonation_payment, bank_evasion_script, bulk_fake_reviews_financial,',
   '  detection_evasion_explicit, structuring_guidance, money_mule_job_posting,',
   '  credential_harvesting_page, account_takeover_script, ai_model_impersonation,',
-  '  prompt_injection_payload, mfa_or_otp_harvesting',
+  '  prompt_injection_payload, mfa_or_otp_harvesting,',
+  '  realtime_synthetic_media_executive_impersonation',
+  '',
+  '  realtime_synthetic_media_executive_impersonation fires when synthetic media',
+  '  (audio or video) of a corporate executive is presented as INTERACTIVE / real-time',
+  '  (the impersonated executive responds turn-by-turn to the target) and is used to',
+  '  direct a payment or wire transfer. The interactivity is the discriminator from',
+  '  pre-recorded deepfake_audio / deepfake_video -- it bypasses the "call the',
+  '  executive at a known number" BEC defense because the impersonation can transact',
+  '  live. Canonical case: Arup deepfake-CFO BEC (case-study analysis 2026-06).',
+  '  Co-occurs with executive_impersonation_payment when the payment direction is',
+  '  explicit; emit both when both apply.',
   '',
   'L2 probability map: a sparse map of L2 typology values to probabilities 0..1.',
   '  Allowed L2 values (only emit probabilities for L2s with any signal):',
@@ -2143,7 +2168,7 @@ function assembleEnvelope(p) {
 
   const envelope = {
     schema_version:   '5.1',
-    ontology_version: '5.1',
+    ontology_version: '5.2',
     evaluated_at:     new Date().toISOString(),
     model_pipeline:   p.modelsUsed,
     prompt_length:    promptLength,
