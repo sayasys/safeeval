@@ -859,18 +859,32 @@ const SYSTEM_STAGE_3_CLASSIFY = [
   'L2 must be valid under the chosen L1. See the tool description for allowed L2 values per L1.',
   '',
   'L3 is multi-valued. Each L3 entry has the form "<category>:<value>" with category one of',
-  'method, tactic, target, context_marker, overlap, arc, cadence, risk_marker. Emit confidences 0..1.',
+  'method, tactic, target, context_marker, overlap, risk_marker. Emit confidences 0..1.',
   'Filter out any tag below 0.50 confidence.',
-  '',
-  'arc: and cadence: categories apply ONLY to conversation-mode inputs (input.kind ===',
-  '"conversation"). For prompt-mode inputs, do not emit arc: or cadence: tags. For',
-  'conversation-mode inputs, emit arc:/cadence: tags when the evidence supports them per',
-  'the Stage 2 FAF evidence.',
   '',
   'When the evidence contains bright lines, your L2 must come from the bright-line-forced',
   'L2 set for that bright line where one is defined. If you would have chosen a different L2,',
   'override to the forced one. In particular: when the bright line ai_model_impersonation',
   'fires, L1 MUST be cyber_intrusion and L2 MUST be ai_model_impersonation.',
+].join('\n');
+
+// Conversation-mode Stage 3 supplement. Appended to SYSTEM_STAGE_3_CLASSIFY
+// only when input.kind === "conversation". Prompt-mode Stage 3 is byte-
+// identical to the v5.1 baseline (the additive principle: prompt-mode
+// behavior must round-trip unchanged through this extension).
+const SYSTEM_STAGE_3_CLASSIFY_CONVERSATION_SUPPLEMENT = [
+  '',
+  '----',
+  'CONVERSATION-MODE EXTENSION (input.kind === "conversation"):',
+  '',
+  'Two additional L3 categories are available for conversation-mode inputs:',
+  '  arc:     -- conversation trajectory patterns (trust_ramp, money_ask_pivot,',
+  '              contact_channel_jump, advisor_isolation, role_stability_breach).',
+  '  cadence: -- conversation timing patterns (always_available,',
+  '              escalation_compression).',
+  '',
+  'Emit arc:/cadence: tags when the Stage 2 FAF evidence supports them. The',
+  'allowed L3 values per category appear in the user-message L3 categories block.',
 ].join('\n');
 
 // --------------------------------------------------------------------------
@@ -1228,6 +1242,9 @@ async function stage3Classify(prompt, triageOutput, fafOutput, conversationConte
     JSON.stringify(visibleL3, null, 2),
   ].join('\n');
 
+  const stage3System = isConversation
+    ? SYSTEM_STAGE_3_CLASSIFY + SYSTEM_STAGE_3_CLASSIFY_CONVERSATION_SUPPLEMENT
+    : SYSTEM_STAGE_3_CLASSIFY;
   try {
     const resp = await anthropic.messages.create({
       model: MODEL_DEEP,
@@ -1235,7 +1252,7 @@ async function stage3Classify(prompt, triageOutput, fafOutput, conversationConte
       temperature: 0.0,
       tools: [tool],
       tool_choice: { type: 'tool', name: 'emit_classification' },
-      system: SYSTEM_STAGE_3_CLASSIFY,
+      system: stage3System,
       messages: [{ role: 'user', content: userMsg }],
     });
     const toolUse = resp.content.find(function (b) { return b.type === 'tool_use' && b.name === 'emit_classification'; });
