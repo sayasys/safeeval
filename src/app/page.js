@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Check, ShieldCheck, UserRound, Ban, TriangleAlert } from 'lucide-react';
 
 // Bright-line descriptions. MUST stay in sync with BRIGHT_LINE_FEATURES in
@@ -1315,21 +1315,42 @@ function ClassifierLabelChip({ value, descKey, size }) {
     chipClass = `${baseClass} bg-slate-100 text-slate-800 ${small ? 'border-slate-300' : ''}`;
   }
   const tooltipId = `classifier-${descKey}-${value}`;
-  // WCAG 2.1 SC 1.4.13: Escape dismisses the tooltip without moving focus.
-  // Blur resets so the next focus-in re-surfaces it (spec docs/ux/design-system/v5-result-card.md section 12.2).
+  // Dismiss-state pattern (spec section 12.2 keyboard + section 13.5 touch).
+  // - Keyboard: Escape on focused chip dismisses tooltip (WCAG 2.1 SC 1.4.13).
+  // - Touch: tap an already-focused chip toggles dismiss (section 13.5
+  //   "second tap on the same chip dismisses").
+  // Reset on focus-IN, not blur-OUT. Blur-reset (the pilot 9e56860 pattern)
+  // raced with iOS touch-focus transience -- a transient blur during a tap
+  // gesture would silently un-dismiss the tooltip the user just dismissed.
+  // Resetting on focus-IN is functionally equivalent ("blurred-then-refocused"
+  // requires re-focus) and only fires when focus is demonstrably re-acquired.
   const [dismissed, setDismissed] = useState(false);
+  const justFocusedRef = useRef(false);
   return (
     <span className="group relative inline-block">
       <button
         type="button"
         aria-describedby={description && !dismissed ? tooltipId : undefined}
+        onFocus={() => {
+          justFocusedRef.current = true;
+          setDismissed(false);
+        }}
+        onClick={() => {
+          if (!description) return;
+          if (justFocusedRef.current) {
+            // First click after focus arrival is part of the focusing gesture --
+            // tooltip surfaces via :focus-within; do not also toggle dismiss.
+            justFocusedRef.current = false;
+            return;
+          }
+          setDismissed((d) => !d);
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Escape' && description) {
             e.stopPropagation();
             setDismissed(true);
           }
         }}
-        onBlur={() => setDismissed(false)}
         className={`${chipClass} cursor-default focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1`}
       >
         {value}
@@ -1369,7 +1390,7 @@ function PromptSummaryRow({ label, labelValue, legacyProse, explanation, descKey
       <span className="block md:w-24 md:shrink-0 text-xs font-medium text-slate-700 uppercase tracking-wide md:text-right">
         {label}
       </span>
-      <div className="md:flex md:items-baseline md:gap-2 md:flex-1 mt-0.5 md:mt-0">
+      <div className="md:flex md:items-baseline md:gap-2 md:flex-1 md:min-w-0 mt-0.5 md:mt-0">
         {effectiveValue && (
           <ClassifierLabelChip value={effectiveValue} descKey={descKey} />
         )}
@@ -1387,8 +1408,10 @@ function PromptSummaryRow({ label, labelValue, legacyProse, explanation, descKey
         )}
         {!showAttributes && companion && (
           <span className="text-xs text-slate-600">
-            <span className="text-slate-400 mr-1">--</span>
-            &quot;{companion}&quot;
+            {/* nbsp keeps the em-dash glued to the opening quote so the prose
+               wraps as one block at <md instead of leaving "--" hanging on
+               its own line above the prose (spec section 11.1, audit P2-B). */}
+            <span className="text-slate-400">--</span>&nbsp;&quot;{companion}&quot;
           </span>
         )}
         {!showAttributes && !companion && descKey !== 'Objective' && hasLabel && (
@@ -1403,6 +1426,9 @@ function PromptSummaryRow({ label, labelValue, legacyProse, explanation, descKey
 // values (target:* and tactic:* prefixed). Prefix stripped for display but
 // retained in accessible name. target: gets solid border, tactic: gets
 // dotted border. Caps visible chips at 5; overflow handled by wrap.
+// Per spec section 11.2 maintainer note: no per-chip aria-describedby --
+// L3 tag tooltips already cover these descriptors and duplicating would
+// announce the same tooltip twice to screen-reader users.
 function TargetAttributesStrip({ attributes }) {
   if (!attributes || attributes.length === 0) {
     return (
@@ -1416,7 +1442,7 @@ function TargetAttributesStrip({ attributes }) {
   const visible = attributes.slice(0, 5);
   const overflow = attributes.length - visible.length;
   return (
-    <ul role="list" aria-label="Target attributes" className="inline-flex flex-wrap items-center gap-1">
+    <ul role="list" aria-label="Target attributes" className="flex flex-wrap items-center gap-1 min-w-0">
       {visible.map((raw, i) => {
         const colonIdx = raw.indexOf(':');
         const prefix = colonIdx > 0 ? raw.slice(0, colonIdx) : '';
@@ -1483,12 +1509,12 @@ function ProcessFlagRow({ flag }) {
     <div className="flex items-baseline gap-2 px-3 py-2 bg-white border-b border-gray-100 last:border-b-0">
       <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
       <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-20 shrink-0">{cat}</span>
-      <div className="flex flex-wrap items-baseline gap-1.5">
+      <div className="flex flex-wrap items-baseline gap-1.5 min-w-0">
         {hasSingleLabel && (
           <ClassifierLabelChip value={flag.label} descKey={cat} />
         )}
         {hasMultiLabels && (
-          <ul role="list" aria-label="Control labels" className="inline-flex flex-wrap items-center gap-1">
+          <ul role="list" aria-label="Control labels" className="flex flex-wrap items-center gap-1 min-w-0">
             {flag.labels.slice(0, 4).map((lab, i) => (
               <li key={i} className="inline-flex">
                 <ClassifierLabelChip value={lab} descKey={cat} />
