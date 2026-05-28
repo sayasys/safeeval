@@ -529,6 +529,52 @@ const L3_CATEGORY_DESC_KEY = {
   cadence: 'Cadence',
 };
 
+// Unified L3 category color system (v5-result-card.md section 36.2). Six hues
+// keyed off the L3 category prefix; literal class strings so Tailwind JIT
+// compiles them. arc / cadence inherit slate as a quiet neutral (they are
+// v5.1 conversation-mode categories not surfaced as colored L3 chips per the
+// section 36.2 ramp; they keep the existing classifier-label-chip treatment).
+const L3_CATEGORY_CLASSES = {
+  method:         { chipBg: 'bg-teal-50',   chipText: 'text-teal-900',   chipBorder: 'border-teal-300',   rowAccent: 'border-l-teal-500'   },
+  tactic:         { chipBg: 'bg-indigo-50', chipText: 'text-indigo-900', chipBorder: 'border-indigo-300', rowAccent: 'border-l-indigo-500' },
+  target:         { chipBg: 'bg-sky-50',    chipText: 'text-sky-900',    chipBorder: 'border-sky-300',    rowAccent: 'border-l-sky-500'    },
+  overlap:        { chipBg: 'bg-violet-50', chipText: 'text-violet-900', chipBorder: 'border-violet-300', rowAccent: 'border-l-violet-500' },
+  risk_marker:    { chipBg: 'bg-rose-50',   chipText: 'text-rose-900',   chipBorder: 'border-rose-300',   rowAccent: 'border-l-rose-500'   },
+  context_marker: { chipBg: 'bg-slate-50',  chipText: 'text-slate-800',  chipBorder: 'border-slate-300',  rowAccent: 'border-l-slate-500'  },
+  arc:            { chipBg: 'bg-slate-50',  chipText: 'text-slate-800',  chipBorder: 'border-slate-300',  rowAccent: 'border-l-slate-300'  },
+  cadence:        { chipBg: 'bg-slate-50',  chipText: 'text-slate-800',  chipBorder: 'border-slate-300',  rowAccent: 'border-l-slate-300'  },
+};
+
+// EVALUATING spinner inline-subhead descriptors (section 36.4.1). One per stage key,
+// <= 60 chars, portfolio-readable, verb-leading. Rendered under each stage
+// label with text-xs / text-slate-500 / font-normal / mt-0.5 (section 36.4.2).
+const STAGE_SUBHEADS = {
+  triage:      'Checking for fraud signals to route the prompt',
+  faf:         'Applying the Fraud Analysis Framework to score risk',
+  classify:    'Assigning typology, persona, pretext, and context',
+  disposition: 'Recommending allow, block, safe-completion, or review',
+};
+
+// COMPONENT SCORES inline descriptors (section 36.5.2). Noun-leading two-word axis
+// name + 'how X does Y' clause; <= 60 chars per row.
+const COMPONENT_DESCRIPTORS = {
+  target:  'Victim specificity -- how precisely the prompt names a mark',
+  lure:    'Incentive strength -- how compelling the hook or offer is',
+  trust:   'Trust engineering -- how the prompt builds credibility',
+  extract: 'Extraction mechanism -- how value is moved to the actor',
+  evade:   'Evasion patterning -- how the prompt avoids detection',
+};
+
+// COMPONENT SCORES ordinal severity ramp (section 36.5.4). 4-step ramp matching the
+// 0-3 component-score cap; aggregate row carries its driver-component's hue.
+// Filled blocks (i <= score) carry `fill`; unfilled stay `bg-slate-100`.
+const COMPONENT_SEVERITY_RAMP = [
+  { fill: 'bg-slate-300',  text: 'text-slate-600' }, // score 0
+  { fill: 'bg-amber-300',  text: 'text-amber-800' }, // score 1
+  { fill: 'bg-orange-400', text: 'text-orange-800' },// score 2
+  { fill: 'bg-red-500',    text: 'text-red-700'    },// score 3
+];
+
 // Arc-timeline 5-step risk ramp (display spec section 21.1).
 // Class strings are written LITERAL (not concatenated) so Tailwind JIT
 // compiles them at build time. The risk_band comes from
@@ -1263,7 +1309,7 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-4 gap-3">
               {STAGE_LABELS.map(s => (
-                <StageStep key={s.key} label={s.long} stage="active" />
+                <StageStep key={s.key} label={s.long} subhead={STAGE_SUBHEADS[s.key]} stage="active" />
               ))}
             </div>
             <p className="text-xs text-gray-500 mt-4">
@@ -1366,9 +1412,18 @@ export default function Home() {
                   </p>
                 )}
                 {v5.disposition.narrative_summary && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
-                      Narrative
+                  <div className="pt-3 border-t border-gray-100 relative">
+                    <div className="flex items-start gap-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5 flex-1">
+                        Narrative
+                      </div>
+                      {/* section 36.3 mobile overflow menu (<768px). Hidden at
+                          >=768px; the existing "Read more" link remains the
+                          desktop affordance. */}
+                      <NarrativeOverflowMenu
+                        narrativeText={v5.disposition.narrative_summary}
+                        setExpand={(val) => setExpanded(prev => ({ ...prev, 'v5-narrative': val }))}
+                      />
                     </div>
                     {v5.disposition.narrative_summary.length > 280 ? (
                       <>
@@ -1440,12 +1495,20 @@ export default function Home() {
                         {orderedL3Cats.map(cat => {
                           const descKey = L3_CATEGORY_DESC_KEY[cat]; // 'Arc' | 'Cadence' | undefined
                           const tags = l3Groups[cat] || [];
+                          // section 36.2 unified L3 category color system. Chips
+                          // and row-accent inherit the per-category hue;
+                          // arc / cadence keep the slate neutral (not on
+                          // the colored section 36.2.1 ramp).
+                          const cls = L3_CATEGORY_CLASSES[cat] || L3_CATEGORY_CLASSES.context_marker;
+                          const useColoredChip = !descKey; // arc/cadence stay on ClassifierLabelChip
                           return (
                             // Mobile reflow (display spec section 30.2): at
                             // <768px the category name stacks ABOVE its chip
                             // row full-width; at >=768px the desktop label-
                             // left / chips-right layout is restored.
-                            <div key={cat} className="flex flex-col md:flex-row md:items-baseline md:gap-2 gap-1">
+                            // section 36.2.5 row left-border accent (4px) replaces
+                            // 4px of inner row padding-left per section 36.2.6.
+                            <div key={cat} className={`flex flex-col md:flex-row md:items-baseline md:gap-2 gap-1 border-l-4 ${cls.rowAccent} pl-3`}>
                               <span className="text-xs uppercase tracking-wide text-gray-400 md:w-20 md:shrink-0">
                                 {L3_CATEGORY_LABELS[cat] || cat}
                               </span>
@@ -1458,8 +1521,24 @@ export default function Home() {
                                       ? 'No cadence tags above emit threshold'
                                       : 'No tags'}
                                   </span>
-                                ) : tags.map((t, i) => (
-                                  descKey ? (
+                                ) : tags.map((t, i) => {
+                                  // section 36.2.4 precedence: none_observed / other
+                                  // state-marker variants override the category
+                                  // ramp. Suffix after ':' is the bare value.
+                                  const bareValue = typeof t.value === 'string' && t.value.includes(':')
+                                    ? t.value.split(':').slice(1).join(':')
+                                    : t.value;
+                                  const isNoneObserved = bareValue === 'none_observed';
+                                  const isOther = bareValue === 'other';
+                                  let chipPalette;
+                                  if (isNoneObserved) {
+                                    chipPalette = 'bg-slate-50 text-slate-500 border border-slate-200 italic';
+                                  } else if (isOther) {
+                                    chipPalette = 'bg-amber-50 text-amber-900 border border-amber-200';
+                                  } else {
+                                    chipPalette = `${cls.chipBg} ${cls.chipText} border ${cls.chipBorder}`;
+                                  }
+                                  return descKey ? (
                                     <span key={`${cat}-${i}`} className="inline-flex items-baseline gap-1.5 max-w-full">
                                       <ClassifierLabelChip value={t.value} descKey={descKey} />
                                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700 shrink-0">
@@ -1469,15 +1548,15 @@ export default function Home() {
                                   ) : (
                                     <span
                                       key={`${cat}-${i}`}
-                                      className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-gray-50 text-gray-800 border border-gray-200 max-w-full break-words [overflow-wrap:anywhere] whitespace-normal"
+                                      className={`inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full ${chipPalette} max-w-full break-words [overflow-wrap:anywhere] whitespace-normal`}
                                     >
                                       {t.value}
-                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700 shrink-0">
+                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/70 text-gray-700 shrink-0 border border-white/0">
                                         {Math.round((t.confidence || 0) * 100)}%
                                       </span>
                                     </span>
-                                  )
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           );
@@ -1582,38 +1661,67 @@ export default function Home() {
                 {evidenceOpen && (
                   <div className="mt-3 bg-white border border-gray-200 rounded-md p-4 space-y-4">
 
-                    {/* Component scores: 5-row numeric TABLE per Update B. */}
-                    {v5.evidence.component_scores && (
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Component scores</div>
-                        <div className="border border-gray-200 rounded-md overflow-hidden">
-                          {COMPONENT_ORDER.map(k => {
-                            const score = typeof v5.evidence.component_scores[k] === 'number' ? v5.evidence.component_scores[k] : 0;
-                            return (
-                              <div key={k} className="flex items-center px-3 py-2 border-b border-gray-100 last:border-b-0 bg-white">
-                                <span className="text-xs font-mono text-gray-700 w-20">{k}</span>
-                                <span className="text-xs font-mono text-gray-900 w-8 text-right">{score}</span>
+                    {/* Component scores: 5-row numeric TABLE per Update B.
+                        section 36.5.2 inline descriptors + section 36.5.4 ordinal severity
+                        ramp. Aggregate row carries its driver-component's hue
+                        (section 36.5.4 aggregate rule). */}
+                    {v5.evidence.component_scores && (() => {
+                      // Driver component = highest-score component (ties
+                      // resolved by COMPONENT_ORDER). Drives the aggregate-row
+                      // fill so the visual story is "this is what is firing"
+                      // rather than "this is the average" (section 36.5.4).
+                      let driverScore = 0;
+                      for (const k of COMPONENT_ORDER) {
+                        const s = typeof v5.evidence.component_scores[k] === 'number' ? v5.evidence.component_scores[k] : 0;
+                        if (s > driverScore) driverScore = s;
+                      }
+                      const driverRamp = COMPONENT_SEVERITY_RAMP[Math.min(driverScore, 3)] || COMPONENT_SEVERITY_RAMP[0];
+                      return (
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Component scores</div>
+                          <div className="border border-gray-200 rounded-md overflow-hidden">
+                            {COMPONENT_ORDER.map(k => {
+                              const score = typeof v5.evidence.component_scores[k] === 'number' ? v5.evidence.component_scores[k] : 0;
+                              const ramp = COMPONENT_SEVERITY_RAMP[Math.min(score, 3)] || COMPONENT_SEVERITY_RAMP[0];
+                              return (
+                                <div key={k} className="flex items-start px-3 py-2 border-b border-gray-100 last:border-b-0 bg-white">
+                                  <div className="flex flex-col w-48 shrink-0">
+                                    <span className="text-xs font-mono text-gray-700">{k}</span>
+                                    <span className="text-xs text-slate-500 font-normal mt-0.5 leading-snug">
+                                      {COMPONENT_DESCRIPTORS[k]}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs font-mono text-gray-900 w-8 text-right">{score}</span>
+                                  <span className="ml-3 flex gap-1 mt-1" aria-hidden="true">
+                                    {[1, 2, 3].map(i => (
+                                      <span
+                                        key={i}
+                                        className={`w-3 h-1.5 rounded-sm ${i <= score ? ramp.fill : 'bg-slate-100'}`}
+                                      />
+                                    ))}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {typeof v5.evidence.aggregate_score === 'number' && (
+                              <div className="flex items-center px-3 py-2 bg-gray-50 text-xs">
+                                <span className="font-mono text-gray-500 w-20">aggregate</span>
+                                <span className="font-mono text-gray-900 w-8 text-right">{v5.evidence.aggregate_score}</span>
+                                <span className="ml-3 text-gray-500">/15</span>
                                 <span className="ml-3 flex gap-1" aria-hidden="true">
                                   {[1, 2, 3].map(i => (
                                     <span
                                       key={i}
-                                      className={`w-3 h-1.5 rounded-sm ${i <= score ? 'bg-gray-800' : 'bg-gray-200'}`}
+                                      className={`w-3 h-1.5 rounded-sm ${i <= driverScore ? driverRamp.fill : 'bg-slate-100'}`}
                                     />
                                   ))}
                                 </span>
                               </div>
-                            );
-                          })}
-                          {typeof v5.evidence.aggregate_score === 'number' && (
-                            <div className="flex items-center px-3 py-2 bg-gray-50 text-xs">
-                              <span className="font-mono text-gray-500 w-20">aggregate</span>
-                              <span className="font-mono text-gray-900 w-8 text-right">{v5.evidence.aggregate_score}</span>
-                              <span className="ml-3 text-gray-500">/15</span>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Process flags: v5.1 classifier-label chip(s) per Template /
                         Delivery / Control row; prose-only Trigger / Incentive
@@ -1924,7 +2032,7 @@ function HoverChip({ value, description, className }) {
 // One column of the stage-trace stepper (v5-result-card.md section 2.6) and the
 // loading-state stepper (section 2.8). `stage` is one of: 'pending' | 'active' |
 // 'complete' | 'skipped'.
-function StageStep({ label, stage, confidence }) {
+function StageStep({ label, stage, confidence, subhead }) {
   const isComplete = stage === 'complete';
   const isActive = stage === 'active';
   const isSkipped = stage === 'skipped';
@@ -1935,15 +2043,172 @@ function StageStep({ label, stage, confidence }) {
     : isSkipped
     ? 'bg-gray-200'
     : 'bg-gray-300';
+  // section 36.4.2: subhead is the EVALUATING inline-subhead descriptor. Renders
+  // under the label at text-xs / text-slate-500 / font-normal / mt-0.5.
+  // `break-inside: avoid` keeps each label+subhead block atomic on wrap.
   return (
-    <div className={`flex flex-col items-start gap-1 ${isSkipped ? 'opacity-50' : ''}`}>
+    <div className={`flex flex-col items-start gap-1 ${isSkipped ? 'opacity-50' : ''} [break-inside:avoid]`}>
       <div className="flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} />
         <span className="text-xs font-medium text-gray-700">{label}</span>
       </div>
+      {subhead && (
+        <span className="text-xs text-slate-500 font-normal mt-0.5 pl-4 leading-snug">
+          {subhead}
+        </span>
+      )}
       <span className="text-xs font-mono text-gray-500 pl-4">
         {typeof confidence === 'number' ? confidence.toFixed(2) : isSkipped ? '--' : '...'}
       </span>
+    </div>
+  );
+}
+
+// Mobile overflow menu for the narrative pane (display spec section 36.3).
+// Three items: Copy narrative / Expand all / Collapse all. Hidden at >=768px.
+// Portaled to document.body so the popover is not clipped by ancestor
+// stacking contexts (reuses the section 28.1 createPortal infrastructure; sibling
+// to PortalTooltip, not a new portaling primitive). Position flips above if
+// it would overflow the viewport. Click-outside / Escape / re-tap dismiss;
+// focus returns to the dots button on close.
+function NarrativeOverflowMenu({ narrativeText, setExpand }) {
+  const dotsRef = useRef(null);
+  const menuRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: -9999, left: -9999, ready: false });
+  const [announce, setAnnounce] = useState('');
+
+  const close = useCallback(() => {
+    setOpen(false);
+    if (dotsRef.current) dotsRef.current.focus();
+  }, []);
+
+  const computePosition = useCallback(() => {
+    const dots = dotsRef.current;
+    const menu = menuRef.current;
+    if (!dots) return;
+    const dotsRect = dots.getBoundingClientRect();
+    const menuHeight = menu ? menu.getBoundingClientRect().height : 132;
+    const menuWidth = menu ? menu.getBoundingClientRect().width : 208;
+    const vh = (typeof window !== 'undefined') ? window.innerHeight : 768;
+    const vw = (typeof window !== 'undefined') ? window.innerWidth : 1024;
+    const margin = 8;
+    let top = dotsRect.bottom + 4;
+    if (top + menuHeight > vh - margin) {
+      top = dotsRect.top - menuHeight - 4;
+    }
+    let left = dotsRect.right - menuWidth;
+    if (left < margin) left = margin;
+    if (left + menuWidth > vw - margin) left = vw - margin - menuWidth;
+    setPos({ top, left, ready: true });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(p => ({ ...p, ready: false }));
+      return;
+    }
+    computePosition();
+    const raf = (typeof window !== 'undefined') ? window.requestAnimationFrame(computePosition) : null;
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scroll', computePosition, true);
+      window.addEventListener('resize', computePosition);
+    }
+    return () => {
+      if (raf != null && typeof window !== 'undefined') window.cancelAnimationFrame(raf);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('scroll', computePosition, true);
+        window.removeEventListener('resize', computePosition);
+      }
+    };
+  }, [open, computePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e) {
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      if (dotsRef.current && dotsRef.current.contains(e.target)) return;
+      setOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, close]);
+
+  const doCopy = useCallback(() => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && narrativeText) {
+      navigator.clipboard.writeText(narrativeText).then(
+        () => setAnnounce('Narrative copied to clipboard'),
+        () => setAnnounce('Copy failed')
+      );
+    }
+    close();
+  }, [narrativeText, close]);
+
+  return (
+    <div className="md:hidden">
+      <button
+        ref={dotsRef}
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-label="Narrative actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="text-slate-500 hover:text-slate-800 p-2 rounded focus:outline-none focus:ring-2 focus:ring-slate-400 min-w-[44px] min-h-[44px] inline-flex items-center justify-center"
+      >
+        <MoreVertical className="w-5 h-5" aria-hidden="true" />
+      </button>
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label="Narrative actions"
+          style={{
+            position: 'fixed',
+            top: pos.top,
+            left: pos.left,
+            zIndex: 60,
+            opacity: pos.ready ? 1 : 0,
+          }}
+          className="bg-white border border-slate-200 rounded-md shadow-md text-sm w-52"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={doCopy}
+            className="block w-full text-left px-3 py-3 hover:bg-slate-50 focus:outline-none focus:bg-slate-50 min-h-[44px]"
+          >
+            Copy narrative
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setExpand(true); close(); }}
+            className="block w-full text-left px-3 py-3 hover:bg-slate-50 focus:outline-none focus:bg-slate-50 min-h-[44px]"
+          >
+            Expand all
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setExpand(false); close(); }}
+            className="block w-full text-left px-3 py-3 hover:bg-slate-50 focus:outline-none focus:bg-slate-50 min-h-[44px]"
+          >
+            Collapse all
+          </button>
+        </div>,
+        document.body
+      )}
+      <span className="sr-only" aria-live="polite">{announce}</span>
     </div>
   );
 }
