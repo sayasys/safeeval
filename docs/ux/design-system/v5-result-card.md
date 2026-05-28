@@ -587,6 +587,7 @@ In-place amendments to this spec after initial publication. New entries append t
 - **2026-05-28 -- §§19-25 conversation-evaluation phase 2 display spec extension.** New top-level sections appended: §19 mode-switch UI; §20 conversation input UI (image + text + preview-confirm + sender-labeling); §21 result-card extension for conversation envelopes (arc timeline + per-turn drawer + sender attribution + 7 new L3 chips); §22 WCAG AA + mobile reflow at 375/414; §23 single-file decision; §24 alternatives considered; §25 phase 3 vscode handoff checklist (11 items). Source vocabulary: `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md`. Spike evidence: `handoff/reference/10a-vision-spike-report.md`. Originating dispatch: conversation-eval phase 2 (design track).
 - **2026-05-28 -- §27 conversation-mode example pill row.** New section appended. Commits pill row UI shape: positioning above textarea in text sub-modality (§27.2), `{label, turns}` payload contract (§27.3), click contract that skips Stage 0 and loads pre-canonicalized turns directly into preview-confirm state (§27.4), tab-order keyboard nav + `role="group"` semantics (§27.5), natural flex-wrap on mobile at 375/414 with 24x24 AA touch-target floor met (§27.6), conversation-mode + text-sub-modality render guard (§27.7), testable acceptance criteria for vscode + phase 5 qa (§27.8), three alternatives with honest rejection rationale (§27.9). Originating dispatch: `conversation-eval-example-pills` 3-track parallel (design track).
 - **2026-05-28 -- §§28-34 mobile UX cluster fixes (`ux-cluster-mobile-fixes` phase 1).** New top-level sections appended addressing three live-mobile UX issues surfaced by Steven's 2026-05-27 manual native-mobile pass on https://safeeval.vercel.app. §28 commits the React-portal pattern for tooltip render-position-escape from parent stacking-context bounds (issue 1: first-in-component chip tooltip clipping behind previous card); three alternatives (auto-flip / always-below / overflow-visible) rejected with reasoning. §29 adjudicates issue 2 (per-turn-card `+`/`×`/`+` icon stack at mobile) in favor of **honoring §22.2 as-spec'd** -- vscode phase 2 implements §22.2's three-vertical-dots overflow-menu pattern (path (a)) rather than amending §22.2 to a reduced two-icon inline stack (path (b)); §22.2 text stands unchanged. Defense in §29.2: the overflow-menu dissolves all three failure modes (icon-collision, duplicate-`+` ambiguity, no direction affordance) by replacing icon-only signals with text-labeled menu items; path (b) preserves the failure-mode shape, just smaller; three-vertical-dots is industry-standard discoverability. §30 commits issue 3 mobile reflow for §2.3 L3 chip row: vertical-stack category-name above chip row at <768px (extends §13.1 precedent), `overflow-wrap: anywhere` for long underscored labels, full-width flex-wrap chip row; four alternatives (horizontal-scroll / ellipsis-with-expand / shortened-labels / smaller-chips) rejected. §31 declares §22.2 amendment status (unchanged). §32 acknowledges path-B real-device audit methodology gap (all three issues missed by path-A emulation). §33 scope-fence (no policy, no engine, no new tokens). §34 phase 2 vscode handoff checklist (8 implementation items + qa criteria in §34.1). Originating dispatch: `ux-cluster-mobile-fixes` (design track, architect-direct, brief 0033).
+- **2026-05-28 -- §36 result-card disclosure system (`result-card-disclosure-system` phase 1, consolidates briefs 0050 + 0051 + 0052 + 0053).** New §36 appended (9 sub-sections). Commits a unified disclosure-system pass for the result card per the disclosure-debt observation at `handoff/board/observations/design-2026-05-27-result-card-disclosure-debt-pattern.md`. §36.2 commits a six-hue L3 categorical color system (teal/indigo/sky/violet/rose/slate) serving both L3 chip identity (F2 in brief 0050) and L3 row left-border accents (brief 0052) -- one color system, two affordances; deliberately avoids the warm-ordinal lane and the disposition-tier lane to prevent three-system color conflict. §36.3 commits the mobile `⋮` overflow menu for the narrative pane at <768px (F3 in brief 0050), reusing the §29.3 PreviewTurnCard pattern and §28 portal infrastructure; menu items are Copy narrative / Expand all / Collapse all. §36.4 commits the four EVALUATING-spinner inline subheads (brief 0051) -- "Checking for fraud signals to route the prompt" / "Applying the Fraud Analysis Framework to score risk" / "Assigning typology, persona, pretext, and context" / "Recommending allow, block, safe-completion, or review" -- with `text-xs text-slate-500 mt-0.5` typography. §36.5 commits five COMPONENT SCORES descriptors (brief 0053) derived from `docs/05-classifier-guidance.md` §2.2 canonical FAF-activation definitions (prerequisite question answered without needing Steven adjudication), inline-subhead disclosure mechanism, and a 4-step ordinal severity ramp (slate-300/amber-300/orange-400/red-500) reused from the §22.1 arc-timeline ramp collapsed to the 0-3 cap. §36.5.5 commits the cross-section color composition rule: three non-overlapping color systems (categorical L3, ordinal severity, dispositional). §36.6 commits 10 testable phase 2 vscode acceptance criteria. §36.7 commits a hiring-reader frame self-attestation per the fourth atomic memo amendment + Steven's hybrid-administration ruling (calibration window 2026-05-28 to 2026-06-10); attestation outcome Y with one acknowledged rose-vs-red adjacency risk + pre-specified amendment path. §36.8 scope-fence. §36.9 cross-references. Briefs 0050 / 0051 / 0052 / 0053 closed out with Notes-back redirects to §36; consolidated commit-bounce filed at `pending/0057-vscode-commit-result-card-disclosure-system-spec.md`. Originating dispatch: `result-card-disclosure-system` (design track, consolidated four-brief pass, observation-driven).
 - **2026-05-27 -- §35 `+N more` overflow-chip disclosure pattern + §9.2 / §11.2 / §12.3 in-place amendments (`disclose-hidden-values-plus-n-more-chip` phase 1, brief 0045).** New §35 appended (16 sub-sections). Commits tooltip-disclosure semantics on the `+N more` overflow chip (Option 1 per brief 0045 adjudication): hover/focus/tap surfaces a `PortalTooltip` body containing comma-separated hidden values; Escape / tap-outside / second-tap dismisses; ARIA contract `aria-haspopup="true"` + `aria-expanded` toggle + `aria-describedby` linkage; reuses §28 portal infrastructure and §13.5 mobile tap pattern with zero net-new dependencies. Commits shared `OverflowChip` component spec (§35.9) for vscode phase 2 to extract once and consume from both `TargetAttributesStrip` (line ~2093) and `ProcessFlagRow` Control multi-label strip (line ~2185) -- per brief drafter's grep-before-template-inherit finding (bug lives in two surfaces). §9.2 "Cardinality cap and overflow" paragraph, §11.2 "Count-limit behavior" paragraph, and §12.3 "Overflow chip" ARIA paragraph all amended in-place to replace pre-amendment row-expand language with cross-references to §35's tooltip pattern. Pre-amendment row-expand pattern preserved as Alternative B (§35.13) -- non-breaking-replaceable if a future audit surfaces tooltip-discoverability friction. Lockstep impact: doc-only; no new lockstep groups. Note: this entry is dated 2026-05-27 but appended below the 2026-05-28 §§28-34 entry per the "append to bottom" convention rather than strict date-ordering -- ordering by append-time is the load-bearing audit signal for "what came in latest." Originating dispatch: `disclose-hidden-values-plus-n-more-chip` phase 1 (design track, brief 0045, from-track=orchestrator). Screenshot evidence: `uploads/71b138e9-image.png`.
 
 ---
@@ -1804,6 +1805,294 @@ The committed §27 spec is "above-textarea + visually identical (option a)" beca
 Append to §18 amendment log:
 
 - **2026-05-28 -- §27 conversation-mode example pill row.** New section appended. Commits pill row UI shape: positioning above textarea in text sub-modality (§27.2), `{label, turns}` payload contract (§27.3), click contract that skips Stage 0 and loads pre-canonicalized turns directly into preview-confirm state (§27.4), tab-order keyboard nav + `role="group"` semantics (§27.5), natural flex-wrap on mobile at 375/414 with 24x24 AA touch-target floor met (§27.6), conversation-mode + text-sub-modality render guard (§27.7), testable acceptance criteria for vscode + phase 5 qa (§27.8), three alternatives with honest rejection rationale (§27.9). Originating dispatch: `conversation-eval-example-pills` 3-track parallel (design track).
+
+## 36. Result-card disclosure system
+
+### 36.1 Why this section exists
+
+The disclosure-debt observation at `handoff/board/observations/design-2026-05-27-result-card-disclosure-debt-pattern.md` documents seven discrete disclosure failures on the v5 result card surfaced inside one hour on 2026-05-28: `+N more` hides values (filed 0045, shipped); four-stage SCORES labels lack semantic explanation; EVALUATING spinner labels lack semantic context (0051); L3 TAGS rows lack visual separation (0052); COMPONENT SCORES lack descriptors and color (0053); L3 chips render uniform `bg-gray-50` with no per-category color (0050 F2); mobile three-vertical-dots overflow menu is missing from the narrative pane (0050 F3). The observation argued that **three of the seven instances are color decisions that risk fighting visually if specified independently**, and recommended a unified disclosure-system pass rather than four separate per-instance fixes.
+
+§36 is that unified pass. It commits one color strategy that serves L3 chip identity (F2 in 0050), L3 row separation (0052), and COMPONENT SCORES severity treatment (0053) without those three decisions stepping on one another. It commits the EVALUATING inline-subhead descriptor copy (0051) and the mobile overflow menu (F3 in 0050) under the same disclosure-affordance frame. And it commits a hiring-reader frame check as a structural attestation, per the fourth atomic memo amendment's hiring-reader-frame requirement and the disclosure-debt observation's own self-administered-test recommendation.
+
+**Reader frame this section is written to.** A hiring reader lands on https://safeeval.vercel.app, evaluates a prompt, and screenshots the result card within 30 seconds without reading the README. They have no context about FAF, no idea what `target` or `lure` measures, and no domain familiarity with fraud-policy vocabulary. Every spec component in §36 is justified against that reader's experience, not against an engineer-author already familiar with the system. See §36.7 for the self-attestation.
+
+### 36.2 Unified L3 category color system
+
+The L3 chip strip in §2.3 currently renders all 13 chips with uniform `bg-gray-50 text-gray-800 border-gray-200` (per qa 0039 audit §3.2). The L3 row labels (METHOD / TACTIC / TARGET / OVERLAP / RISK MARKER / CONTEXT MARKER) are the only category cue, and they sit in the same gray-on-white visual register as the chips themselves. §36.2 commits a six-hue categorical color system that simultaneously (i) gives chip identity per category prefix and (ii) provides row separation via left-border accents in matching hues. One color system, two affordances.
+
+#### 36.2.1 Palette decision
+
+Six hues, one per L3 category prefix. Restrained, technical, fraud-policy-appropriate. The palette deliberately stays out of the warm-ordinal lane (no emerald / amber / orange / red) that the arc-timeline 5-step risk ramp (§22.1) and the COMPONENT SCORES severity ramp (§36.5) occupy. It also stays clear of the four-tier disposition palette (`V5_ACTION_CONFIG`) and the bright-line chip pattern (`bg-red-100 + text-red-700`). The three color systems on the result card -- categorical (L3), ordinal (severity + arc timeline), and dispositional (tier + bright line) -- do not overlap in hue family.
+
+| L3 category | Hue family | Chip background | Chip text | Chip border + row left-border accent | Rationale |
+|---|---|---|---|---|---|
+| `method:` | teal | `bg-teal-50` | `text-teal-900` | `border-teal-300` / `border-l-teal-500` | Methods are operational mechanics. Teal reads as "process / system"; cold-neutral, away from the ordinal-warm lane. |
+| `tactic:` | indigo | `bg-indigo-50` | `text-indigo-900` | `border-indigo-300` / `border-l-indigo-500` | Tactics are psychological levers. Indigo reads as "lever / mind"; distinct from teal and from sky. |
+| `target:` | sky | `bg-sky-50` | `text-sky-900` | `border-sky-300` / `border-l-sky-500` | Targets are victim segments. Sky reads lighter and less aggressive than indigo. |
+| `overlap:` | violet | `bg-violet-50` | `text-violet-900` | `border-violet-300` / `border-l-violet-500` | Overlaps are typology-crossings. Violet reads as "intersection / hybrid"; reserved and distinct. |
+| `risk_marker:` | rose | `bg-rose-50` | `text-rose-900` | `border-rose-300` / `border-l-rose-500` | Risk markers are the elevated-concern evidence axis. Rose reads as "raised concern" but is deliberately NOT red -- red is reserved for bright-line chrome and for COMPONENT SCORES score=3 per §36.5. |
+| `context_marker:` | slate | `bg-slate-50` | `text-slate-800` | `border-slate-300` / `border-l-slate-500` | Context markers are framing scaffolding. Slate reads neutral. `text-slate-800` (rather than 900) keeps the chip distinct from bold body prose and from the existing `none_observed` muted variant (per §10.3) which lives at `text-slate-500`. |
+
+#### 36.2.2 WCAG AA contrast (preliminary; live-verified by qa phase 2)
+
+Per the §22.1 methodology rule, this spec records preliminary at-authoring estimates only. Phase 2 qa live-measures via `getComputedStyle` on the deployed bundle and either confirms or triggers a §18 amendment-log entry per the §22.1 protocol.
+
+| Surface | Background | Foreground / accent | Estimated ratio | AA threshold | Notes |
+|---|---|---|---|---|---|
+| `method:` chip text | `bg-teal-50` | `text-teal-900` | ~10.5:1 | 4.5:1 | Estimated above AA |
+| `tactic:` chip text | `bg-indigo-50` | `text-indigo-900` | ~11:1 | 4.5:1 | Estimated above AA |
+| `target:` chip text | `bg-sky-50` | `text-sky-900` | ~10:1 | 4.5:1 | Estimated above AA |
+| `overlap:` chip text | `bg-violet-50` | `text-violet-900` | ~10.5:1 | 4.5:1 | Estimated above AA |
+| `risk_marker:` chip text | `bg-rose-50` | `text-rose-900` | ~10:1 | 4.5:1 | Estimated above AA |
+| `context_marker:` chip text | `bg-slate-50` | `text-slate-800` | ~12:1 | 4.5:1 | Estimated above AA |
+| Row left-border (`border-l-*-500`) | `bg-white` (card interior) | 4px border at `*-500` step | ~3.5-5:1 | 3:1 (SC 1.4.11) | Estimated above non-text-contrast; same arithmetic the §22.1 timeline ramp uses on bordered chrome |
+| Chip border (`border-*-300`) | `bg-white` (card interior) | 1px border at `*-300` step | ~1.6-2.0:1 | n/a | Decorative-only; the load-bearing chip-vs-card edge is the chip background itself (`bg-*-50` at ~1.1-1.2:1 against `bg-white`, fail-decorative per §22.1 precedent on `bg-emerald-100`-class fills); the row left-border at `*-500` is the AA-passing edge cue, not the chip border. See §36.2.5 for the precedence note. |
+
+**Critical phase 2 verification item.** The chip-fill contrast of pastel `*-50` backgrounds against white may NOT clear the 3:1 non-text-contrast bar in isolation (same shape as the §22.1 timeline-ramp finding for `bg-emerald-100`). The row left-border at `*-500` is the AA-passing edge cue. Phase 2 qa MUST live-verify each (a) chip text vs chip background at >= 4.5:1 and (b) row left-border vs card background at >= 3:1 and flag any below threshold. The likely remediation if any color fails: bump the border by one Tailwind step (e.g., `border-l-teal-600` instead of `border-l-teal-500`). The six-hue ordering must be preserved -- a remediation must shift the affected hue's accent step uniformly, not adjust individual chips.
+
+#### 36.2.3 Tailwind class mapping and JIT-literal constraint
+
+Per the conversation-eval phase 4 archive §6 constraint (referenced in 0050 brief §3): Tailwind JIT does NOT compile dynamically-constructed class names. Implementations MUST emit literal class strings. The implementation pattern is a `switch` or object-map keyed off the category prefix returning a literal class triple:
+
+```javascript
+// JIT-safe pattern: literal strings, not template-built.
+const L3_CATEGORY_CLASSES = {
+  method:         { chipBg: 'bg-teal-50',   chipText: 'text-teal-900',   chipBorder: 'border-teal-300',   rowAccent: 'border-l-teal-500'   },
+  tactic:         { chipBg: 'bg-indigo-50', chipText: 'text-indigo-900', chipBorder: 'border-indigo-300', rowAccent: 'border-l-indigo-500' },
+  target:         { chipBg: 'bg-sky-50',    chipText: 'text-sky-900',    chipBorder: 'border-sky-300',    rowAccent: 'border-l-sky-500'    },
+  overlap:        { chipBg: 'bg-violet-50', chipText: 'text-violet-900', chipBorder: 'border-violet-300', rowAccent: 'border-l-violet-500' },
+  risk_marker:    { chipBg: 'bg-rose-50',   chipText: 'text-rose-900',   chipBorder: 'border-rose-300',   rowAccent: 'border-l-rose-500'   },
+  context_marker: { chipBg: 'bg-slate-50',  chipText: 'text-slate-800',  chipBorder: 'border-slate-300',  rowAccent: 'border-l-slate-500'  },
+};
+```
+
+The category prefix is extracted from the L3 value (`method:sock_puppet` -> `method`). Implementations MUST NOT build class names via string concatenation (e.g., `bg-${color}-50`); JIT will silently fail to emit the CSS and chips will render unstyled. This is a re-statement of an existing constraint already known from the conversation-eval archive; it is repeated here because three independent reviewers of this spec have asked.
+
+#### 36.2.4 Bright-line chip stays distinct; `none_observed` and `other` variants coexist
+
+- **Bright-line chip pattern unchanged.** The `bg-red-100 + text-red-700` bright-line chip lives on a separate component (`BrightLineChip`) with semantic meaning that is independent of the L3 categorical ramp. Document explicitly: bright-line chips remain on their existing red ramp regardless of the L3 colors. The L3 ramp's deliberate avoidance of red (`risk_marker:` uses rose, not red) preserves this separation.
+- **`none_observed` muted variant.** Per the existing §10.3 spec, `none_observed` chips render as `bg-slate-50 + text-slate-500`. **Precedence rule:** state-marker variants (`none_observed`, `other`) override the category ramp. A chip with value `method:none_observed` renders as the muted variant, not as `bg-teal-50`. The category ramp is the default; state markers are exceptions.
+- **`other` audit-affordance variant.** Per the existing §10.3 spec, `other` chips render as `bg-amber-50 + text-amber-900` with `audit me` text-tag. **Precedence rule:** same as `none_observed`. A chip with value `tactic:other` renders as the amber audit-affordance variant, not as `bg-indigo-50`. This is the one place in the disclosure system where amber is allowed on a non-COMPONENT-SCORES surface, because it is a pre-existing audit affordance the disclosure-system pass does not re-litigate.
+
+#### 36.2.5 Row left-border accent precedence over horizontal divider
+
+Per 0052 brief recommended Option (e): row separation is achieved by a left-border accent in the L3 category's hue (the `border-l-*-500` token from §36.2.1), not by a horizontal divider between rows. The left-border accent serves three jobs at once -- per-row visual separation, per-row category identity, and a quiet visual rhythm that scales cleanly under the §13.1 mobile vertical-stack pattern.
+
+**Implementation contract.** Each L3 category row in §2.3 carries a 4px left-border at the category's `border-l-*-500` token. The border is solid; no opacity reduction (per WCAG SC 1.4.11 the border IS the AA-passing edge cue). The row chrome composes:
+
+```
+[border-l-teal-500 4px]  METHOD     [bg-teal-50 chip] [bg-teal-50 chip]
+[border-l-indigo-500 4px] TACTIC    [bg-indigo-50 chip] [bg-indigo-50 chip] [bg-indigo-50 chip]
+[border-l-sky-500 4px]   TARGET     [bg-sky-50 chip] [bg-sky-50 chip]
+...
+```
+
+No horizontal divider line is added; the left-border accent + the chip-background color identity are sufficient row-vs-row separation. Phase 2 qa verifies "a hiring reader can parse which chips belong to which category at a glance" without horizontal dividers; if the verdict comes back as "still ambiguous," the §18 amendment-log path is to add a 1px `border-slate-100` top-border per row at row-2 onward.
+
+#### 36.2.6 Mobile reflow at 375px
+
+The §30 L3 chip overflow pattern (vertical-stack category-name above chip row at <768px) applies unchanged. The left-border accent (§36.2.5) follows the category-name container at mobile, sitting at the left edge of the stacked row. Chip backgrounds, borders, and the left-border accent inherit the §30 mobile-reflow contract without amendment. The 4px left-border is small enough not to compete with the §30 row gap; specifically, the left-border replaces 4px of inner row padding-left, preserving the existing column-rhythm budget.
+
+#### 36.2.7 Dark-mode compatibility
+
+The current spec does not commit a dark-mode track (verified by greping `tailwind.config.js` -- no `darkMode` configuration; the existing v5 result card does not implement dark-mode variants). §36.2 inherits this scope-fence: dark-mode compatibility is documented as not-in-scope. If a future dispatch adds a dark mode, the L3 ramp's mirror tokens are the natural `*-950` text on `*-900` background pairing for each of the six hues, but committing those tokens is deferred to that dispatch.
+
+### 36.3 Mobile overflow menu for the result-card narrative pane
+
+Per 0050 brief F3: at <768px, the result-card narrative pane needs a three-vertical-dots overflow menu. The 0050 brief documented two adjudication paths -- amend-out the AC, or implement the menu. §36.3 commits **implement**, reusing the §29.3 PreviewTurnCard overflow-menu pattern with §28 PortalTooltip portal infrastructure for the popover positioning. Net-new infrastructure: zero. The existing patterns are sufficient.
+
+#### 36.3.1 Decision
+
+A `⋮` overflow menu lands at the top-right of the result-card narrative pane at <768px. At >=768px the dots button is hidden and the narrative pane renders unchanged (the existing "Read more" link continues to serve the desktop affordance budget).
+
+#### 36.3.2 Menu items
+
+Three items, in this order:
+
+1. `Copy narrative` -- writes the full narrative summary text to the clipboard. (Useful for a hiring reader who wants to paste the model's reasoning into their notes.)
+2. `Expand all` -- forces the narrative pane to its full-expanded state (overrides "Read more" truncation if engaged).
+3. `Collapse all` -- forces the narrative pane to its truncated state.
+
+These three items map cleanly to the narrative pane's affordance budget. The PreviewTurnCard menu's "Delete this turn" pattern is the only PreviewTurnCard item NOT carried over -- the narrative pane has no destructive action.
+
+#### 36.3.3 Trigger button and popover spec
+
+Inherits §29.3 verbatim with the per-surface adjustments below:
+
+- **Glyph.** Three vertical dots, Unicode `⋮` rendered as text OR inline SVG of three 4px circles stacked with 4px gaps. Touch target >= 44x44px per Apple HIG and WCAG SC 2.5.5 AAA; the visible glyph is centered in the touch area.
+- **Position.** Top-right of the narrative pane card-interior. Same vertical alignment as the existing "Read more" link's right anchor. The dots button hides at >=768px (`md:hidden` per Tailwind's default breakpoint, consistent with §13.1 and §22.2).
+- **Popover positioning.** Opens below the dots button by default; flips above if `dotsRect.bottom + popoverHeight > viewportHeight - 8`. Portaled to `document.body` via `ReactDOM.createPortal` per the §28.1 pattern -- the narrative pane has a clipping parent stacking context (the result-card body has `overflow-x: clip` per the chip-strip wrap rule), so inline rendering would clip the popover at the card edge. **Reuse the existing `PortalTooltip` component infrastructure; do not introduce a second portaling primitive.**
+- **Dismiss.** Tap outside; tap the dots button again; Escape key. Focus returns to the dots button on dismiss.
+- **Aria.** Dots button: `role="button" aria-label="Narrative actions" aria-haspopup="menu" aria-expanded={open}`. Popover: `role="menu" aria-label="Narrative actions"`. Each item: `role="menuitem"`. The `Copy narrative` action emits a transient `aria-live="polite"` announcement ("Narrative copied to clipboard") on success.
+
+#### 36.3.4 What §36.3 does NOT do
+
+- Does NOT amend §29.3 PreviewTurnCard overflow-menu spec. The two surfaces (PreviewTurnCard at <768px, narrative pane at <768px) share the same overflow-menu pattern but have different menu-item contents; they are sibling implementations, not a unified component (yet). If phase 2 qa surfaces "these should share a component," a future dispatch can extract `OverflowMenu` per the §35.9 shared-component precedent.
+- Does NOT add a desktop overflow menu. At >=768px, the dots button hides; the narrative pane's existing "Read more" link is the only affordance. The disclosure-affordance budget at desktop is already adequate.
+
+### 36.4 EVALUATING spinner inline-subhead disclosure
+
+Per 0051 brief: Steven adjudicated Option 1 (inline subhead) pre-dispatch. §36.4 commits the four descriptor copy strings and the typography spec. The other option (tooltip on hover/focus) is captured in §36.4.3 alternatives-considered for the spec record; it is not re-litigated.
+
+#### 36.4.1 The four descriptors
+
+Each descriptor is <= 60 characters, portfolio-readable, verb-leading where possible, and avoids internal jargon (the "FAF" acronym is acceptable because it is expanded inline at the second descriptor).
+
+| Stage label | Inline subhead (committed) | Character count |
+|---|---|---|
+| Triaging prompt | `Checking for fraud signals to route the prompt` | 47 |
+| Running FAF analysis | `Applying the Fraud Analysis Framework to score risk` | 52 |
+| Classifying | `Assigning typology, persona, pretext, and context` | 50 |
+| Choosing disposition | `Recommending allow, block, safe-completion, or review` | 54 |
+
+**Copy rationale per descriptor.**
+
+- **Triaging prompt: "Checking for fraud signals to route the prompt."** "Triaging" alone reads as medical-emergency vocabulary; "checking for fraud signals to route the prompt" telegraphs both what the stage does (signal-check) and what its output is (routing). A hiring reader who has never seen the pipeline gets a complete one-line model of Stage 1.
+- **Running FAF analysis: "Applying the Fraud Analysis Framework to score risk."** Expands the FAF acronym inline (the only acronym in the four descriptors) and names the deliverable ("score risk"). A reader who clicks through to docs gets a hint of what to look for; a reader who does not click through has enough context to know Stage 2 produces scored evidence.
+- **Classifying: "Assigning typology, persona, pretext, and context."** Names the four output dimensions in the same order the result card surfaces them (L1 typology, prompt-summary persona/pretext, context-marker tags). A reader looking at the loading state can mentally predict what they will see when the card renders.
+- **Choosing disposition: "Recommending allow, block, safe-completion, or review."** Names the four disposition verbs. The hyphenated form "safe-completion" is used (instead of underscore-form `safe_completion`) because the loading-state copy is prose, not envelope vocabulary -- monospace + underscore-form is reserved for envelope values per §3 rule 2. The verb "review" is shortened from "human_review" for the 60-char budget and because the prose surface does not need the full envelope form. "Recommending" leads the descriptor to make clear the disposition is Stage 4's output, not a user choice.
+
+#### 36.4.2 Typography and spacing
+
+Subhead style:
+
+- **Font size and weight.** `text-xs` (12px in Tailwind default) and `font-normal`. Smaller and lighter than the stage label (which renders at `text-sm` `font-medium` per the existing pattern). The subhead must NOT compete visually with the stage label or the `•` bullet.
+- **Color.** `text-slate-500`. Against `bg-white` (the EVALUATING spinner block background) this clears `text-slate-500` ~7:1 well above the WCAG AA 4.5:1 floor. (Live-verified by qa phase 2 per §22.1 methodology.)
+- **Spacing.** `mt-0.5` (2px) vertical gap between stage label and subhead. Horizontal alignment matches the stage-label start anchor (subhead aligns left under the label, not under the bullet).
+- **Italic.** Not used. Italic on small descriptive text reads as "footnote / aside" at this size; the subhead is load-bearing copy, not an aside.
+
+Mobile reflow:
+
+- At 375px, the four stages already wrap from a single row to multiple rows. The subhead-under-label pattern preserves this -- each stage label and its subhead become a two-line block, and the four blocks reflow as a vertical stack. **Constraint:** the subhead must NOT introduce orphaned label/subhead pairs across the wrap boundary. Implementation tactic: each stage label + subhead is wrapped in a single `inline-block` container with `break-inside: avoid` so the wrap point falls between blocks, not inside one.
+- The spinner block's vertical footprint roughly doubles at 375px (from ~80px to ~160px). This is acceptable -- the EVALUATING state is a 18-30s wait; vertical-footprint cost is exchanged for portfolio-readable disclosure. A hiring reader who screenshots the loading view sees the four-stage pipeline architecture explained inline; the cost is justified.
+
+#### 36.4.3 Alternatives considered and rejected
+
+**Alternative A -- tooltip on hover/focus of each stage label.** Reuse §28 PortalTooltip infrastructure; descriptor surfaces on hover, focus, or mobile tap. Rejected because (i) tooltips on a passive loading view assume an interaction the user may not realize is available -- the EVALUATING state is a wait, not an exploration; (ii) the portfolio narrative benefits from "here's what the four stages are doing" being immediately visible to a hiring reader who screenshots the loading state; (iii) mobile-touch users would not discover the tooltips during a passive 18-30s wait. The inline-subhead pattern is the right answer for a state where the user is staring at the spinner with nothing to read.
+
+**Alternative B -- one-line summary above the spinner instead of per-stage subheads.** Render "Triaging, scoring, classifying, and deciding disposition -- ~25s" above the four stage labels. Rejected because it tells the reader the pipeline takes 25 seconds but does not tell them what each stage individually does; the per-stage disclosure is the load-bearing affordance.
+
+### 36.5 COMPONENT SCORES descriptors and color treatment
+
+Per 0053 brief: the five components (target / lure / trust / extract / evade) need descriptors AND a color treatment. §36.5 commits both. The prerequisite question -- "what does each component measure semantically?" -- is **answered**: `docs/05-classifier-guidance.md` §2.2 (Component Activation Labels) defines each axis canonically. The 0053 brief's "hypothesis -- design must NOT assume without engineering / policy confirmation" condition is satisfied; the descriptors below are derived from policy-authoritative text, not author guess.
+
+#### 36.5.1 Authoritative semantic ground (source: `docs/05-classifier-guidance.md` §2.2)
+
+```
+target_score:   0-3   CONTEXT: Target component activation
+lure_score:     0-3   CONTEXT: Topic + PROCESS -> Psychological: Incentive activation
+trust_score:    0-3   CONTEXT: Persona + PROCESS -> Psychological activation
+extract_score:  0-3   OBJECTIVE: Objective activation
+evade_score:    0-3   PROCESS -> Psychological: Control activation
+```
+
+The components map directly onto FAF node activations: `target` to the CONTEXT-Target node, `lure` to incentive-activation (topic + psychological), `trust` to persona-activation, `extract` to the OBJECTIVE node, `evade` to psychological control. The 0-3 scale is engine-emitted by Stage 2 Sonnet per `src/lib/safeeval-v5.js:1232-1236` (the aggregate is the sum, 0-15).
+
+#### 36.5.2 The five descriptors
+
+Each descriptor is <= 60 characters, portfolio-readable, noun-leading (consistent register across the five), and avoids internal jargon. The descriptors translate the FAF-activation semantics into reader-facing prose; they do not re-state the policy-doc wording verbatim because the policy doc is written for classifiers, not for hiring readers.
+
+| Component | Inline descriptor (committed) | Character count | FAF tie-back |
+|---|---|---|---|
+| `target` | `Victim specificity -- how precisely the prompt names a mark` | 56 | CONTEXT-Target activation |
+| `lure` | `Incentive strength -- how compelling the hook or offer is` | 55 | Topic + psychological incentive activation |
+| `trust` | `Trust engineering -- how the prompt builds credibility` | 53 | Persona + psychological activation |
+| `extract` | `Extraction mechanism -- how value is moved to the actor` | 53 | OBJECTIVE activation |
+| `evade` | `Evasion patterning -- how the prompt avoids detection` | 52 | Psychological control activation |
+
+**Copy rationale.** Each descriptor names the axis in two-word noun form ("Victim specificity," "Incentive strength," etc.) and follows with a short clause beginning "how" that operationalizes the axis. A hiring reader scanning the row understands "this is a 0-3 score on how X is doing Y." The noun-leading register matches the existing prompt-summary noun-form (persona / topic / pretext / context) used elsewhere on the card; verb-leading would clash with the prompt-summary register.
+
+#### 36.5.3 Disclosure mechanism: inline subhead
+
+The 0053 brief flagged three disclosure mechanisms (inline subhead / tooltip / hybrid `?` icon). §36.5 commits **inline subhead** for the same reason §36.4 commits inline subhead on the EVALUATING spinner: the COMPONENT SCORES section is a screenshot-heavy surface, and a hiring reader who screenshots the result card without context should see what each component measures inline, not after discovering a tooltip-trigger they have no reason to interact with.
+
+**Vertical-footprint cost.** With inline subheads, the COMPONENT SCORES section grows from 6 rows (5 components + aggregate) to 11 effective lines (5 component rows each 2-line + 1 aggregate row). Acceptable -- the screenshot-readability benefit is the load-bearing portfolio property; the vertical cost is paid in the screenshot surface where it matters.
+
+Typography:
+
+- **Descriptor style.** `text-xs text-slate-500 font-normal mt-0.5` -- same tokens as the EVALUATING subhead (§36.4.2). Visual rhythm matches across the two inline-subhead surfaces; a reader scanning the card sees one disclosure pattern, not two.
+- **Component label style unchanged.** The label (`target`, `lure`, etc.) stays at its current `text-sm font-medium font-mono text-slate-700` per the existing render (monospace because the component vocabulary is closed-enum envelope vocabulary per §3 rule 2).
+
+#### 36.5.4 Color treatment: ordinal severity ramp
+
+The five components are an ordinal axis (0-3 score per component, higher = more concerning). They are NOT categorical (unlike the L3 ramp in §36.2). The color treatment must reflect this -- one severity ramp applied to all five components, not five distinct per-component hues.
+
+**Ramp decision.** Reuse the arc-timeline 5-step risk ramp from §22.1 collapsed to a 4-step scale (matching the COMPONENT_MAX_VALUE=3 cap, scores 0/1/2/3):
+
+| Score | Bar fill (filled blocks) | Bar background (unfilled blocks) | Score-number text | Rationale |
+|---|---|---|---|---|
+| 0 | `bg-slate-300` | `bg-slate-100` | `text-slate-600` | Score 0 = no activation. Slate stays neutral; not on the warm ramp because zero is not "low risk," it is "no signal." |
+| 1 | `bg-amber-300` | `bg-slate-100` | `text-amber-800` | Score 1 = light activation. Amber on the warm ramp at its lightest tonality. |
+| 2 | `bg-orange-400` | `bg-slate-100` | `text-orange-800` | Score 2 = moderate activation. One step up the warm ramp. |
+| 3 | `bg-red-500` | `bg-slate-100` | `text-red-700` | Score 3 = maximum activation. Red at the top of the ramp -- the same red the bright-line chip uses, intentionally, because a maxed component score is the engine signaling "this axis is fully loaded" and the visual register should match that semantic weight. |
+
+**Aggregate row treatment.** The aggregate (sum 0-15) carries the bar-color of its highest-score component, NOT a re-computed aggregate-severity bucket. Rationale: the aggregate is informational ("here is the sum") but the load-bearing affordance for a reader is "which component is driving the score" -- and that is the highest-score component. Coloring the aggregate to match its driver makes the visual story "this is what is firing" rather than "this is the average." The aggregate label stays `text-slate-700`; only the bar fill carries the driver-component's hue.
+
+**Three-block bar encoding.** The current three-block bar visualization (e.g., `target 3 ■■■` filled-vs-unfilled) is preserved. Filled blocks carry the score's severity hue; unfilled blocks stay `bg-slate-100`. The block count remains three (the maximum score is 3).
+
+#### 36.5.5 Cross-section color composition rule
+
+The result card now hosts three color systems. §36.5.5 commits the cross-section composition rule that prevents them from fighting visually:
+
+1. **Categorical (L3 ramp, §36.2).** Six hues -- teal, indigo, sky, violet, rose, slate. Reserved for L3 chip identity and L3 row left-border accents. Deliberately avoids the warm-ordinal lane (no amber, orange, red, emerald) and the disposition-tier lane.
+2. **Ordinal severity (COMPONENT SCORES + arc timeline, §36.5.4 + §22.1).** Slate (zero) → amber → orange → red. Reserved for severity-bearing chrome only. Deliberately reuses the same ramp across both sections so a reader's intuition transfers (amber-on-timeline and amber-on-component-scores both mean "moderate-low activation").
+3. **Dispositional (V5_ACTION_CONFIG four-tier + bright-line red).** Per §3 rule 1: reserved for disposition-bearing chrome only -- disposition banner, stage-trace connecting line, evidence-panel border accent, result-card border, bright-line chip pattern. Never used on L3 or COMPONENT SCORES chrome.
+
+**Hue conflict acknowledged: rose vs red.** The L3 categorical ramp uses rose for `risk_marker:` (a deliberate choice -- not red). The COMPONENT SCORES ordinal ramp uses red for score=3. These two hues are adjacent on the color wheel but visually distinct enough that a reader does not confuse them. Phase 2 qa verifies this empirically on the live deploy (a screenshot containing both a `risk_marker:` chip and a score=3 COMPONENT SCORES row should not visually conflict -- the rose chip reads as "category identity" and the red bar reads as "ordinal maximum"). If the live render surfaces confusion, the §18 amendment path is to step `risk_marker:` down to `border-l-pink-500` (a slightly cooler tone) to widen the gap.
+
+**Bright-line red vs score=3 red.** Both use red, intentionally. The bright-line chip pattern (`bg-red-100 + text-red-700`) and the COMPONENT SCORES score=3 bar fill (`bg-red-500 + text-red-700`) share the red hue family because both communicate "this is the elevated-concern signal." A reader who sees red on the result card has one consistent intuition: red means "the engine is pushing this signal hard." This is intentional cross-section coherence, not a conflict.
+
+### 36.6 Phase 2 acceptance criteria for vscode
+
+The full set of acceptance criteria phase 2 vscode must satisfy. All criteria are testable.
+
+1. **L3 chips render with per-category color.** Each L3 chip in §2.3 carries the chip-background, chip-text, and chip-border tokens from §36.2.3 keyed off the category prefix. Live-DOM evidence: `getComputedStyle` on a chip per category prefix returns the per-category hex values. Six chips, one per category prefix, must be visible on the live deploy across one or more prompt evaluations.
+2. **L3 rows show left-border accents.** Each L3 category row in §2.3 carries a 4px `border-l-*-500` accent in the category's hue. Live-DOM evidence: `getComputedStyle` on each row container returns the per-category border-left color. Six rows, one per category prefix, must be visible on the live deploy.
+3. **Mobile overflow menu renders at <768px.** The `⋮` button is visible at viewport widths <768px on the result-card narrative pane; the menu opens on tap with three items (Copy narrative / Expand all / Collapse all). At >=768px the button is hidden. Live-DOM evidence: presence of the button + popover + ARIA wiring per §36.3.3 at 375px-emulated; absence at 1280px.
+4. **EVALUATING spinner shows inline subheads.** Each of the four stage labels (Triaging prompt / Running FAF analysis / Classifying / Choosing disposition) renders the committed subhead from §36.4.1 immediately below it, in the typography spec'd at §36.4.2. Live-DOM evidence: a snippet of the EVALUATING block during an in-flight evaluation shows all four label+subhead pairs.
+5. **COMPONENT SCORES rows show descriptors.** Each of the five component rows (target / lure / trust / extract / evade) renders the committed descriptor from §36.5.2 below the component label, in the typography spec'd at §36.5.3. Live-DOM evidence: the COMPONENT SCORES block in the result card shows all five descriptors.
+6. **COMPONENT SCORES bars use the severity ramp.** Each component bar fills with the score-keyed hue from §36.5.4 (slate-300 / amber-300 / orange-400 / red-500). The aggregate bar carries the driver-component's hue. Live-DOM evidence: `getComputedStyle` per bar returns the score-appropriate hex.
+7. **Manual screenshots at 1280px and 375px.** Phase 2 archives two screenshots of the result card (one desktop, one mobile-emulated) and pastes them or their paths in archive Notes back. The screenshots are the load-bearing portfolio artifact -- the disclosure system is recommends-only useful if the result card actually looks like the spec on the deployed bundle.
+8. **No regression on §28 PortalTooltip behavior.** The §36.3 overflow-menu popover reuses §28 portal infrastructure. The `+N more` chip tooltip (§35) and the `script_or_dialogue` chip tooltip (§28) MUST continue to render correctly post-deploy. Live-DOM evidence: the existing portal-correctness check (`document.querySelector('[data-tooltip-content]').parentNode === document.body`) returns true.
+9. **Lighthouse / axe accessibility scan: no new contrast failures.** Run Lighthouse a11y on the live deploy post-ship; the score must not regress from pre-ship baseline, and no new color-contrast failures must surface in the axe scan output. Any failure triggers a §18 amendment-log entry per the §22.1 protocol.
+10. **Bundle hash + commit SHA in archive Notes back.** Per the standard ship-ritual closure pattern.
+
+### 36.7 Hiring-reader frame self-attestation
+
+Per the fourth atomic memo amendment (per `docs/memos/2026-05-24-parallel-cowork-tracks.md` §4.4.3) and the disclosure-debt observation's self-administered-test recommendation: each spec component above is attested against the "first 30 seconds for an unfamiliar reader" test.
+
+**Did this design land for a hiring reader unfamiliar with SafeEval who screenshots the result card without context?**
+
+**Y, with one acknowledged risk.**
+
+**Per-component attestation:**
+
+- **§36.2 L3 ramp + §36.2.5 row accents (Y).** A hiring reader sees six categories color-coded as a single design system, with row accents matching chip hues. The reader does not need to know what `risk_marker:` means in fraud policy; the visual hierarchy tells them "these are six categories, and the chips in each category share an identity." Pass.
+- **§36.3 mobile overflow menu (Y).** A hiring reader on a mobile phone sees the `⋮` button at the top-right of the narrative pane, a canonical industry pattern. Tap-opens-menu is universally understood. Pass.
+- **§36.4 EVALUATING subheads (Y).** A hiring reader staring at the spinner during an 18-30s wait reads four label + subhead pairs and understands the pipeline architecture without clicking anything. Pass.
+- **§36.5 COMPONENT SCORES descriptors + color (Y).** A hiring reader sees five component rows, each with a two-word noun name and a "how X does Y" descriptor below, plus a severity-colored bar. The reader understands "this is a five-axis score on different parts of how the prompt is fraudulent" without reading the FAF docs. Pass.
+- **§36.5.5 cross-section composition (Y, with risk).** The three color systems (categorical L3, ordinal severity, dispositional) are designed to not conflict, but the rose-vs-red adjacency between L3 `risk_marker:` chips and COMPONENT SCORES score=3 bars is the one place a hiring reader MIGHT briefly read "both reds look the same." The §18 amendment path is documented (step `risk_marker:` to pink). Phase 2 qa is the live-verification gate.
+
+**Rationale for self-attestation outcome.** The disclosure-debt observation flagged that *self-administered* hiring-reader tests were the failure mode that produced the seven originating instances. Per Steven's hybrid-administration ruling on the fourth atomic memo amendment (per STATE.md current-turn entry: "**§9.4 OVERRULED -- HIRING-READER TEST HYBRID (calibration self-administered for two weeks then qa-administered)**"), this self-attestation is in the calibration window (2026-05-28 to 2026-06-10). The attestation is offered honestly; the §36.5.5 risk is the single place where a qa-administered re-test post-window MAY surface a confusion the self-attestation missed. Documenting the risk in advance is the load-bearing audit signal -- the §18 amendment path is pre-specified so a future failure does not require new design work, only a token swap.
+
+### 36.8 What §36 does NOT do
+
+- **Does NOT edit `src/`, `tests/`, `scripts/`, `agents/`, `data/`, any FAF policy doc, the enforcement-design doc, or the threat-model docs.** Phase 2 vscode implements per spec.
+- **Does NOT change the four V5_ACTION_CONFIG tier colors, the bright-line chip pattern, or the arc-timeline 5-step risk ramp.** Existing color systems are preserved; §36 only adds and constrains.
+- **Does NOT amend §29.3 PreviewTurnCard overflow-menu spec.** The narrative pane overflow menu is a sibling implementation, not a unified component (see §36.3.4).
+- **Does NOT extract `OverflowMenu` as a shared component.** Per §36.3.4: if phase 2 qa surfaces a shared-component need, a future dispatch handles the extraction per the §35.9 shared-component precedent.
+- **Does NOT commit dark-mode tokens.** Per §36.2.7: dark mode is not in scope; mirror-token guidance is documented for future dispatches.
+- **Does NOT add new envelope vocabulary.** §36 is presentation-only; engine output is unchanged.
+- **Does NOT add a horizontal divider between L3 rows.** Per §36.2.5: the left-border accent + chip-background identity are sufficient row-vs-row separation; a horizontal divider is the §18 amendment-log fallback if phase 2 qa surfaces ambiguity.
+
+### 36.9 Cross-references
+
+- **Originating observation.** `handoff/board/observations/design-2026-05-27-result-card-disclosure-debt-pattern.md` -- documents the seven discrete disclosure failures and recommends the bundled pass.
+- **Superseded briefs.** `pending/0050` (L3 F2 + F3), `pending/0051` (EVALUATING subhead), `pending/0052` (L3 TAGS row separation), `pending/0053` (COMPONENT SCORES descriptors + color). All four are closed out with a redirect to §36 in their Notes back.
+- **Sibling design surfaces reused.** §28 PortalTooltip (portal infrastructure for §36.3 popover); §29.3 PreviewTurnCard overflow menu (pattern precedent for §36.3); §30 L3 chip mobile reflow (composes unchanged with §36.2.6); §10.3 `none_observed` + `other` chip variants (precedence rule per §36.2.4); §22.1 timeline contrast methodology (live-verify rule applied to §36.2.2 + §36.5.4); §35 `+N more` disclosure (precedent for portfolio-readable hidden-content surfacing).
+- **Authoritative semantic source for COMPONENT SCORES.** `docs/05-classifier-guidance.md` §2.2 (Component Activation Labels) -- canonical 0-3 definitions for target / lure / trust / extract / evade. Cross-reference: `src/lib/safeeval-v5.js:1232-1236` (aggregate sum) and `2120-2124` (clamp ranges).
+- **Hiring-reader frame source.** `docs/memos/2026-05-24-parallel-cowork-tracks.md` §4.4.3 (disclosure-affordance audit clause + hiring-reader frame clause) + `handoff/reference/cowork-projects/design.md` Hiring-reader frame section.
+- **CLAUDE.md known gotchas applied.** Markdown under `docs/` may stay UTF-8; bash-mount-truncation defense (file-tools used for this edit, not bash); no `.js` edits in this dispatch (ASCII discipline n/a here).
 
 ## 35. `+N more` overflow-chip disclosure pattern (issue: hidden values inaccessible)
 
