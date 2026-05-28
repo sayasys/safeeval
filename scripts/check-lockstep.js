@@ -824,90 +824,149 @@ function extractOntologyDiscriminatorBoundary(ontologySrc) {
   return ontologySrc.slice(i + startMarker.length, j);
 }
 
-function extractEngineDiscriminatorBoundary(engineSrc) {
-  // The engine mirror is an array-entry block inside SYSTEM_STAGE_2_FAF that
-  // starts with the `method:advance_fee_lawyer_fee` requires *both* line and
-  // ends with the and who is claiming it. line. Each line is a single-quoted
+function extractEngineDiscriminatorBoundaryAt(engineSrc, scopeStartIdx, scopeEndIdx, mirrorLabel) {
+  // The engine mirror is an array-entry block whose first line begins with
+  // the `method:advance_fee_lawyer_fee` requires *both* anchor and whose
+  // last line ends with and who is claiming it. Each line is a single-quoted
   // array entry (with `\'` escaping the apostrophe in target's behalf). We
-  // extract the slice, parse out the quoted contents, and join with spaces.
+  // extract the slice within [scopeStartIdx, scopeEndIdx), parse out the
+  // quoted contents, and join with newlines.
+  //
+  // mirrorLabel is the human-readable name of the scope (e.g.,
+  // "SYSTEM_STAGE_2_FAF") and is used in error messages.
   const startNeedle = '`method:advance_fee_lawyer_fee` requires *both* of the following in the';
   const endNeedle = 'and who is claiming it.';
-  const i = engineSrc.indexOf(startNeedle);
-  if (i < 0) {
-    throw new Error('Could not locate engine discriminator-boundary start marker in src/lib/safeeval-v5.js (looking for "' + startNeedle + '")');
+  const i = engineSrc.indexOf(startNeedle, scopeStartIdx);
+  if (i < 0 || i >= scopeEndIdx) {
+    throw new Error('Could not locate engine discriminator-boundary start marker inside ' + mirrorLabel + ' (looking for "' + startNeedle + '")');
   }
   const jRel = engineSrc.indexOf(endNeedle, i);
-  if (jRel < 0) {
-    throw new Error('Could not locate engine discriminator-boundary end marker in src/lib/safeeval-v5.js (looking for "' + endNeedle + '")');
+  if (jRel < 0 || jRel >= scopeEndIdx) {
+    throw new Error('Could not locate engine discriminator-boundary end marker inside ' + mirrorLabel + ' (looking for "' + endNeedle + '")');
   }
-  // Walk back to the start of the line containing startNeedle and forward to
-  // end of the line containing endNeedle so we capture full array entries.
   const lineStart = engineSrc.lastIndexOf('\n', i) + 1;
   const lineEnd = engineSrc.indexOf('\n', jRel);
-  const slice = engineSrc.slice(lineStart, lineEnd < 0 ? engineSrc.length : lineEnd);
-  // Each non-blank line is a JS array entry of shape:    'content',
-  // Extract the single-quoted content (with \' as an escaped apostrophe).
+  const slice = engineSrc.slice(lineStart, lineEnd < 0 ? scopeEndIdx : lineEnd);
   const lines = slice.split('\n');
   const contents = [];
   for (const raw of lines) {
     const trimmed = raw.trim();
     if (trimmed.length === 0) continue;
-    // Match a leading single-quoted string. Allow embedded \' and " characters.
     const m = trimmed.match(/^'((?:\\'|[^'])*)'/);
     if (!m) {
-      throw new Error('Could not parse engine array entry: ' + raw);
+      throw new Error('Could not parse engine array entry inside ' + mirrorLabel + ': ' + raw);
     }
-    // Unescape \' -> '
     contents.push(m[1].replace(/\\'/g, "'"));
   }
   return contents.join('\n');
+}
+
+function locateStagePromptScope(engineSrc, constName) {
+  // Return [openIdx, closeIdx) covering the body of an array-literal
+  // constant of shape `const <constName> = [ ... ].join('\n');`. The
+  // returned bounds are used to scope the discriminator-mirror extraction
+  // to a single stage's system prompt, so two structurally-identical
+  // mirrors in different stages can be verified independently.
+  const declRe = new RegExp('const\\s+' + constName + '\\s*=\\s*\\[');
+  const m = engineSrc.match(declRe);
+  if (!m) {
+    throw new Error('Could not locate constant declaration ' + constName + ' in src/lib/safeeval-v5.js');
+  }
+  const openIdx = m.index + m[0].length - 1; // position of `[`
+  // Walk forward respecting brackets and string literals to find the matching `]`.
+  let depth = 0;
+  let i = openIdx;
+  let inString = null;
+  while (i < engineSrc.length) {
+    const c = engineSrc[i];
+    if (inString) {
+      if (c === '\\') { i += 2; continue; }
+      if (c === inString) inString = null;
+      i++;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') { inString = c; i++; continue; }
+    if (c === '[') { depth++; i++; continue; }
+    if (c === ']') {
+      depth--;
+      if (depth === 0) return [openIdx + 1, i];
+      i++;
+      continue;
+    }
+    i++;
+  }
+  throw new Error('Unbalanced brackets while scoping ' + constName);
 }
 
 function checkDiscriminatorBoundaryLockstep() {
   const ontologySrc = fs.readFileSync(V5_ONTOLOGY_DOC, 'utf-8');
   const engineSrc = fs.readFileSync(V5_ENGINE, 'utf-8');
 
-  let canonical, mirror;
+  let canonical;
   try {
     canonical = extractOntologyDiscriminatorBoundary(ontologySrc);
   } catch (e) {
     console.error('FAIL discriminator-boundary lockstep (ontology extraction): ' + e.message);
     return false;
   }
-  try {
-    mirror = extractEngineDiscriminatorBoundary(engineSrc);
-  } catch (e) {
-    console.error('FAIL discriminator-boundary lockstep (engine extraction): ' + e.message);
-    return false;
-  }
-
   const canonicalNorm = normalizeDiscriminatorBlock(canonical);
-  const mirrorNorm = normalizeDiscriminatorBlock(mirror);
 
-  if (canonicalNorm === mirrorNorm) {
-    console.log('OK discriminator-boundary lockstep (engine SYSTEM_STAGE_2_FAF mirrors docs/08-v5-ontology.md section 3.1 canonical text; ' + canonicalNorm.length + ' normalized chars)');
-    return true;
+  // Two engine mirrors must agree with the canonical text after
+  // normalization: the Stage 2 system-prompt mirror (Path B, commit 20c5f7c)
+  // and the Stage 3 system-prompt mirror (option (b) intervention 3,
+  // 2026-05-28 retro recommendation). Path B Stage 2 prose sharpens Stage 2
+  // FAF evidence; the Stage 3 mirror gates the L3 emission at the stage
+  // that actually emits the value. Both are needed; see
+  // docs/memos/2026-05-28-discriminator-wiring-retro.md.
+  const mirrors = [
+    { constName: 'SYSTEM_STAGE_2_FAF',      stage: 'Stage 2' },
+    { constName: 'SYSTEM_STAGE_3_CLASSIFY', stage: 'Stage 3' },
+  ];
+
+  let allOk = true;
+  for (const m of mirrors) {
+    let scope;
+    try {
+      scope = locateStagePromptScope(engineSrc, m.constName);
+    } catch (e) {
+      console.error('FAIL discriminator-boundary lockstep (' + m.stage + ' scope): ' + e.message);
+      allOk = false;
+      continue;
+    }
+    let mirror;
+    try {
+      mirror = extractEngineDiscriminatorBoundaryAt(engineSrc, scope[0], scope[1], m.constName);
+    } catch (e) {
+      console.error('FAIL discriminator-boundary lockstep (' + m.stage + ' engine extraction): ' + e.message);
+      allOk = false;
+      continue;
+    }
+    const mirrorNorm = normalizeDiscriminatorBlock(mirror);
+    if (canonicalNorm === mirrorNorm) {
+      console.log('OK discriminator-boundary lockstep (' + m.stage + ': engine ' + m.constName + ' mirrors docs/08-v5-ontology.md section 3.1 canonical text; ' + canonicalNorm.length + ' normalized chars)');
+      continue;
+    }
+    allOk = false;
+    console.error('LOCKSTEP FAIL discriminator-boundary: engine ' + m.constName + ' (' + m.stage + ') discriminator-boundary block does not match canonical text in docs/08-v5-ontology.md section 3.1.');
+    console.error('');
+    console.error('The canonical source is docs/08-v5-ontology.md section 3.1. To fix this lockstep failure, update the ' + m.stage + ' discriminator paragraph in ' + m.constName + ' (src/lib/safeeval-v5.js) to match the ontology doc, NOT the other way around.');
+    console.error('');
+    const maxLen = Math.max(canonicalNorm.length, mirrorNorm.length);
+    let firstDiff = -1;
+    for (let k = 0; k < maxLen; k++) {
+      if (canonicalNorm[k] !== mirrorNorm[k]) { firstDiff = k; break; }
+    }
+    if (firstDiff < 0) firstDiff = Math.min(canonicalNorm.length, mirrorNorm.length);
+    const windowStart = Math.max(0, firstDiff - 40);
+    const windowEnd = Math.min(maxLen, firstDiff + 80);
+    console.error('First divergence at normalized offset ' + firstDiff + ':');
+    console.error('  canonical: ...' + JSON.stringify(canonicalNorm.slice(windowStart, windowEnd)) + '...');
+    console.error('  engine   : ...' + JSON.stringify(mirrorNorm.slice(windowStart, windowEnd)) + '...');
+    console.error('');
+    console.error('Lengths: canonical=' + canonicalNorm.length + ' chars, ' + m.stage + ' engine=' + mirrorNorm.length + ' chars');
   }
 
-  console.error('LOCKSTEP FAIL discriminator-boundary: engine SYSTEM_STAGE_2_FAF discriminator-boundary block does not match canonical text in docs/08-v5-ontology.md section 3.1.');
-  console.error('');
-  console.error('The canonical source is docs/08-v5-ontology.md section 3.1. To fix this lockstep failure, update the discriminator paragraph in SYSTEM_STAGE_2_FAF (src/lib/safeeval-v5.js) to match the ontology doc, NOT the other way around.');
-  console.error('');
-  // Emit a minimal diff: first divergence point + windowed context.
-  const maxLen = Math.max(canonicalNorm.length, mirrorNorm.length);
-  let firstDiff = -1;
-  for (let k = 0; k < maxLen; k++) {
-    if (canonicalNorm[k] !== mirrorNorm[k]) { firstDiff = k; break; }
-  }
-  if (firstDiff < 0) firstDiff = Math.min(canonicalNorm.length, mirrorNorm.length);
-  const windowStart = Math.max(0, firstDiff - 40);
-  const windowEnd = Math.min(maxLen, firstDiff + 80);
-  console.error('First divergence at normalized offset ' + firstDiff + ':');
-  console.error('  canonical: ...' + JSON.stringify(canonicalNorm.slice(windowStart, windowEnd)) + '...');
-  console.error('  engine   : ...' + JSON.stringify(mirrorNorm.slice(windowStart, windowEnd)) + '...');
-  console.error('');
-  console.error('Lengths: canonical=' + canonicalNorm.length + ' chars, engine=' + mirrorNorm.length + ' chars');
-  return false;
+  return allOk;
 }
 
 function main() {
