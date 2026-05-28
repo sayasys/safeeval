@@ -788,6 +788,128 @@ function checkV52CaseStudyLockstep() {
   return true;
 }
 
+// Discriminator-boundary lockstep (brief 0057, regime (i) adjudicated 2026-05-28).
+//
+// Verifies that the `method:advance_fee_lawyer_fee` discriminator paragraph in
+// the Stage 2 system prompt (SYSTEM_STAGE_2_FAF in src/lib/safeeval-v5.js)
+// matches the canonical boundary text in docs/08-v5-ontology.md section 3.1
+// after whitespace normalization. Canonical source is the ontology doc; if
+// this rule fires, fix the engine prose, not the doc.
+function normalizeDiscriminatorBlock(s) {
+  return s
+    .replace(/\r\n?/g, '\n')
+    .trim()
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join(' ')
+    .replace(/\s+/g, ' ');
+}
+
+function extractOntologyDiscriminatorBoundary(ontologySrc) {
+  // The canonical paragraph is the "Discriminator clarification (Stage 3
+  // prose-to-label, 2026-05-27)." block in section 3.1. The substantive
+  // discriminator content begins after that bold anchor and ends before the
+  // doc-internal cross-references ("See `docs/05-classifier-guidance.md` ...").
+  const startMarker = '**Discriminator clarification (Stage 3 prose-to-label, 2026-05-27).** ';
+  const endMarker = ' See `docs/05-classifier-guidance.md`';
+  const i = ontologySrc.indexOf(startMarker);
+  if (i < 0) {
+    throw new Error('Could not locate canonical discriminator paragraph anchor "' + startMarker.trim() + '" in docs/08-v5-ontology.md');
+  }
+  const j = ontologySrc.indexOf(endMarker, i);
+  if (j < 0) {
+    throw new Error('Could not locate canonical discriminator cross-reference end marker in docs/08-v5-ontology.md');
+  }
+  return ontologySrc.slice(i + startMarker.length, j);
+}
+
+function extractEngineDiscriminatorBoundary(engineSrc) {
+  // The engine mirror is an array-entry block inside SYSTEM_STAGE_2_FAF that
+  // starts with the `method:advance_fee_lawyer_fee` requires *both* line and
+  // ends with the and who is claiming it. line. Each line is a single-quoted
+  // array entry (with `\'` escaping the apostrophe in target's behalf). We
+  // extract the slice, parse out the quoted contents, and join with spaces.
+  const startNeedle = '`method:advance_fee_lawyer_fee` requires *both* of the following in the';
+  const endNeedle = 'and who is claiming it.';
+  const i = engineSrc.indexOf(startNeedle);
+  if (i < 0) {
+    throw new Error('Could not locate engine discriminator-boundary start marker in src/lib/safeeval-v5.js (looking for "' + startNeedle + '")');
+  }
+  const jRel = engineSrc.indexOf(endNeedle, i);
+  if (jRel < 0) {
+    throw new Error('Could not locate engine discriminator-boundary end marker in src/lib/safeeval-v5.js (looking for "' + endNeedle + '")');
+  }
+  // Walk back to the start of the line containing startNeedle and forward to
+  // end of the line containing endNeedle so we capture full array entries.
+  const lineStart = engineSrc.lastIndexOf('\n', i) + 1;
+  const lineEnd = engineSrc.indexOf('\n', jRel);
+  const slice = engineSrc.slice(lineStart, lineEnd < 0 ? engineSrc.length : lineEnd);
+  // Each non-blank line is a JS array entry of shape:    'content',
+  // Extract the single-quoted content (with \' as an escaped apostrophe).
+  const lines = slice.split('\n');
+  const contents = [];
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) continue;
+    // Match a leading single-quoted string. Allow embedded \' and " characters.
+    const m = trimmed.match(/^'((?:\\'|[^'])*)'/);
+    if (!m) {
+      throw new Error('Could not parse engine array entry: ' + raw);
+    }
+    // Unescape \' -> '
+    contents.push(m[1].replace(/\\'/g, "'"));
+  }
+  return contents.join('\n');
+}
+
+function checkDiscriminatorBoundaryLockstep() {
+  const ontologySrc = fs.readFileSync(V5_ONTOLOGY_DOC, 'utf-8');
+  const engineSrc = fs.readFileSync(V5_ENGINE, 'utf-8');
+
+  let canonical, mirror;
+  try {
+    canonical = extractOntologyDiscriminatorBoundary(ontologySrc);
+  } catch (e) {
+    console.error('FAIL discriminator-boundary lockstep (ontology extraction): ' + e.message);
+    return false;
+  }
+  try {
+    mirror = extractEngineDiscriminatorBoundary(engineSrc);
+  } catch (e) {
+    console.error('FAIL discriminator-boundary lockstep (engine extraction): ' + e.message);
+    return false;
+  }
+
+  const canonicalNorm = normalizeDiscriminatorBlock(canonical);
+  const mirrorNorm = normalizeDiscriminatorBlock(mirror);
+
+  if (canonicalNorm === mirrorNorm) {
+    console.log('OK discriminator-boundary lockstep (engine SYSTEM_STAGE_2_FAF mirrors docs/08-v5-ontology.md section 3.1 canonical text; ' + canonicalNorm.length + ' normalized chars)');
+    return true;
+  }
+
+  console.error('LOCKSTEP FAIL discriminator-boundary: engine SYSTEM_STAGE_2_FAF discriminator-boundary block does not match canonical text in docs/08-v5-ontology.md section 3.1.');
+  console.error('');
+  console.error('The canonical source is docs/08-v5-ontology.md section 3.1. To fix this lockstep failure, update the discriminator paragraph in SYSTEM_STAGE_2_FAF (src/lib/safeeval-v5.js) to match the ontology doc, NOT the other way around.');
+  console.error('');
+  // Emit a minimal diff: first divergence point + windowed context.
+  const maxLen = Math.max(canonicalNorm.length, mirrorNorm.length);
+  let firstDiff = -1;
+  for (let k = 0; k < maxLen; k++) {
+    if (canonicalNorm[k] !== mirrorNorm[k]) { firstDiff = k; break; }
+  }
+  if (firstDiff < 0) firstDiff = Math.min(canonicalNorm.length, mirrorNorm.length);
+  const windowStart = Math.max(0, firstDiff - 40);
+  const windowEnd = Math.min(maxLen, firstDiff + 80);
+  console.error('First divergence at normalized offset ' + firstDiff + ':');
+  console.error('  canonical: ...' + JSON.stringify(canonicalNorm.slice(windowStart, windowEnd)) + '...');
+  console.error('  engine   : ...' + JSON.stringify(mirrorNorm.slice(windowStart, windowEnd)) + '...');
+  console.error('');
+  console.error('Lengths: canonical=' + canonicalNorm.length + ' chars, engine=' + mirrorNorm.length + ' chars');
+  return false;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -798,7 +920,9 @@ function main() {
   const conversationEvalOk = checkV51ConversationEvalLockstep();
   console.log('');
   const caseStudyOk = checkV52CaseStudyLockstep();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk) {
+  console.log('');
+  const discriminatorOk = checkDiscriminatorBoundaryLockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk) {
     process.exit(1);
   }
   console.log('');
