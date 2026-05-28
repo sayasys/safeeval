@@ -520,6 +520,14 @@ Two distinct closed vocabularies appear in `evidence` and are routinely conflate
 - **Component-score names** -- `target`, `lure`, `trust`, `extract`, `evade`. Each is an integer 0-3 in `evidence.component_scores`. These are the FAF v5 evidence dimensions; they are the substantive "how much signal in each axis" view. Defined in `docs/07-v5-schema.md` section 3.4.
 - **Process-flag categories** -- `Trigger`, `Incentive`, `Control`, `Delivery`, `Template`. Each is a category string on an entry in `evidence.process_flags[]`, a list of `{ category, description }` rows. These are the v4 carry-forward process-flag categories, retained for reviewer continuity. Also defined in `docs/07-v5-schema.md` section 3.4.
 
+**Per-axis FAF-node mapping** (authoritative one-liners at `docs/05-classifier-guidance.md` §2.2; LLM-facing rubric at `src/lib/safeeval-v5.js:726-731`):
+
+- `target` -- CONTEXT: Target component activation (specificity and vulnerability of intended victim).
+- `lure` -- CONTEXT: Topic + PROCESS -> Psychological: Incentive activation (attractiveness and credibility of the inducement).
+- `trust` -- CONTEXT: Persona + PROCESS -> Psychological activation (effort to manufacture trust or authority).
+- `extract` -- OBJECTIVE: Objective activation (how the asset is taken).
+- `evade` -- PROCESS -> Psychological: Control activation (detection evasion built into the request).
+
 The two vocabularies are NOT alternative names for the same thing and are NOT meant to replace each other. A v5 envelope contains *both*: numeric scores keyed by `target/lure/trust/extract/evade`, and a list of process flags categorized by `Trigger/Incentive/Control/Delivery/Template`. Surfaces that render one set of labels in place of the other are mislabeling a field; the policy and schema layer is unambiguous about which lives where.
 
 ---
