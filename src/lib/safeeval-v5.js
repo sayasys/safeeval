@@ -628,11 +628,56 @@ export function evaluatesToRule15(brightLines, l3) {
   return true;
 }
 
+// --------------------------------------------------------------------------
+// Conditional forced-L2 expansion (2026-05-28 amendment, brief 0035 / 0062).
+//
+// Per docs/08-v5-ontology.md section 5 "Forced-L2 set composition", the
+// default BRIGHT_LINE_FORCED_L2 sets are unconditional, BUT two bright-lines
+// receive a conditional expansion when L3 evidence carries the target-of-
+// attack signal that distinguishes recovery fraud's secondary-victimization
+// shape from the bright-line's default domain:
+//
+//   - bank_evasion_script: append recovery_fraud
+//   - account_takeover_script: append recovery_fraud
+//
+// Trigger: any L3 tag with category 'target' and value 'recent_fraud_victim',
+// OR category 'overlap' and value 'secondary_victimization'. The base table
+// (BRIGHT_LINE_FORCED_L2) is intentionally NOT amended -- static consumers
+// (e.g. the rule-12b tiebreak at the bottom of validateClassificationArgs)
+// keep their existing semantics. The expansion lives only in this helper.
+//
+// CONDITIONAL_FORCED_L2_DOC_MIRROR below carries the byte-identical mirror
+// of the section 5 amendment bullets; scripts/check-lockstep.js validates
+// engine <-> ontology lockstep in CI.
+// --------------------------------------------------------------------------
+
+const CONDITIONAL_RECOVERY_FRAUD_BRIGHT_LINES = ['bank_evasion_script', 'account_takeover_script'];
+const RECOVERY_FRAUD_TRIGGER_TAGS = ['target:recent_fraud_victim', 'overlap:secondary_victimization'];
+
+export const CONDITIONAL_FORCED_L2_DOC_MIRROR = [
+  '- `bank_evasion_script` forced-L2 set: default `[romance_fraud, investment_fraud, advance_fee_fraud]`. **Conditional expansion to include `recovery_fraud`** when the L3 evidence on the same envelope carries `target:recent_fraud_victim` OR `overlap:secondary_victimization`. The target-of-attack signal is the discriminator: a bank-evasion script directed at a *known prior fraud victim* is recovery fraud\'s canonical shape; bank evasion against general targets is not.',
+  '',
+  '- `account_takeover_script` forced-L2 set: default `[account_takeover]`. **Conditional expansion to include `recovery_fraud`** under the same L3-evidence condition. Same rationale: an account-takeover script that targets a known prior victim is recovery fraud\'s secondary-victimization mechanic, not the privacy-abuse domain\'s account-takeover pattern.',
+];
+
+function l3HasRecoveryFraudTrigger(l3) {
+  if (!Array.isArray(l3)) return false;
+  for (const tag of l3) {
+    if (tag && typeof tag.value === 'string' && RECOVERY_FRAUD_TRIGGER_TAGS.includes(tag.value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // forcedL2ForBrightLine: returns the L2 set Stage 3 should force for a given
 // bright-line under the current L3 evidence. When Rule 1.5's preconditions
 // hold AND the bright line is an AEA bright line, returns the borderline L2
-// set (which lives under L1 ambiguous_dual_use). Otherwise returns the
-// static BRIGHT_LINE_FORCED_L2 lookup unchanged.
+// set (which lives under L1 ambiguous_dual_use). When the 2026-05-28
+// conditional recovery-fraud expansion fires (bright line is one of
+// CONDITIONAL_RECOVERY_FRAUD_BRIGHT_LINES AND L3 carries a recovery-fraud
+// trigger tag), returns the base set with 'recovery_fraud' appended.
+// Otherwise returns the static BRIGHT_LINE_FORCED_L2 lookup unchanged.
 //
 // brightLinesContext is the full bright_lines array on the envelope, needed
 // to check Rule 1.5 precondition 2 ("no non-AEA bright lines co-occurring").
@@ -643,7 +688,16 @@ export function forcedL2ForBrightLine(brightLine, l3, brightLinesContext) {
   if (AEA_BRIGHT_LINES_FOR_RULE_15.includes(brightLine) && evaluatesToRule15(allBrightLines, l3)) {
     return RULE_15_FORCED_L2[brightLine];
   }
-  return BRIGHT_LINE_FORCED_L2[brightLine];
+  const baseSet = BRIGHT_LINE_FORCED_L2[brightLine];
+  if (
+    CONDITIONAL_RECOVERY_FRAUD_BRIGHT_LINES.includes(brightLine) &&
+    Array.isArray(baseSet) &&
+    !baseSet.includes('recovery_fraud') &&
+    l3HasRecoveryFraudTrigger(l3)
+  ) {
+    return baseSet.concat(['recovery_fraud']);
+  }
+  return baseSet;
 }
 
 // Hardcoded reasoning_summary for the rule-derived path (memo 6.4). Names
@@ -1498,6 +1552,24 @@ async function stage3Classify(prompt, triageOutput, fafOutput, conversationConte
               break;
             }
           }
+        }
+      }
+
+      // L1 picker guard (Reading B, brief 0062 / 0035 Q3 adjudication 2026-05-28).
+      // When the 2026-05-28 conditional recovery-fraud expansion fires on a
+      // bank_evasion_script or account_takeover_script bright-line AND the
+      // resulting L2 is recovery_fraud, ensure L1 is deceptive_fraud. The
+      // L1_VALUES walk above already promotes L1 correctly when the forcing
+      // block triggers; this guard is an explicit redundant safety against
+      // any path where args.l1 stays at privacy_abuse despite L2 landing on
+      // recovery_fraud. Steven's adjudication: forced-L2 does NOT auto-
+      // propagate to the L1 picker, so the guard is required for closure.
+      if (args.l2.value === 'recovery_fraud') {
+        const conditionalFired = evidence.bright_lines.some(function (bl) {
+          return CONDITIONAL_RECOVERY_FRAUD_BRIGHT_LINES.includes(bl);
+        }) && l3HasRecoveryFraudTrigger(args.l3);
+        if (conditionalFired && args.l1.value !== 'deceptive_fraud') {
+          args.l1 = { value: 'deceptive_fraud', confidence: Math.max(args.l1.confidence, 0.9) };
         }
       }
     }

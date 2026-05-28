@@ -969,6 +969,143 @@ function checkDiscriminatorBoundaryLockstep() {
   return allOk;
 }
 
+// Conditional forced-L2 lockstep (brief 0062, 2026-05-28).
+//
+// Verifies that the engine's CONDITIONAL_FORCED_L2_DOC_MIRROR array literal in
+// src/lib/safeeval-v5.js mirrors the two conditional-expansion bullet points
+// in docs/08-v5-ontology.md section 5 "Forced-L2 set composition" byte-
+// identical after whitespace normalization. Canonical source is the ontology
+// doc; if this rule fires, fix the engine prose, not the doc.
+function normalizeConditionalForcedL2Block(s) {
+  return s
+    .replace(/\r\n?/g, '\n')
+    .trim()
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join(' ')
+    .replace(/\s+/g, ' ');
+}
+
+function extractOntologyConditionalForcedL2(ontologySrc) {
+  // The canonical content is the two bullet points between the lead-in
+  // sentence "...two bright-lines:" and the closing paragraph "The
+  // unconditional sets remain the default." in section 5 of the ontology
+  // doc. The lead-in sentence contains the section-symbol char which is
+  // non-ASCII; anchoring after it keeps the comparison ASCII-clean.
+  const startMarker = 'two bright-lines:';
+  const endMarker = 'The unconditional sets remain the default.';
+  const i = ontologySrc.indexOf(startMarker);
+  if (i < 0) {
+    throw new Error('Could not locate canonical conditional-forced-L2 start anchor "' + startMarker + '" in docs/08-v5-ontology.md');
+  }
+  const j = ontologySrc.indexOf(endMarker, i);
+  if (j < 0) {
+    throw new Error('Could not locate canonical conditional-forced-L2 end anchor "' + endMarker + '" in docs/08-v5-ontology.md');
+  }
+  return ontologySrc.slice(i + startMarker.length, j);
+}
+
+function extractEngineConditionalForcedL2Mirror(engineSrc) {
+  // Parse the CONDITIONAL_FORCED_L2_DOC_MIRROR array literal as a sequence
+  // of single-quoted strings (with `\'` escapes). Mirrors the discriminator-
+  // boundary lockstep's array-entry parser.
+  const declRe = /export\s+const\s+CONDITIONAL_FORCED_L2_DOC_MIRROR\s*=\s*\[/;
+  const m = engineSrc.match(declRe);
+  if (!m) {
+    throw new Error('Could not locate CONDITIONAL_FORCED_L2_DOC_MIRROR array literal in src/lib/safeeval-v5.js');
+  }
+  const openIdx = m.index + m[0].length - 1;
+  let depth = 0;
+  let i = openIdx;
+  let inString = null;
+  let closeIdx = -1;
+  while (i < engineSrc.length) {
+    const c = engineSrc[i];
+    if (inString) {
+      if (c === '\\') { i += 2; continue; }
+      if (c === inString) inString = null;
+      i++;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') { inString = c; i++; continue; }
+    if (c === '[') { depth++; i++; continue; }
+    if (c === ']') {
+      depth--;
+      if (depth === 0) { closeIdx = i; break; }
+      i++;
+      continue;
+    }
+    i++;
+  }
+  if (closeIdx < 0) {
+    throw new Error('Unbalanced brackets while scoping CONDITIONAL_FORCED_L2_DOC_MIRROR');
+  }
+  const slice = engineSrc.slice(openIdx + 1, closeIdx);
+  const lines = slice.split('\n');
+  const contents = [];
+  for (const raw of lines) {
+    const trimmed = raw.trim().replace(/,$/, '');
+    if (trimmed.length === 0) continue;
+    if (trimmed === "''") {
+      contents.push('');
+      continue;
+    }
+    const sm = trimmed.match(/^'((?:\\'|[^'])*)'$/);
+    if (!sm) {
+      throw new Error('Could not parse engine CONDITIONAL_FORCED_L2_DOC_MIRROR array entry: ' + raw);
+    }
+    contents.push(sm[1].replace(/\\'/g, "'"));
+  }
+  return contents.join('\n');
+}
+
+function checkConditionalForcedL2Lockstep() {
+  const ontologySrc = fs.readFileSync(V5_ONTOLOGY_DOC, 'utf-8');
+  const engineSrc = fs.readFileSync(V5_ENGINE, 'utf-8');
+
+  let canonical;
+  try {
+    canonical = extractOntologyConditionalForcedL2(ontologySrc);
+  } catch (e) {
+    console.error('FAIL conditional-forced-L2 lockstep (ontology extraction): ' + e.message);
+    return false;
+  }
+  let mirror;
+  try {
+    mirror = extractEngineConditionalForcedL2Mirror(engineSrc);
+  } catch (e) {
+    console.error('FAIL conditional-forced-L2 lockstep (engine extraction): ' + e.message);
+    return false;
+  }
+  const canonicalNorm = normalizeConditionalForcedL2Block(canonical);
+  const mirrorNorm = normalizeConditionalForcedL2Block(mirror);
+
+  if (canonicalNorm === mirrorNorm) {
+    console.log('OK conditional-forced-L2 lockstep (engine CONDITIONAL_FORCED_L2_DOC_MIRROR mirrors docs/08-v5-ontology.md section 5 conditional-expansion bullets; ' + canonicalNorm.length + ' normalized chars)');
+    return true;
+  }
+
+  console.error('LOCKSTEP FAIL conditional-forced-L2: engine CONDITIONAL_FORCED_L2_DOC_MIRROR does not match canonical bullets in docs/08-v5-ontology.md section 5.');
+  console.error('');
+  console.error('The canonical source is docs/08-v5-ontology.md section 5 "Forced-L2 set composition". To fix this lockstep failure, update CONDITIONAL_FORCED_L2_DOC_MIRROR in src/lib/safeeval-v5.js to match the ontology doc, NOT the other way around.');
+  console.error('');
+  const maxLen = Math.max(canonicalNorm.length, mirrorNorm.length);
+  let firstDiff = -1;
+  for (let k = 0; k < maxLen; k++) {
+    if (canonicalNorm[k] !== mirrorNorm[k]) { firstDiff = k; break; }
+  }
+  if (firstDiff < 0) firstDiff = Math.min(canonicalNorm.length, mirrorNorm.length);
+  const windowStart = Math.max(0, firstDiff - 40);
+  const windowEnd = Math.min(maxLen, firstDiff + 80);
+  console.error('First divergence at normalized offset ' + firstDiff + ':');
+  console.error('  canonical: ...' + JSON.stringify(canonicalNorm.slice(windowStart, windowEnd)) + '...');
+  console.error('  engine   : ...' + JSON.stringify(mirrorNorm.slice(windowStart, windowEnd)) + '...');
+  console.error('');
+  console.error('Lengths: canonical=' + canonicalNorm.length + ' chars, engine=' + mirrorNorm.length + ' chars');
+  return false;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -981,7 +1118,9 @@ function main() {
   const caseStudyOk = checkV52CaseStudyLockstep();
   console.log('');
   const discriminatorOk = checkDiscriminatorBoundaryLockstep();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk) {
+  console.log('');
+  const conditionalForcedL2Ok = checkConditionalForcedL2Lockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok) {
     process.exit(1);
   }
   console.log('');
