@@ -31,6 +31,7 @@
 //     require touching engine logic. (Decision 4.)
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createHash } from 'crypto';
 import {
   parseConversationFromImage,
   parseConversationFromText,
@@ -39,6 +40,25 @@ import {
 } from './conversation-parser.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Per-stage prompt-hash + cache-key emission (pipeline optimization proposal,
+// "Lockstep and Versioning Optimizations" section). The hash is taken over the
+// fully assembled system prompt string the model sees, so any byte drift
+// (vocabulary edits, supplement toggles, threshold-table mutations) is
+// observable downstream without re-running a full evaluation. Observational
+// only -- no caching decisions branch on these values. cache_key composes
+// ontology_version + stage + sha256 so that bumping the ontology produces a
+// new cache key even when the prompt text would otherwise be byte-identical.
+function sha256Hex(s) {
+  return createHash('sha256').update(String(s), 'utf8').digest('hex');
+}
+// Shared ontology-version constant. Single source of truth for both the
+// envelope's ontology_version field and any cache_key composites so the two
+// cannot drift.
+const ONTOLOGY_VERSION = '5.2';
+function buildStageCacheKey(stage, promptHash) {
+  return stage + ':v' + ONTOLOGY_VERSION + ':sha256:' + promptHash;
+}
 
 // Anthropic prompt-caching usage logger (brief 0044). Gated on
 // SAFEEVAL_LOG_CACHE=1 so production stays quiet. Captures all four counters
@@ -1281,6 +1301,10 @@ async function stage1Triage(prompt, conversationContext) {
   const triagePreamble = isConversation
     ? 'You are evaluating a multi-turn conversation. Classify the conversation as a whole; a single benign turn does not license a benign verdict if the arc shows risk markers.\n\n'
     : '';
+  // Stage 1 system prompt is the static SYSTEM_STAGE_1_TRIAGE -- no dynamic
+  // assembly. Hash computed once per call so the trace records the exact
+  // prompt-version the model saw, even on failure.
+  const promptHash = sha256Hex(SYSTEM_STAGE_1_TRIAGE);
   try {
     const resp = await anthropic.messages.create({
       model: MODEL_TRIAGE,
@@ -1307,6 +1331,7 @@ async function stage1Triage(prompt, conversationContext) {
       input_tokens: resp.usage && resp.usage.input_tokens,
       output_tokens: resp.usage && resp.usage.output_tokens,
       model: MODEL_TRIAGE,
+      prompt_hash: promptHash,
     };
   } catch (err) {
     return {
@@ -1314,6 +1339,7 @@ async function stage1Triage(prompt, conversationContext) {
       error: String((err && err.message) || err),
       duration_ms: Date.now() - t0,
       model: MODEL_TRIAGE,
+      prompt_hash: promptHash,
     };
   }
 }
@@ -1342,6 +1368,12 @@ async function stage2FAFAnalysis(prompt, triageOutput, conversationContext) {
   const systemPrompt = isConversation
     ? SYSTEM_STAGE_2_FAF + SYSTEM_STAGE_2_FAF_CONVERSATION_SUPPLEMENT
     : SYSTEM_STAGE_2_FAF;
+  // Hash of the fully assembled system prompt. Two distinct hashes are
+  // expected across a run mix: prompt-mode and conversation-mode each produce
+  // their own. cache_key encodes stage + ontology version + this hash so a
+  // bump of any of the three produces a new key.
+  const promptHash = sha256Hex(systemPrompt);
+  const cacheKey = buildStageCacheKey('stage2', promptHash);
   try {
     const resp = await anthropic.messages.create({
       model: MODEL_DEEP,
@@ -1404,6 +1436,8 @@ async function stage2FAFAnalysis(prompt, triageOutput, conversationContext) {
       input_tokens: resp.usage && resp.usage.input_tokens,
       output_tokens: resp.usage && resp.usage.output_tokens,
       model: MODEL_DEEP,
+      prompt_hash: promptHash,
+      cache_key: cacheKey,
     };
   } catch (err) {
     return {
@@ -1411,6 +1445,8 @@ async function stage2FAFAnalysis(prompt, triageOutput, conversationContext) {
       error: String((err && err.message) || err),
       duration_ms: Date.now() - t0,
       model: MODEL_DEEP,
+      prompt_hash: promptHash,
+      cache_key: cacheKey,
     };
   }
 }
@@ -1458,6 +1494,9 @@ async function stage3Classify(prompt, triageOutput, fafOutput, conversationConte
   const stage3System = isConversation
     ? SYSTEM_STAGE_3_CLASSIFY + SYSTEM_STAGE_3_CLASSIFY_CONVERSATION_SUPPLEMENT
     : SYSTEM_STAGE_3_CLASSIFY;
+  // Hash of the fully assembled Stage 3 system prompt. Like Stage 2, prompt-
+  // mode and conversation-mode produce two distinct hashes by construction.
+  const promptHash = sha256Hex(stage3System);
   try {
     const resp = await anthropic.messages.create({
       model: MODEL_DEEP,
@@ -1690,6 +1729,7 @@ async function stage3Classify(prompt, triageOutput, fafOutput, conversationConte
       input_tokens: resp.usage && resp.usage.input_tokens,
       output_tokens: resp.usage && resp.usage.output_tokens,
       model: MODEL_DEEP,
+      prompt_hash: promptHash,
     };
   } catch (err) {
     return {
@@ -1697,6 +1737,7 @@ async function stage3Classify(prompt, triageOutput, fafOutput, conversationConte
       error: String((err && err.message) || err),
       duration_ms: Date.now() - t0,
       model: MODEL_DEEP,
+      prompt_hash: promptHash,
     };
   }
 }
@@ -1829,6 +1870,10 @@ async function stage4Disposition(prompt, evidence, classification) {
       : 'No deterministic rule fired (model_adjudicated). You choose the action AND write both summaries. Allowed actions: allow, safe_completion, human_review, block.',
   ].join('\n');
 
+  // Stage 4 system prompt is the static SYSTEM_STAGE_4_DISPOSITION. Computed
+  // up front so both the success and the fallback return paths emit it.
+  const promptHash = sha256Hex(SYSTEM_STAGE_4_DISPOSITION);
+
   try {
     const resp = await anthropic.messages.create({
       model: MODEL_DEEP,
@@ -1889,6 +1934,7 @@ async function stage4Disposition(prompt, evidence, classification) {
       input_tokens: resp.usage && resp.usage.input_tokens,
       output_tokens: resp.usage && resp.usage.output_tokens,
       model: MODEL_DEEP,
+      prompt_hash: promptHash,
     };
   } catch (err) {
     // Model failed. Emit deterministic-only disposition.
@@ -1914,6 +1960,7 @@ async function stage4Disposition(prompt, evidence, classification) {
       },
       duration_ms: Date.now() - t0,
       model: MODEL_DEEP,
+      prompt_hash: promptHash,
     };
   }
 }
@@ -2374,7 +2421,7 @@ function assembleEnvelope(p) {
 
   const envelope = {
     schema_version:   '5.1',
-    ontology_version: '5.2',
+    ontology_version: ONTOLOGY_VERSION,
     evaluated_at:     new Date().toISOString(),
     model_pipeline:   p.modelsUsed,
     prompt_length:    promptLength,
@@ -2390,6 +2437,32 @@ function assembleEnvelope(p) {
     },
     prompt_summary:   promptSummary,
   };
+
+  // Stage prompt hashes + Stage 2 cache_key (pipeline optimization proposal,
+  // "Lockstep and Versioning Optimizations"). Sourced from each per-stage
+  // return object via the trace; absent on stages that did not run (Stage 1
+  // short-circuit, Stage 0 parse failure). Observational only -- nothing
+  // downstream branches on these values today; they make cache invalidation
+  // explicit and debugging easier (e.g., a vocabulary edit that changes the
+  // Stage 2 system prompt is immediately visible as a hash delta in the
+  // envelope without re-running anything against the trace).
+  if (p.trace) {
+    if (p.trace.stage_1 && p.trace.stage_1.prompt_hash) {
+      envelope.stage1_prompt_hash = p.trace.stage_1.prompt_hash;
+    }
+    if (p.trace.stage_2 && p.trace.stage_2.prompt_hash) {
+      envelope.stage2_prompt_hash = p.trace.stage_2.prompt_hash;
+    }
+    if (p.trace.stage_2 && p.trace.stage_2.cache_key) {
+      envelope.cache_key = p.trace.stage_2.cache_key;
+    }
+    if (p.trace.stage_3 && p.trace.stage_3.prompt_hash) {
+      envelope.stage3_prompt_hash = p.trace.stage_3.prompt_hash;
+    }
+    if (p.trace.stage_4 && p.trace.stage_4.prompt_hash) {
+      envelope.stage4_prompt_hash = p.trace.stage_4.prompt_hash;
+    }
+  }
 
   // Input discriminator (v5.1 conversation extension, memo section 2.3).
   // Always present so consumers do not have to defensively branch on absence.

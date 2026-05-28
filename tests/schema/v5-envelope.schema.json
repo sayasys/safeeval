@@ -33,7 +33,13 @@
     "classification": { "$ref": "#/$defs/classification" },
     "disposition":    { "$ref": "#/$defs/disposition" },
     "evidence":       { "$ref": "#/$defs/evidence" },
-    "prompt_summary": { "$ref": "#/$defs/prompt_summary" }
+    "prompt_summary": { "$ref": "#/$defs/prompt_summary" },
+
+    "stage1_prompt_hash": { "$ref": "#/$defs/sha256_hex" },
+    "stage2_prompt_hash": { "$ref": "#/$defs/sha256_hex" },
+    "stage3_prompt_hash": { "$ref": "#/$defs/sha256_hex" },
+    "stage4_prompt_hash": { "$ref": "#/$defs/sha256_hex" },
+    "cache_key":          { "$ref": "#/$defs/cache_key" }
   },
 
   "allOf": [
@@ -46,6 +52,18 @@
   ],
 
   "$defs": {
+
+    "sha256_hex": {
+      "description": "Lowercase sha256 hex digest of the fully assembled per-stage system prompt. v5.1 additive (pipeline optimization proposal). Observational only -- present when the corresponding stage executed; absent when the stage was skipped (Stage 1 short-circuit, Stage 0 parse failure).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+
+    "cache_key": {
+      "description": "Composite cache key for the cached stage (Stage 2). Encodes stage + ontology version + sha256 of the assembled system prompt. Form: 'stage2:v<ontology>:sha256:<hex>'. v5.1 additive (pipeline optimization proposal). Observational only -- engine does not branch caching decisions on this value.",
+      "type": "string",
+      "pattern": "^stage2:v[0-9]+(\\.[0-9]+)*:sha256:[0-9a-f]{64}$"
+    },
 
     "l1_values": {
       "type": "string",

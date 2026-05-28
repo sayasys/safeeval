@@ -760,9 +760,11 @@ function checkV52CaseStudyLockstep() {
   }
 
   // (c) Engine ontology_version constant matches the ontology doc header.
-  // The engine constant is the assignment in the prompt-mode envelope. The
+  // The engine source of truth is the ONTOLOGY_VERSION module constant; the
+  // prompt-mode envelope and the per-stage cache_key both read from it. The
   // ontology doc header line is "**Ontology version:** X.Y".
-  const engineOntMatch = engineSrc.match(/ontology_version:\s*'([0-9.]+)'/);
+  const engineOntMatch = engineSrc.match(/const\s+ONTOLOGY_VERSION\s*=\s*'([0-9.]+)'/)
+    || engineSrc.match(/ontology_version:\s*'([0-9.]+)'/);
   const docOntMatch = ontologySrc.match(/\*\*Ontology version:\*\*\s*([0-9.]+)/);
   if (!engineOntMatch) {
     console.error('FAIL engine ontology_version literal not found in safeeval-v5.js');
