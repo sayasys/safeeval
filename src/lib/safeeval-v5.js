@@ -40,6 +40,29 @@ import {
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Anthropic prompt-caching usage logger (brief 0044). Gated on
+// SAFEEVAL_LOG_CACHE=1 so production stays quiet. Captures all four counters
+// explicitly: cache_creation_input_tokens and cache_read_input_tokens are
+// SEPARATE from input_tokens on the API response -- reading input_tokens alone
+// overstates savings. Symmetric across all four stages so we can verify that
+// Stage 2 caches (cache_creation on first call, cache_read on warm calls) and
+// Stages 1/3/4 produce zero cache activity (they sit below Sonnet's 1024-token
+// cacheable-prefix minimum -- adding cache_control to them would be a no-op).
+function logStageUsage(stageName, resp) {
+  if (process.env.SAFEEVAL_LOG_CACHE !== '1') return;
+  const u = (resp && resp.usage) || {};
+  const line = [
+    '[cache]',
+    stageName,
+    'in=' + (u.input_tokens || 0),
+    'out=' + (u.output_tokens || 0),
+    'cache_create=' + (u.cache_creation_input_tokens || 0),
+    'cache_read=' + (u.cache_read_input_tokens || 0),
+  ].join(' ');
+  // eslint-disable-next-line no-console
+  console.log(line);
+}
+
 // Input discriminator + modality closed sets (memo sections 2.3 + 9). The
 // envelope's input.kind is one of INPUT_KIND_VALUES; for conversation inputs,
 // input.conversation.modality is one of CONVERSATION_MODALITY_VALUES.
@@ -1123,6 +1146,7 @@ async function stage1Triage(prompt, conversationContext) {
       system: SYSTEM_STAGE_1_TRIAGE,
       messages: [{ role: 'user', content: triagePreamble + prompt }],
     });
+    logStageUsage('stage1_triage', resp);
     const text = (resp.content[0] && resp.content[0].text) || '';
     const parsed = parseJsonObject(text);
     if (!parsed) throw new Error('triage_invalid_json');
@@ -1165,6 +1189,13 @@ async function stage2FAFAnalysis(prompt, triageOutput, conversationContext) {
   // base prompt. The user message carries the formatted turn list (already
   // wrapped in turn markers by formatTurnsForModel).
   const isConversation = !!(conversationContext && conversationContext.isConversation);
+  // CACHE-KEY DISCIPLINE (brief 0044): systemPrompt is built from static
+  // module-load string constants joined with '\n'. DO NOT interpolate dynamic
+  // content (timestamps, fixture/request IDs, version strings, env reads)
+  // anywhere INSIDE the system block below -- Anthropic prompt caching is
+  // exact-match on the prefix, so any byte drift silently kills the cache hit
+  // and you pay the cache-write 1.25x penalty on every call with no benefit.
+  // Dynamic context goes in the user message (triageContext is already there).
   const systemPrompt = isConversation
     ? SYSTEM_STAGE_2_FAF + SYSTEM_STAGE_2_FAF_CONVERSATION_SUPPLEMENT
     : SYSTEM_STAGE_2_FAF;
@@ -1173,9 +1204,21 @@ async function stage2FAFAnalysis(prompt, triageOutput, conversationContext) {
       model: MODEL_DEEP,
       max_tokens: isConversation ? 4096 : 2048,
       temperature: 0.1,
-      system: systemPrompt,
+      // Stage 2 is the only system prompt that clears the 1024-token Sonnet
+      // cacheable-prefix minimum (~3175 prompt-mode / ~4280 conversation-mode).
+      // Prompt-mode and conversation-mode produce two distinct exact-match
+      // prefixes and therefore two distinct cache keys -- both warm
+      // independently within a sweep. 5-minute TTL refreshes on each hit.
+      system: [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: [{ role: 'user', content: prompt + triageContext }],
     });
+    logStageUsage(isConversation ? 'stage2_faf_conversation' : 'stage2_faf_prompt', resp);
     const text = (resp.content[0] && resp.content[0].text) || '';
     const parsed = parseJsonObject(text);
     if (!parsed) throw new Error('faf_invalid_json');
@@ -1282,6 +1325,7 @@ async function stage3Classify(prompt, triageOutput, fafOutput, conversationConte
       system: stage3System,
       messages: [{ role: 'user', content: userMsg }],
     });
+    logStageUsage(isConversation ? 'stage3_classify_conversation' : 'stage3_classify_prompt', resp);
     const toolUse = resp.content.find(function (b) { return b.type === 'tool_use' && b.name === 'emit_classification'; });
     if (!toolUse) throw new Error('classify_no_tool_use');
     const args = toolUse.input || {};
@@ -1634,6 +1678,7 @@ async function stage4Disposition(prompt, evidence, classification) {
       system: SYSTEM_STAGE_4_DISPOSITION,
       messages: [{ role: 'user', content: userMsg }],
     });
+    logStageUsage('stage4_disposition', resp);
     const toolUse = resp.content.find(function (b) { return b.type === 'tool_use' && b.name === 'emit_disposition'; });
     if (!toolUse) throw new Error('disposition_no_tool_use');
     const args = toolUse.input || {};
