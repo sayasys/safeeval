@@ -1,7 +1,7 @@
 # SafeEval v5 -- Ontology Reference
 
-**Status:** Round 1 of v5 rollout. Mirrors the authoritative closed enums in `docs/policy-spec-v5.0.md`. v5.1 minor bump 2026-05-28: adds L3 categories `arc:` (5 values) and `cadence:` (2 values) for conversation evaluation per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 5. v5.2 minor bump 2026-05-27 (case-study Tier 1 bundled amendments): adds bright-line feature `realtime_synthetic_media_executive_impersonation` per case 4; adds L3 values `method:realtime_synthetic_media` (§3.1), `method:advance_fee_inheritance|lottery|customs|business_partnership|lawyer_fee` (§3.1, case 3 pretext sub-vocabulary), `target:affinity_community` (§3.3, case 2), `context_marker:victim_list_purchased` (§3.4, case 6), `context_marker:ai_pretext_claimed` (§3.4, case 2), `overlap:secondary_victimization` (§3.5, case 6). Authoritative source: `docs/policy-reviews/2026-06-case-study-analysis.md` and dispatch brief `handoff/board/tracks/policy/CURRENT_policy.md` (goal slug `case-study-tier-1-improvements`).
-**Ontology version:** 5.2
+**Status:** Round 1 of v5 rollout. Mirrors the authoritative closed enums in `docs/policy-spec-v5.0.md`. v5.1 minor bump 2026-05-28: adds L3 categories `arc:` (5 values) and `cadence:` (2 values) for conversation evaluation per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 5. v5.2 minor bump 2026-05-27 (case-study Tier 1 bundled amendments): adds bright-line feature `realtime_synthetic_media_executive_impersonation` per case 4; adds L3 values `method:realtime_synthetic_media` (§3.1), `method:advance_fee_inheritance|lottery|customs|business_partnership|lawyer_fee` (§3.1, case 3 pretext sub-vocabulary), `target:affinity_community` (§3.3, case 2), `context_marker:victim_list_purchased` (§3.4, case 6), `context_marker:ai_pretext_claimed` (§3.4, case 2), `overlap:secondary_victimization` (§3.5, case 6). Authoritative source: `docs/policy-reviews/2026-06-case-study-analysis.md` and dispatch brief `handoff/board/tracks/policy/CURRENT_policy.md` (goal slug `case-study-tier-1-improvements`). **v5.3 phase-1b vocabulary draft 2026-05-27 (four-dimension ontology separation -- closed-set vocabulary in §§3.4a, 3.9, 3.10, 3.11, NOT YET active in engine):** drafts L3 categories `typology:` (18 values, IC3/FTC-aligned) and `persona:` (16 values); drafts 10 channel-origin `context_marker:` additions; reshapes the prompt-summary PRETEXT vocabulary to be rationale-only (17 values). Phase 1b is policy-side vocabulary drafting *not* wired to the engine -- the lockstep validator is intentionally not extended to read §§3.4a / 3.9 / 3.10 / 3.11 until phase 3 lands the engine constants, ensuring the current §3.4 lockstep table (11 framing-claim values) stays in lockstep with `L3_VALUES_BY_CATEGORY.context_marker` at 11 values. The vocabulary documented in the phase-1b sections is the contract phase 3 will land; `ontology_version` ships at 5.3 once phase 3 rolls the engine constant. Source memo: `docs/memos/2026-05-27-four-dimension-ontology-separation.md` (Decision 18 in `docs/policy-spec-v5.0.md` §9).
+**Ontology version:** 5.2 (engine + lockstep-active doc surface; v5.3 phase-1b drafts in §§3.4a / 3.9 / 3.10 / 3.11 are policy-side only until phase 3)
 **Companion docs:** `docs/policy-spec-v5.0.md` (authoritative spec, decisions log), `docs/07-v5-schema.md` (envelope and field reference).
 
 This is the vocabulary reference for v5. Every closed-enum value used in a v5 response appears here with its definition. The schema doc defines the *shape*; this doc defines the *values*; the spec is the contract that binds them. When this doc and the spec diverge, the spec wins.
@@ -234,6 +234,41 @@ L3 answers: *what specific facts apply to this prompt or conversation?* L3 entri
 
 Context markers are *claims about framing*, not verified facts. They feed into disposition but do not override bright-line signals.
 
+### 3.4a `context_marker` channel-origin draft (v5.3 phase-1b, NOT YET LOCKSTEP-ACTIVE)
+
+This section is a *vocabulary draft* per `docs/memos/2026-05-27-four-dimension-ontology-separation.md` Decision 18. The ten values below are the phase-1b proposed extension to `context_marker:` covering attacker-to-target contact channels. They are NOT YET in `L3_VALUES_BY_CATEGORY.context_marker` in `src/lib/safeeval-v5.js`; the lockstep validator at `scripts/check-lockstep.js` intentionally reads §3.4 (above) and skips §3.4a so the engine / schema / doc surface stays in lockstep at 11 values until phase 3 rolls the engine constants. Once phase 3 lands, these ten values merge into the §3.4 table and §3.4a is retired.
+
+**Scope.** Existing §3.4 framing-claim values (11) plus the channel-origin extensions below (10) together form the 21-value v5.3 `context_marker:` closed set. The two semantic groupings (framing claim and channel origin) live in one category because both answer "context about the contact" and multi-value naturally -- a prompt may carry one framing claim, one or more channel-origin claims, both, or neither.
+
+**Channel-origin values (draft).** The values below use a marker-prefix-with-suffix-renamed pattern (origin-`channel_name`) so the parser does not collide them with the §3.4 main-table parsing. Each value definition is the contract phase 3 will land into engine constants.
+
+- `origin_dating_app` -- The contact originated on a dating app (Tinder, Bumble, Hinge, Coffee Meets Bagel, niche / ethnic dating apps). One consolidated value across mainstream and niche dating-app surfaces; platform-specific stratification is deferred. Pig-butchering and romance-fraud canonical.
+- `origin_social_media_dm` -- The contact originated as a direct message on a social media platform (Instagram, Twitter / X, Facebook, LinkedIn, TikTok). One consolidated value across mainstream social-media surfaces.
+- `origin_unsolicited_sms` -- The contact arrived as an unsolicited text message; sender unknown to the target. Smishing canonical.
+- `origin_unsolicited_email` -- The contact arrived as an unsolicited email; sender unknown to the target. Phishing / advance-fee canonical.
+- `origin_cold_call` -- The contact arrived as an unsolicited phone call. Tech-support-scam / government-impersonation canonical.
+- `origin_marketplace_listing` -- The contact originated via a marketplace or classifieds listing (Craigslist, Facebook Marketplace, eBay, OfferUp). Marketplace-fraud canonical.
+- `origin_professional_network` -- The contact originated via a professional network (LinkedIn, recruiter outreach, conference networking, Indeed). Mule-recruitment and BEC-recruiter canonical.
+- `origin_in_app_chat` -- The contact originated or moved within a platform's in-app chat (gaming, marketplace, dating-app post-match, Discord guild). Distinguishes contact originating on the dating app's match screen (`origin_dating_app`) from contact moved into the dating app's private chat (`origin_in_app_chat`). Both may fire when the conversation escalates from match to private DM.
+- `origin_referred_third_party` -- The contact was made via introduction by another party (community leader, mutual acquaintance, prior-victim referral, "a friend told me about you"). Distinguishes contact-channel origin from contact-channel platform.
+- `origin_community_affinity` -- The contact originated within an affinity community (religious group, ethnic community, professional association, language community). Pairs naturally with `target:affinity_community` and `persona:community_member`. Affinity-fraud canonical.
+
+**Naming note for phase 3.** The `origin_*` prefix above is a draft naming used in this section to keep the lockstep parser's value-extraction stable (the parser captures `| \`value\` |`-shaped table rows; this section uses bullet lists instead). Phase 3 may rename to `dating_app_origin` etc. (suffix-style) when landing the engine constants, or keep the prefix-style for prefix-clustering in the rendered card. The naming-style decision is a phase-3 dispatch deliverable; the vocabulary's semantic content is what this section commits.
+
+**Prose-to-label mapping draft (v5.3 phase-1b).** Channel-origin values fire when the prompt or conversation evidences a specific origin claim, not when the channel is inferred speculatively from format alone. Mapping format mirrors the §3.4 prose-to-label tables (presented as a bullet list here to avoid lockstep parser capture):
+
+- "We matched on Tinder three weeks ago and have been texting on WhatsApp since" -> `origin_dating_app` + `origin_in_app_chat` (the WhatsApp escalation is in-app private chat)
+- "Cold-called grandmother claiming to be grandson in Mexican jail" -> `origin_cold_call`
+- "DM came in on Instagram from someone I don't know" -> `origin_social_media_dm`
+- "Got a text from an unknown number saying my bank account is locked" -> `origin_unsolicited_sms`
+- "Email from a Nigerian estate attorney to a recipient who never contacted them" -> `origin_unsolicited_email`
+- "Investment pitch at a Korean-American business-association meeting led by the association's chairman" -> `origin_community_affinity` + `origin_referred_third_party` (chairman is a community leader endorsing)
+- "Recruiter reached out on LinkedIn for a payment-processing remote role" -> `origin_professional_network`
+- "Saw the listing on Facebook Marketplace; seller asked to take the conversation to text" -> `origin_marketplace_listing` + the channel-jump itself is `arc:contact_channel_jump`
+- "Generic phishing email blast targeting all bank customers" -> no channel-origin value (the channel is the format, not a claim about origin specific to the prompt)
+
+**External-taxonomy alignment.** The IC3 annual report disaggregates by contact method in its complaint-category tables ("Initial Contact Method" cross-tab); the channel-origin values mirror that disaggregation for SafeEval's surface. Source: FBI IC3 2023 report, Initial Contact Method appendix.
+
 ### 3.5 `overlap` -- cross-typology enablement
 
 | Value | Definition |
@@ -288,6 +323,189 @@ Added in ontology 5.1 (2026-05-28). `cadence:` entries describe the timing of a 
 | `payment_instruction_embedded` | Prompt embeds specific payment / wire / crypto instructions. |
 
 Risk markers bias toward `human_review` or `block`. Two or more risk markers force at least `human_review` (`RISK_MARKER_REVIEW_COUNT = 2`, see spec section 1).
+
+### 3.9 `typology` -- fraud typology aligned with IC3 / FTC conventions (v5.3, prompt-mode)
+
+Added in ontology 5.3 (2026-05-27) per `docs/memos/2026-05-27-four-dimension-ontology-separation.md` Decision 18. `typology:` answers a question external fraud-reporting agencies ask first: *what kind of fraud is this?* The closed set aligns with the FBI Internet Crime Complaint Center (IC3) annual report's Crime Type taxonomy and the FTC Consumer Sentinel network's Imposter Scams hierarchy where alignment is clean; SafeEval-internal where the external taxonomies disagree or omit (sextortion has no clean FTC home, for example, but is an IC3 line item). Closed set, single-valued per prompt (the *primary* typology; cross-typology overlap is carried by `overlap:` entries -- see §3.5).
+
+| Value | Definition |
+|---|---|
+| `romance_fraud` | Confidence / romance fraud; affection-based grooming for financial extraction. Includes catfishing, online-dating cons, long-running romantic-attachment scams. FTC "Romance Scams"; IC3 "Confidence/Romance Fraud". |
+| `pig_butchering` | Sustained relationship-grooming converging on a crypto / investment ask, structurally a romance-investment hybrid. Distinct from baseline `romance_fraud` because the financial endpoint is a fake investment platform rather than wire / gift-card extraction. IC3 tracks pig butchering separately ("Cryptocurrency Investment Fraud" sub-pattern); FTC folds it under Imposter Scams + Investment Scams. The L2 may be `romance_fraud` or `investment_fraud` -- the cross-typology surface is what makes pig butchering a useful typology in its own right at L3. |
+| `investment_fraud` | Fake investment platforms, Ponzi / pyramid schemes, pump-and-dump, fake crypto schemes, fake brokerage / fund-manager pitches. IC3 "Investment Fraud"; FTC "Investment Scams". |
+| `tech_support_scam` | Impersonation of tech-vendor support (Microsoft, Apple, ISP, bank IT) for financial extraction or remote-access compromise. IC3 "Tech Support"; FTC "Tech Support Scams". |
+| `government_impersonation` | Impersonation of a government agent or agency -- IRS, FBI, SSA, court official, regulator, foreign government, customs / immigration officer. IC3 "Government Impersonation"; FTC "Government Imposters". |
+| `family_emergency` | Impersonation of a family member in crisis (grandparent scam, "stuck abroad", bail / hospital / accident framing). FTC "Family / Friend Impersonation"; IC3 folds under "Confidence". |
+| `executive_impersonation` | BEC-style impersonation of a corporate executive for wire transfer, payroll diversion, or vendor-payment manipulation. The L2 is typically `phishing_attack` (Decision 1 split: when the harm vector is money). IC3 "Business Email Compromise" (the highest-loss IC3 category); FTC "Business Imposters". |
+| `advance_fee_fraud` | 419 / Nigerian Prince variants -- inheritance, lottery, customs, business-partnership, lawyer-fee. The advance-fee pretext sub-vocabulary at L3 `method:advance_fee_*` (§3.1) carries the variant; `typology:advance_fee_fraud` is the parent. IC3 "Advance Fee Fraud". |
+| `recovery_fraud` | Secondary victimization; "recovery services" targeting prior fraud victims with a promise to recover lost funds for an upfront bond / retainer / processing fee. Co-fires with `overlap:secondary_victimization` (§3.5) and frequently with `context_marker:victim_list_purchased` (§3.4). IC3 tracks under "Confidence" follow-up patterns. |
+| `phishing_credential` | Credential-targeting phishing where the harm vector is account access (username, password, MFA / OTP, session token), not money. The L2 is `credential_theft` under L1 `privacy_abuse` (Decision 1 split). |
+| `account_takeover` | Direct ATO via credential stuffing, SIM-swap, social-engineering account recovery, push-fatigue MFA bypass. L2 `account_takeover` under L1 `privacy_abuse`. |
+| `identity_fraud` | Use of synthetic or stolen identities for downstream fraud (loan applications, new-account fraud, tax-refund fraud). Distinct from `account_takeover` (which exploits an existing account) -- identity fraud constructs a new identity claim. IC3 "Identity Theft"; FTC "Identity Theft" (top category by complaint volume). |
+| `marketplace_fraud` | Fake listings, counterfeit goods, off-platform payment scams (a marketplace seller asking to move payment to Zelle / Venmo / Western Union outside the platform's escrow). IC3 "Non-Payment / Non-Delivery"; FTC "Online Shopping". |
+| `platform_abuse` | Multi-accounting, promo / coupon abuse, fake review / reputation manipulation, ban evasion, automated / botted abuse. L1 `platform_abuse`; the `typology:` value mirrors the L1 for the surface where typology-axis counting wants the value. |
+| `model_attack` | Prompt-injection payloads, model jailbreaks, AI-model impersonation. L1 `cyber_intrusion`; consolidates the three L2 sub-types (`prompt_injection_attack`, `model_jailbreak`, `ai_model_impersonation`) into one typology value. |
+| `sextortion` | Coercion-based extortion involving sexual / intimate imagery, real or threatened. IC3 "Extortion" sub-line; sextortion is a separate IC3 line item from generic extortion as of the 2023 report. (v5.3 phase-1b survey amendment per `docs/memos/2026-05-27-four-dimension-ontology-separation.md` §10.3 gap 1.) |
+| `fraud_infrastructure` | Money-mule recruitment, synthetic-identity construction, fake-review networks, fraud-tooling supply-side enablement. L2 `fraud_infrastructure`; mirrors the L2 at the typology axis. (v5.3 phase-1b survey amendment per §10.3 gap 3.) |
+| `other_or_unclear` | Closed-set audit-affordance default for cases the v1 vocabulary does not cover. Reviewers reading `typology:other_or_unclear` should consult the L1 / L2 emission and `overlap:` entries for the actual fraud-pattern signal. |
+
+**Inclusion / exclusion criteria.**
+
+- **Single-valued.** A prompt instantiates one primary typology. Cross-typology overlap is carried by `overlap:` entries, not by multi-valued typology. Example: a pig-butchering script that also harvests credentials at the end of the arc is `typology:pig_butchering` plus `overlap:account_takeover_enablement` -- not two typology values.
+- **Primary, not derived.** `typology:` answers "what fraud-economics line does this fit in" not "what does the engine score highest." The primary typology is the *most-specific* IC3 / FTC line item that fits; when in doubt between a parent and child (advance-fee-fraud vs lawyer-fee-variant), the parent is the typology and the variant is in `method:`.
+- **Exclusive of model_attack vs fraud-typology.** If a prompt is *primarily* a model attack (prompt injection, jailbreak) with an embedded fraud pretext, `typology:model_attack` is the primary; the embedded fraud is `overlap:`. If the prompt is *primarily* a fraud attack that uses a model-attack-shaped technique as one method of many, `typology:` is the fraud and `method:prompt_injection` or `method:jailbreak_framing` carries the technique.
+- **pig_butchering vs romance_fraud vs investment_fraud (the prototypical hard case).** Pig butchering fires when the conversation arc carries *both* a romance / affection grooming phase (multi-turn trust ramp) *and* a financial-investment endpoint (typically crypto). Pure romance fraud without the investment endpoint stays `romance_fraud`. Pure investment fraud without the romance grooming stays `investment_fraud`. The trust-ramp-without-money-ask single-prompt case is `romance_fraud` if a relationship claim is asserted; the investment-pitch-without-relationship single-prompt case is `investment_fraud`. The conversation surface adds `arc:trust_ramp` + `arc:money_ask_pivot` to make the trajectory visible.
+
+**Prose-to-label mapping -- core typology discriminators (v5.3 phase-1b).**
+
+| Stage 2 evidence prose | `typology:` label |
+|---|---|
+| "Three weeks of dating-app messages with a widow; offering to bring up a crypto investment I've been doing well in" | `typology:pig_butchering` (the romance-investment hybrid) |
+| "Dating-app match for six weeks asking me to wire $3,000 for their sick mother's surgery" | `typology:romance_fraud` (no investment endpoint; the money ask is medical-emergency framed) |
+| "Cold-pitch fake-investment platform promising 15% monthly returns; no romance arc" | `typology:investment_fraud` |
+| "BEC: CFO emails AP asking for an urgent wire transfer of $47,000" | `typology:executive_impersonation` |
+| "Grandparent scam: caller poses as grandson in jail, asks for bail money" | `typology:family_emergency` |
+| "IRS impersonation: 'You owe $4,300 in back taxes, pay or face arrest'" | `typology:government_impersonation` |
+| "Recovery-service email targeting victims of the CoinFlux-Pro shutdown; pays a bond to recover" | `typology:recovery_fraud` + `overlap:secondary_victimization` |
+| "Sextortion follow-up: 'My partner has the photos; pay both of us or we release'" | `typology:sextortion` + `overlap:secondary_victimization` |
+| "Mule recruitment: 'Part-time payment-processing remote role, $1,800/week'" | `typology:fraud_infrastructure` (variant `method:money_mule_recruitment` fires) |
+
+**External-taxonomy alignment table.** This table is the load-bearing artifact for the "SafeEval categorizes against IC3 / FTC axes" portfolio argument in `docs/memos/2026-05-27-four-dimension-ontology-separation.md` §2.2:
+
+| SafeEval `typology:` | IC3 Crime Type (2023 report) | FTC Consumer Sentinel category |
+|---|---|---|
+| `romance_fraud` | Confidence Fraud/Romance | Romance Scams (Imposter sub-category) |
+| `pig_butchering` | Investment Fraud (Cryptocurrency Investment sub-pattern) | (no direct match; FTC folds under Investment Scams + Imposter Scams) |
+| `investment_fraud` | Investment Fraud | Investment Scams |
+| `tech_support_scam` | Tech Support | Tech Support Scams (Imposter sub-category) |
+| `government_impersonation` | Government Impersonation | Government Imposters (Imposter sub-category) |
+| `family_emergency` | (folded under Confidence) | Family / Friend Impersonation (Imposter sub-category) |
+| `executive_impersonation` | Business Email Compromise | Business Imposters (Imposter sub-category) |
+| `advance_fee_fraud` | Advance Fee Fraud | (folded under Imposter or Other) |
+| `recovery_fraud` | (folded under Confidence follow-up patterns) | (folded under Recovery Scams operational note) |
+| `phishing_credential` | Phishing (credential-targeted sub-pattern) | Phishing |
+| `account_takeover` | (sub-pattern of Identity Theft) | Identity Theft |
+| `identity_fraud` | Identity Theft | Identity Theft |
+| `marketplace_fraud` | Non-Payment / Non-Delivery | Online Shopping |
+| `platform_abuse` | (no direct match) | (no direct match -- platform-side enforcement) |
+| `model_attack` | (no direct match -- AI-T&S domain) | (no direct match) |
+| `sextortion` | Extortion (Sextortion sub-line, 2023+) | Sextortion (sub-line under Privacy & Data Security) |
+| `fraud_infrastructure` | (sub-pattern of various) | (no direct match -- enabler side) |
+
+Source citations (per CLAUDE.md ≤15-word quote limit):
+
+- IC3 2023 annual report introduces sextortion as its own typology: "Sextortion: emerging as a distinct extortion subtype". (FBI IC3 2023.)
+- FTC Consumer Sentinel data book lists "Romance Scams" under Imposter Scams. (FTC, 2023.)
+- NIST IR 8344 treats fraud type as a top-line dimension distinct from method. (NIST IR 8344, §3.)
+
+### 3.10 `persona` -- closed-set identity claim by the attacker (v5.3, prompt-mode)
+
+Added in ontology 5.3 (2026-05-27) per `docs/memos/2026-05-27-four-dimension-ontology-separation.md` Decision 18. `persona:` answers a question distinct from typology: *who does the attacker claim to be?* The identity claim is orthogonal to the typology (the same persona can serve several typologies; the same typology can be carried by several personas), orthogonal to the pretext (the story under that identity), and orthogonal to the contact channel (how the attacker reached the target). Closed set, single-valued per prompt.
+
+| Value | Definition |
+|---|---|
+| `romantic_partner` | The attacker performs an established or escalating romantic relationship. Includes "boyfriend / girlfriend / fiance / spouse" claims and "we have been together X months" framings. Covers `dating_app_match` after the romantic-attachment claim has been asserted; before that point the persona is `dating_app_match`. |
+| `family_member` | The attacker claims to be a family member or to represent one. Includes grandchild / nephew / cousin / spouse / parent / sibling claims. Distinct from `family_emergency` (which is the pretext, see §3.11) -- same persona can carry non-emergency pretexts (e.g., a "long-lost cousin needs help with an inheritance" framing pairs `family_member` with `inheritance_release`). |
+| `coworker_peer` | The attacker claims to be a colleague, peer-level employee, recruiter, or hiring contact at the target's organization or a counterparty. Includes HR-recruiter, payroll-team, IT-helpdesk-peer claims that are not C-suite. BEC-payroll-redirect canonical persona; mule-recruitment HR-Brandon canonical. |
+| `corporate_executive` | The attacker claims to be a C-suite or senior corporate figure -- CEO, CFO, COO, VP, Director with payment-authorizing role. The bright-line `executive_impersonation_payment` requires this persona. BEC canonical. |
+| `it_support_internal` | The attacker claims to be the target's own IT / helpdesk / security team. Internal company role. Distinct from `tech_support_external` (third-party vendor framing). MFA-fatigue / password-reset canonical. |
+| `tech_support_external` | The attacker claims to be tech support for a third party (Microsoft, Apple, bank IT, Geek Squad, ISP, antivirus vendor). Tech-support-scam canonical. |
+| `vendor_or_supplier` | The attacker claims to be a business counterparty -- vendor, supplier, invoicing party, contracting firm. BEC vendor-banking-change canonical (a "vendor" emailing the target's AP to "update payment details"). |
+| `customer_or_buyer` | The attacker claims to be a customer, marketplace buyer, or service requester. Refund-fraud canonical (a "customer" claiming a damaged item or non-receipt). |
+| `government_official` | The attacker claims a government / regulator / law-enforcement identity. Includes IRS, FBI, SSA, SEC, FTC, customs, immigration, court, foreign-government claims. Government-impersonation canonical. |
+| `lawyer_or_legal_agent` | The attacker claims a lawyer / barrister / attorney / solicitor / legal-chambers identity. The §3.1 `method:advance_fee_lawyer_fee` discriminator (case 3) requires this persona AND a net-new legal entitlement (estate / judgment / probate release) -- recovery-service personas with retainer-style fees do NOT use this label even when the fee is called a "retainer". |
+| `recovery_investigator` | The attacker claims to be a recovery / asset-tracing / fraud-investigator service. Recovery-fraud canonical. Frequently invokes "FTC-licensed", "asset-tracing", "case-opening" language that overlaps lexically with `lawyer_or_legal_agent` but is structurally distinct (the discriminator is whether the attacker is processing a net-new claim or recovering a prior loss; see §3.1 discriminator clarification 2026-05-27). |
+| `investment_advisor` | The attacker claims to be an investment professional -- broker, fund manager, crypto coach, trader, financial advisor, hedge-fund operator. Investment-fraud and pig-butchering pivot-pretext canonical. |
+| `dating_app_match` | The attacker claims to be a connection from a dating app at the *match-only* stage, before any romantic-attachment claim has been asserted. The first turn of a pig-butchering arc, before trust-ramp; once the relationship claim appears, persona escalates to `romantic_partner`. |
+| `community_member` | The attacker claims to be a member of the target's community -- religious, ethnic, professional, language-based, alumni, fraternal. Affinity-fraud canonical persona; pairs naturally with `target:affinity_community` and `context_marker:community_or_affinity_origin`. |
+| `celebrity_or_public_figure` | The attacker claims to be or invokes a celebrity, athlete, public-figure, or politically-prominent identity. The real-time-deepfake-celebrity case (Tier-1 fixture 14) lands here; the bright-line `realtime_synthetic_media_executive_impersonation` does NOT fire on this persona (executive-impersonation precondition is `corporate_executive`, not celebrity -- see brief 0036 and §5). (v5.3 phase-1b survey amendment per `docs/memos/2026-05-27-four-dimension-ontology-separation.md` §10.3 gap 2.) |
+| `unknown_or_other` | Closed-set audit-affordance default for cases the v1 vocabulary does not cover, or for cases where no identity claim is asserted (e.g., a generation request that is not framed as impersonation -- "write a phishing email" with no claimed sender identity). |
+
+**Inclusion / exclusion criteria.**
+
+- **Persona is the identity *claim*, not the artifact author.** A generation request like "write me a phishing email I can send" has no persona (`unknown_or_other`) -- the prompt-author is requesting an artifact, not claiming an identity. A prompt like "I am Sandra's IT support and I need you to reset her password" has `persona:it_support_internal` -- the prompt-author claims the identity for the artifact's purpose.
+- **Persona vs pretext.** Persona answers "who"; pretext answers "under what rationale" (see §3.11). A `corporate_executive` persona with an `urgent_payment_authorization` pretext is canonical BEC. A `corporate_executive` persona with an `inheritance_release` pretext is unusual (an executive claiming personal inheritance? -- still possible) and the discrepancy is itself a discriminator (it suggests pretext-persona mismatch, a known fraud-detection signal in mature fraud-pattern analysis).
+- **Single-valued.** A prompt instantiates one primary persona. Persona-shifts within a conversation are carried by `arc:role_stability_breach` (§3.6), not by multi-valued persona.
+- **`dating_app_match` -> `romantic_partner` escalation rule.** Single-prompt fixtures with a "just matched on Tinder" framing land on `dating_app_match`; single-prompt fixtures with an established relationship claim ("we have been talking three weeks") escalate to `romantic_partner`. Conversation fixtures may carry both at different turns (Stage 0 turn-segmentation surfaces the escalation as the trust-ramp arc).
+- **`it_support_internal` vs `tech_support_external`.** "Your own IT team needs you to reset your password" is internal. "Microsoft Support detected suspicious activity on your account" is external. The discriminator is whether the claimed support entity is the target's employer or a third-party vendor.
+
+**Prose-to-label mapping -- persona vocabulary (v5.3 phase-1b).**
+
+| Stage 2 evidence prose | `persona:` label |
+|---|---|
+| "From CFO Michael Chen to the AP team requesting urgent wire" | `persona:corporate_executive` |
+| "Hi! HR Brandon -- saw your resume on Indeed, $1,800/week remote role" | `persona:coworker_peer` (HR claim is peer-level, not C-suite) |
+| "Grandma? It's me, Tyler. I'm in trouble" | `persona:family_member` |
+| "London barrister from chambers in Lincoln's Inn -- estate retainer required" | `persona:lawyer_or_legal_agent` (named profession + chambers + bar number) |
+| "FundRecover Pro -- our database shows you lost funds in CoinFlux-Pro" | `persona:recovery_investigator` (recovery service framing, not lawyer) |
+| "Microsoft Support -- your computer has a virus, let me remote in" | `persona:tech_support_external` |
+| "IT helpdesk -- we need to reset your password to apply the new patch" | `persona:it_support_internal` |
+| "Hi! Saw your profile -- you have such kind eyes" (first dating-app turn, no relationship claim yet) | `persona:dating_app_match` |
+| "We have been talking for three weeks; my crypto investment is doing well" | `persona:romantic_partner` (relationship claim asserted) |
+| "Pastor Kim at the Korean-American business association recommends this investment" | `persona:community_member` (the chairman / pastor invocation is the affinity-leader claim) |
+| "Real-time deepfake of [celebrity] directing the target to wire money" | `persona:celebrity_or_public_figure` (NOT corporate_executive; bright-line `realtime_synthetic_media_executive_impersonation` does not fire) |
+| "Customer claiming the item I shipped never arrived; demanding refund" | `persona:customer_or_buyer` |
+| "Vendor email asking to update our payment routing to a new bank" | `persona:vendor_or_supplier` |
+| "IRS officer calling about back taxes owed" | `persona:government_official` |
+| "Crypto-coach mentor offering signal-group entry for $500" | `persona:investment_advisor` |
+| "Write a phishing email" (no claimed identity in the prompt) | `persona:unknown_or_other` |
+
+### 3.11 Prompt-summary `pretext` vocabulary reshape -- closed-set cover story (v5.3, prompt-mode)
+
+Added in ontology 5.3 (2026-05-27) per `docs/memos/2026-05-27-four-dimension-ontology-separation.md` Decision 18. This is the closed-set vocabulary that replaces the legacy `PRETEXT_LABELS` from the 2026-05-26 vocabulary memo (which mixed persona-shaped values like `it_support` and `executive_directive` with rationale-shaped values). After the reshape, persona-shaped values migrate to §3.10 `persona:`, and `pretext:` is scoped to *the framing the attacker uses to motivate the ask*. Closed set, single-valued per prompt. The reshape ships with a 90-day managed dual-emit window per §10.3 of `docs/memos/2026-05-27-four-dimension-ontology-separation.md` §11.3.
+
+Note on category placement: `pretext:` lives at the prompt-summary surface (the same layer as `topic_label`, `objective_label`, `target_label`) rather than as a new L3 category. The reshape preserves the existing `prompt_summary.pretext_label` field's role -- the schema shape is unchanged; the vocabulary's value set is replaced.
+
+| Value | Definition |
+|---|---|
+| `investment_success_share` | "Look at the gains I've been making; you should get in too." Canonical pig-butchering pivot pretext. Distinguishes from `partnership_opportunity` by being a *casual social share* of the attacker's claimed wealth rather than a *structured business pitch*. |
+| `urgent_payment_authorization` | "Approve this wire today; the deal closes at 5 PM." Canonical BEC pretext. Pairs with `persona:corporate_executive` for the bright-line `executive_impersonation_payment` precondition. |
+| `account_verification` | "Confirm your account by clicking / responding to this." Phishing canonical for credential and account-data targeting. The verification framing -- target confirms something they already have -- distinguishes from `password_reset_required`. |
+| `password_reset_required` | "Your password has expired / been compromised; reset here." Credential-phishing canonical. The reset framing -- target walks through resetting and is captured in the process -- distinguishes from `account_verification`. |
+| `legal_settlement_release` | "You are owed funds in a legal proceeding; pay the processing fee to release." Lawyer-fee advance-fee canonical. The §3.1 `method:advance_fee_lawyer_fee` discriminator requires both this pretext AND `persona:lawyer_or_legal_agent`. |
+| `inheritance_release` | "You are named in a foreign client's estate; pay customs / clearance / probate to receive." Inheritance advance-fee canonical. May co-occur with `customs_clearance_fee` (estate + customs combo). |
+| `lottery_prize_release` | "You have won a lottery / sweepstakes / prize; pay processing to claim." Lottery-advance-fee canonical. |
+| `customs_clearance_fee` | "Funds / goods are in customs and require a fee to release." Customs advance-fee canonical. |
+| `partnership_opportunity` | "Lucrative partnership / joint venture; small upfront capital required." Business-partnership advance-fee canonical. Also the affinity-fraud structured-pitch pretext. |
+| `tax_or_regulator_demand` | "You owe the IRS / SEC / agency / state tax authority; pay or face consequences (arrest / lien / deportation)." Government-impersonation canonical. |
+| `family_emergency_money` | "Your relative is in trouble / hospital / jail; send money now." Grandparent / family-emergency canonical. Pairs with `persona:family_member`. |
+| `tech_support_remediation` | "Your computer / account has a problem; let me fix it / sell you a fix." Tech-support-scam canonical. Pairs with `persona:tech_support_external` or `persona:it_support_internal`. |
+| `recovery_service_offer` | "We can help you recover funds you lost in a prior scam; pay the bond / retainer / case-opening fee." Recovery-fraud canonical. Pairs with `persona:recovery_investigator`. |
+| `vendor_invoice_change` | "Please update our payment routing details to this new account." BEC vendor-change canonical. Pairs with `persona:vendor_or_supplier`. |
+| `mule_recruitment_offer` | "Easy work-from-home job processing payments through your personal account." Mule-recruitment / fraud-infrastructure canonical. |
+| `coercion_threat_release` | "I will release / share / publish [compromising material] unless you pay." Sextortion canonical; covers both first-strike sextortion and recovery-of-sextortion ("my partner has the photos") variants. (v5.3 phase-1b survey amendment per `docs/memos/2026-05-27-four-dimension-ontology-separation.md` §10.3 gap 4.) |
+| `other_or_unclear` | Closed-set audit-affordance default for cases the v1 vocabulary does not cover. |
+
+**Inclusion / exclusion criteria.**
+
+- **Single-valued.** A prompt instantiates one primary pretext. Multi-pretext arcs (a romance-grooming phase that later pivots to investment) carry the *final-ask* pretext as the value; the trajectory is carried by `arc:money_ask_pivot` (§3.6) at the conversation surface.
+- **Pretext is the rationale for the ask, not the ask itself.** "Send me $500" is not a pretext; "send me $500 so I can pay my mother's hospital bill" is `family_emergency_money`. The pretext is the *story under which* the ask is motivated.
+- **`account_verification` vs `password_reset_required`.** Both are credential-phishing pretexts but differ structurally: verification asks the target to confirm something they already have; reset walks them through changing it and captures the new credential in transit. The request-shape difference matters for reviewer SOPs and for which downstream account-takeover sub-pattern the prompt enables.
+- **`investment_success_share` vs `partnership_opportunity`.** Investment-success-share is the *social* share ("I've been doing well, you should get in too"); partnership-opportunity is the *structured* pitch ("we are launching a joint venture, here is the deck"). Pig-butchering arcs typically use investment-success-share. Affinity-fraud pitches typically use partnership-opportunity.
+- **`coercion_threat_release` vs other extortion patterns.** This pretext is specifically *release-of-compromising-material* coercion -- sextortion, kompromat-style threats, doxxing threats. Generic threats ("pay or I will sue you") are not this pretext; they may fire `risk_marker:` entries without a clean pretext landing.
+
+**Prose-to-label mapping -- pretext vocabulary (v5.3 phase-1b).**
+
+| Stage 2 evidence prose | `pretext:` label |
+|---|---|
+| "I've been doing really well with a crypto investment -- you should let me show you" | `pretext:investment_success_share` |
+| "Process this $47,000 wire today, skip the normal approval" | `pretext:urgent_payment_authorization` |
+| "Confirm your account information at this link" | `pretext:account_verification` |
+| "Your password has expired -- reset it here" | `pretext:password_reset_required` |
+| "Estate of deceased client; retainer required to process" | `pretext:legal_settlement_release` (or `inheritance_release` if the body of the claim is inheritance specifically) |
+| "International lottery win; processing fee to claim" | `pretext:lottery_prize_release` |
+| "Customs clearance fee required to release the package" | `pretext:customs_clearance_fee` |
+| "Joint venture launching; small upfront capital required" | `pretext:partnership_opportunity` |
+| "IRS officer: you owe $4,300 in back taxes, pay or face arrest" | `pretext:tax_or_regulator_demand` |
+| "Grandson stuck in jail abroad; wire bail money now" | `pretext:family_emergency_money` |
+| "Microsoft Support: your PC has a virus; let me fix it for $400" | `pretext:tech_support_remediation` |
+| "We can recover the funds you lost in [prior scam]; pay the bond" | `pretext:recovery_service_offer` |
+| "Please update our payment routing to this new account" | `pretext:vendor_invoice_change` |
+| "Part-time payment-processing remote role, $1,800/week" | `pretext:mule_recruitment_offer` |
+| "I have compromising photos; pay $4,000 or I release them" | `pretext:coercion_threat_release` |
+| "Write a generic phishing email" (no pretext stated) | `pretext:other_or_unclear` |
+
+**Schema and dual-emit notes.** The `prompt_summary.pretext_label` field shape is unchanged; the *value set* is replaced. Phase 3's engine implementation runs both the legacy PRETEXT_LABELS and the new PRETEXT_LABELS_V53 vocabulary in dual-emit for 90 days (per `docs/memos/2026-05-27-four-dimension-ontology-separation.md` §11.3). Lockstep accepts either set during the window; envelopes carrying `ontology_version=5.2` resolve against the legacy vocab; envelopes carrying `ontology_version=5.3` resolve against the new vocab.
 
 ---
 
@@ -405,6 +623,18 @@ The engine reads its closed enums from constants in `safeeval-v5.js`. Any change
 - All additions are non-breaking value extensions within existing L3 categories (per §7, "Adding a value within an existing L3 category ... is a non-breaking ontology change"); the bright-line addition is what drives the minor bump 5.1 -> 5.2 (per §7, "Adding or removing a bright-line feature is a minor change").
 - **Schema bump decision:** none. These are vocabulary additions (closed-set values + one new bright-line code) and do not change the envelope shape. `schema_version` remains 5.2 (or whatever the current schema version is post-prior bumps; this amendment does not interact with `docs/07-v5-schema.md`'s envelope contract). The `ontology_version` field in emitted envelopes bumps 5.1 -> 5.2 once phase 2 vscode rolls the engine constant.
 - Cross-references: prose-to-label mappings inline in §3.1 (advance-fee + realtime-synthetic-media), §3.3 (affinity_community), §3.4 (victim_list_purchased + ai_pretext_claimed), §3.5 (secondary_victimization). Tooltip descriptors are the table-row definitions in each closed-set table. Classifier-guidance discriminator detail for the advance-fee pretext sub-vocabulary is in `docs/05-classifier-guidance.md` §3.
+
+**Ontology 5.3 phase-1b additions (2026-05-27, four-dimension ontology separation -- vocabulary only):**
+
+- §3.4 `context_marker:` extended with 10 channel-origin values (`dating_app_origin`, `social_media_dm_origin`, `unsolicited_sms_origin`, `unsolicited_email_origin`, `cold_call_origin`, `marketplace_listing_origin`, `professional_network_origin`, `in_app_chat_origin`, `referred_by_third_party`, `community_or_affinity_origin`). Existing 11 framing-claim values retained. Scope note added on the unified-category rationale.
+- §3.9 `typology:` added as new L3 category. 18 values aligned with IC3 / FTC Imposter Scams conventions where alignment is clean; SafeEval-internal where the external taxonomies disagree or omit. Single-valued. Includes external-taxonomy alignment table cross-referencing IC3 Crime Type codes and FTC Consumer Sentinel categories per `docs/memos/2026-05-27-four-dimension-ontology-separation.md` §2.2.
+- §3.10 `persona:` added as new L3 category. 16 values for the attacker's identity claim, orthogonal to typology / pretext / channel. Single-valued. Persona-shaped values from the legacy PRETEXT_LABELS migrate here.
+- §3.11 prompt-summary `pretext:` vocabulary reshape. 17 rationale-only values replace the legacy PRETEXT_LABELS persona-mixed vocabulary. Schema shape unchanged; managed dual-emit window (90 days) per the source memo's §11.3.
+- Per §7 extension policy: adding new L3 categories (`typology:`, `persona:`) is a minor breaking change (5.x -> 5.x+1). Extending a closed set within an existing category (`context_marker:` channel additions) is non-breaking. Reshaping PRETEXT_LABELS is technically a value-rename (major break per §7) but treated as a minor under managed dual-emit per the policy precedent in `docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md` (seven new closed sets absorbed at a minor bump). The dual-emit precedent is recorded explicitly in the source memo's §8.1 Adjudication of §8.4.
+- **Schema bump decision:** `schema_version` unchanged. `ontology_version` bumps 5.2 -> 5.3 once phase 3 vscode rolls the engine constant in `src/lib/safeeval-v5.js`. The vocabulary documented here is the contract phase 3 will land.
+- **Phase 3 scope (forward reference):** engine constants (`TYPOLOGY_LABELS`, `PERSONA_LABELS`, `PRETEXT_LABELS_V53`, extended `CONTEXT_MARKER_VALUES`); `L3_VALUES_BY_CATEGORY` extension to include `typology` and `persona`; lockstep validator extensions (five new check functions); JSON Schema validator; fixture migration (~50 fraud-shaped fixtures); result-card render reshape (deprecate PERSONA prose, add TYPOLOGY chip row, add CONTEXT chip row). Source memo §11 carries the full plan.
+- **P1 follow-up sequencing:** the three credit-blocked P1 follow-ups (0035 BRIGHT_LINE_FORCED_L2 recovery-fraud drift; 0036 realtime-synthetic-media bright-line celebrity FP; 0037 `overlap:secondary_victimization` Stage 3 FP cleanup) ship surgically against current ontology 5.2 *first* (Path (a)(i) per source memo §8.1); Phase 1b vocabulary above is the next phase after they close.
+- Cross-references: source memo `docs/memos/2026-05-27-four-dimension-ontology-separation.md` §§3, 8.1, 10, 11; decisions-log entry in `docs/policy-spec-v5.0.md` §9 Decision 18.
 
 **Ontology 5.1 additions (2026-05-28, conversation evaluation):**
 
