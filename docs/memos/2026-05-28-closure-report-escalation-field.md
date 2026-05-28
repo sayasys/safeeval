@@ -143,6 +143,18 @@ Each question carries the convention's own field as a demo. Per trigger 1 (adver
 
 3. **Recovery path when an auto-chained Phase N+1 produces a surprise.** When the orchestrator auto-chains to Phase N+1 on the strength of `default-accept` open questions in Phase N's closure, and Phase N+1 then surfaces an architectural surprise (a finding that would have required `route-to-steven` if it had been visible at closure), what is the recovery path? Track's tentative recommendation: the surprise auto-escalates with the full chain context (Phase N's closure report + the auto-accept decision + Phase N+1's surprise) as the relay payload to Steven. The orchestrator pauses the chain at the point of surprise, not at the next phase boundary. (escalation: route-to-steven, reason: this is the auto-chaining design's failure-mode-recovery clause, which is exactly the kind of decision the convention's framework floor is supposed to surface — trigger 1 and trigger 3 both fire.)
 
+## 9.1. Adjudication (Steven, 2026-05-28)
+
+Per Steven's max-throughput directive issued same day, all three architect recommendations in §9 are auto-accepted. Each adjudication is recorded verbatim below with a one-line rationale; the architect-track amendment-application dispatch downstream of this memo bakes these decisions into the `§6` / `§6.X` / `§4.9` / `§13` verbatim edits proposed in §8 before they land in `docs/memos/2026-05-24-parallel-cowork-tracks.md` via the pending/0058 commit-bounce.
+
+1. **Q1 (relay shape on `default-accept`) — ACCEPT architect rec.** Orchestrator fires ONE consolidated status update so Steven sees the chain progressing, but NO permission round-trip back to Steven before next phase dispatches. Rationale: the status update is a notification surface for visibility, not a gate; round-tripping would re-introduce the bottleneck the convention is designed to remove.
+
+2. **Q2 (per-question vs per-phase granularity for sub-tracks) — ACCEPT architect rec.** The `escalation:` field is per-question, not per-phase. Rationale: phase boundaries are too coarse and would collapse mixed-severity questions (the same failure mode that ruled out alternative C in §3); per-question gives the orchestrator the granularity it needs to chain or pause cleanly.
+
+3. **Q3 (recovery path on auto-chain surprise) — ACCEPT architect rec.** A surprise in Phase N+1 auto-escalates with the full chain context (Phase N's closure report + the auto-accept decision + Phase N+1's surprise) as the relay payload to Steven; the orchestrator pauses the chain at the point of surprise, not at the next phase boundary. Rationale: this is the failure-mode-recovery clause the convention's framework floor exists to surface; pausing at point-of-surprise preserves blast-radius containment.
+
+Sequencing note: per Steven's adjudication dispatch, the parallel-tracks memo edits in §8 are NOT applied in this turn — that is a separate architect-track amendment-application dispatch fired AFTER bundled commits land, to avoid file conflicts on `docs/memos/2026-05-24-parallel-cowork-tracks.md`. Brief `pending/0058-vscode-commit-fifth-atomic-amendment.md` is updated same turn to note the three adjudications are locked so VS Code can ship the memo with adjudications baked in.
+
 ## 10. Decision log entry (for `docs/policy-spec-v5.0.md` §9 if applicable)
 
 Not applicable. This memo's decisions affect the parallel-tracks framework, not the FAF policy spec. The §13 amendment-log entry in the parallel-tracks memo is the canonical decision-log surface for this amendment.
