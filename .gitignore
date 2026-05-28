@@ -75,6 +75,5 @@ handoff/
 !.claude/settings.json
 
 # Parallel-tracks workflow infrastructure (not part of the portfolio repo)
-docs/memos/2026-05-24-parallel-cowork-tracks.md
 docs/OPERATOR-QUICKSTART.md
 docs/ux/README.md
