@@ -228,7 +228,7 @@ function buildPermissions(matrix: Record<string, string[]>): string {
   const lines: string[] = [];
   lines.push('export const EDITOR_ROLE_PERMISSIONS: Record<EditorRole, ReadonlySet<FieldPath>> = {');
   for (const role of roles) {
-    const fields = matrix[role];
+    const fields = matrix[role] ?? [];
     if (fields.length === 0) {
       lines.push(`  ${role}: new Set<FieldPath>(),`);
     } else {
