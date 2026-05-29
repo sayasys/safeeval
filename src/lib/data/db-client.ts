@@ -73,6 +73,44 @@ export interface PingResult {
   latency_ms: number;
 }
 
+// ---------------------------------------------------------------------------
+// Report-generator row surface. Phase 2 of the report generator adds the
+// reports table (migration M4); this client surface exposes the minimal
+// read/write methods the cache module needs.
+// ---------------------------------------------------------------------------
+
+export type ReportAudienceColumn =
+  | 'reviewer'
+  | 'trust_safety_lead'
+  | 'legal'
+  | 'exec_summary';
+
+export interface InsertReportRow {
+  evaluation_id: string;
+  audience: ReportAudienceColumn;
+  report_prompt_hash: string;
+  markdown: string;
+}
+
+export interface ReportRow {
+  id: string;
+  evaluation_id: string;
+  audience: ReportAudienceColumn;
+  report_prompt_hash: string;
+  markdown: string;
+  generated_at: string;
+  cache_hit_count: number;
+}
+
+export interface EvaluationRow {
+  id: string;
+  envelope: unknown;
+  disposition: 'allow' | 'safe_completion' | 'human_review' | 'block';
+  cache_key: string;
+  ontology_version: string;
+  schema_version: string;
+}
+
 // Subset of SupabaseClient that the data layer actually uses. Defined as an
 // interface so tests can pass a mock without depending on the real SDK shape.
 export interface DbClientSurface {
@@ -80,6 +118,16 @@ export interface DbClientSurface {
   withCustomerContext<T>(customer_id: string, fn: () => Promise<T>): Promise<T>;
   ping(): Promise<PingResult>;
   getRawClient(): SupabaseClient;
+
+  // Report-generator surface (Phase 2 of report-gen track).
+  getEvaluation(evaluation_id: string): Promise<EvaluationRow | null>;
+  getReportRecord(
+    evaluation_id: string,
+    audience: ReportAudienceColumn,
+    report_prompt_hash: string,
+  ): Promise<ReportRow | null>;
+  insertReportRecord(row: InsertReportRow): Promise<ReportRow>;
+  incrementReportCacheHit(report_id: string): Promise<void>;
 }
 
 // Singleton state. The first getClient() call materializes the client; later
@@ -169,6 +217,115 @@ export function makeClient(raw: SupabaseClient): DbClientSurface {
         }
       }
       return fn();
+    },
+
+    async getEvaluation(evaluation_id: string): Promise<EvaluationRow | null> {
+      const { data, error } = await raw
+        .from('evaluations')
+        .select('id, envelope, disposition, cache_key, ontology_version, schema_version')
+        .eq('id', evaluation_id)
+        .maybeSingle();
+      if (error) {
+        throw new DbClientError(`getEvaluation failed: ${error.message}`, { cause: error });
+      }
+      if (!data) return null;
+      return {
+        id: String(data.id),
+        envelope: data.envelope,
+        disposition: data.disposition as EvaluationRow['disposition'],
+        cache_key: data.cache_key,
+        ontology_version: data.ontology_version,
+        schema_version: data.schema_version,
+      };
+    },
+
+    async getReportRecord(
+      evaluation_id: string,
+      audience: ReportAudienceColumn,
+      report_prompt_hash: string,
+    ): Promise<ReportRow | null> {
+      const { data, error } = await raw
+        .from('reports')
+        .select('id, evaluation_id, audience, report_prompt_hash, markdown, generated_at, cache_hit_count')
+        .eq('evaluation_id', evaluation_id)
+        .eq('audience', audience)
+        .eq('report_prompt_hash', report_prompt_hash)
+        .maybeSingle();
+      if (error) {
+        throw new DbClientError(`getReportRecord failed: ${error.message}`, { cause: error });
+      }
+      if (!data) return null;
+      return {
+        id: String(data.id),
+        evaluation_id: String(data.evaluation_id),
+        audience: data.audience as ReportAudienceColumn,
+        report_prompt_hash: data.report_prompt_hash,
+        markdown: data.markdown,
+        generated_at: data.generated_at,
+        cache_hit_count: data.cache_hit_count ?? 0,
+      };
+    },
+
+    async insertReportRecord(row: InsertReportRow): Promise<ReportRow> {
+      const { data, error } = await raw
+        .from('reports')
+        .insert({
+          evaluation_id: row.evaluation_id,
+          audience: row.audience,
+          report_prompt_hash: row.report_prompt_hash,
+          markdown: row.markdown,
+        })
+        .select('id, evaluation_id, audience, report_prompt_hash, markdown, generated_at, cache_hit_count')
+        .single();
+      if (error) {
+        throw new DbClientError(`insertReportRecord failed: ${error.message}`, { cause: error });
+      }
+      if (!data) {
+        throw new DbClientError('insertReportRecord returned no row');
+      }
+      return {
+        id: String(data.id),
+        evaluation_id: String(data.evaluation_id),
+        audience: data.audience as ReportAudienceColumn,
+        report_prompt_hash: data.report_prompt_hash,
+        markdown: data.markdown,
+        generated_at: data.generated_at,
+        cache_hit_count: data.cache_hit_count ?? 0,
+      };
+    },
+
+    async incrementReportCacheHit(report_id: string): Promise<void> {
+      // Two-step read-modify-write. A server-side UPDATE ... SET
+      // cache_hit_count = cache_hit_count + 1 via raw SQL would be atomic but
+      // requires an RPC; the Phase 2 surface uses PostgREST patch semantics.
+      // Race: two concurrent hits can lose an increment. Acceptable for the
+      // analytics-grade counter use case; the cache-effectiveness signal is
+      // directional, not load-bearing.
+      const { data: existing, error: readErr } = await raw
+        .from('reports')
+        .select('cache_hit_count')
+        .eq('id', report_id)
+        .maybeSingle();
+      if (readErr) {
+        throw new DbClientError(
+          `incrementReportCacheHit (read) failed: ${readErr.message}`,
+          { cause: readErr },
+        );
+      }
+      if (!existing) {
+        throw new DbClientError(`incrementReportCacheHit: report id ${report_id} not found`);
+      }
+      const next = (existing.cache_hit_count ?? 0) + 1;
+      const { error: writeErr } = await raw
+        .from('reports')
+        .update({ cache_hit_count: next })
+        .eq('id', report_id);
+      if (writeErr) {
+        throw new DbClientError(
+          `incrementReportCacheHit (write) failed: ${writeErr.message}`,
+          { cause: writeErr },
+        );
+      }
     },
 
     async ping(): Promise<PingResult> {

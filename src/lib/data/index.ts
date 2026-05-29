@@ -36,6 +36,10 @@ export type {
   InsertEvaluationRow,
   InsertEvaluationResult,
   PingResult,
+  EvaluationRow,
+  InsertReportRow,
+  ReportRow,
+  ReportAudienceColumn,
 } from './db-client';
 
 export type {

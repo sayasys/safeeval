@@ -51,6 +51,14 @@ function makeMockClient(overrides: Partial<{
     withCustomerContext,
     ping,
     getRawClient: () => ({} as never),
+    // Report-generator surface methods are not exercised by the persistence
+    // tests; the mock provides no-op stubs so the type contract is satisfied.
+    getEvaluation: vi.fn(async () => null),
+    getReportRecord: vi.fn(async () => null),
+    insertReportRecord: vi.fn(async () => {
+      throw new Error('insertReportRecord not implemented in this mock');
+    }),
+    incrementReportCacheHit: vi.fn(async () => {}),
     capturedRows,
     capturedCustomerIds,
   };
