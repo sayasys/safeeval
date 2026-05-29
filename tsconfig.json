@@ -39,7 +39,9 @@
   },
   "include": [
     "src/lib/data/**/*.ts",
+    "src/lib/report-generators/**/*.ts",
     "tests/data/**/*.ts",
+    "tests/report-generators/**/*.ts",
     "vitest.config.ts",
     ".next/types/**/*.ts"
   ],
