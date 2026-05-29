@@ -38,12 +38,17 @@
     ]
   },
   "include": [
+    "src/lib/auth/**/*.ts",
     "src/lib/data/**/*.ts",
     "src/lib/report-generators/**/*.ts",
     "src/lib/media-detection/**/*.ts",
+    "src/lib/osint/**/*.ts",
+    "src/middleware.ts",
+    "tests/auth/**/*.ts",
     "tests/data/**/*.ts",
     "tests/report-generators/**/*.ts",
     "tests/media-detection/**/*.ts",
+    "tests/osint/**/*.ts",
     "vitest.config.ts",
     ".next/types/**/*.ts"
   ],
