@@ -40,8 +40,10 @@
   "include": [
     "src/lib/data/**/*.ts",
     "src/lib/report-generators/**/*.ts",
+    "src/lib/media-detection/**/*.ts",
     "tests/data/**/*.ts",
     "tests/report-generators/**/*.ts",
+    "tests/media-detection/**/*.ts",
     "vitest.config.ts",
     ".next/types/**/*.ts"
   ],

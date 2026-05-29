@@ -4,7 +4,11 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['tests/data/**/*.test.ts', 'tests/report-generators/**/*.test.ts'],
+    include: [
+      'tests/data/**/*.test.ts',
+      'tests/report-generators/**/*.test.ts',
+      'tests/media-detection/**/*.test.ts',
+    ],
     exclude: ['node_modules', '.next', 'tests/runner*.js', 'tests/unit-*.mjs'],
     reporters: ['default'],
     testTimeout: 10000,
