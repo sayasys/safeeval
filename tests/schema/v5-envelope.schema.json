@@ -39,7 +39,10 @@
     "stage2_prompt_hash": { "$ref": "#/$defs/sha256_hex" },
     "stage3_prompt_hash": { "$ref": "#/$defs/sha256_hex" },
     "stage4_prompt_hash": { "$ref": "#/$defs/sha256_hex" },
-    "cache_key":          { "$ref": "#/$defs/cache_key" }
+    "cache_key":          { "$ref": "#/$defs/cache_key" },
+
+    "media_artifact":         { "$ref": "#/$defs/media_artifact" },
+    "media_detection_result": { "$ref": "#/$defs/media_detection_result" }
   },
 
   "allOf": [
@@ -57,6 +60,32 @@
       "description": "Lowercase sha256 hex digest of the fully assembled per-stage system prompt. v5.1 additive (pipeline optimization proposal). Observational only -- present when the corresponding stage executed; absent when the stage was skipped (Stage 1 short-circuit, Stage 0 parse failure).",
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+
+    "media_artifact": {
+      "description": "Optional synthetic-media input (Demo tier, Phase 1 additive, memo 2026-05-28-synthetic-media-detection-implementation-spec). When present, Stage 0 routes the artifact to src/lib/media-detection/ for HF-based detection (Phase 2 wires it in). Absent on prompt-mode and conversation-mode envelopes. ascii-safe.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "url_or_base64", "mime_type"],
+      "properties": {
+        "type":          { "type": "string", "enum": ["image", "audio", "video"] },
+        "url_or_base64": { "type": "string", "minLength": 1 },
+        "mime_type":     { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "media_detection_result": {
+      "description": "Optional response field populated by the media-detection module when media_artifact was supplied. Phase 1 emits the flat detector-only shape; Phase 2 will add Gemini reasoning fields. error is set when the detector was unreachable or rejected the input; downstream stages MUST degrade gracefully.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["is_synthetic", "confidence", "model_id", "latency_ms"],
+      "properties": {
+        "is_synthetic": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidence":   { "type": "number", "minimum": 0, "maximum": 1 },
+        "model_id":     { "type": "string", "minLength": 1 },
+        "latency_ms":   { "type": "number", "minimum": 0 },
+        "error":        { "type": "string", "minLength": 1 }
+      }
     },
 
     "cache_key": {
