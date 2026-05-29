@@ -28,10 +28,10 @@ const STAGES = [
 
 export default function HowItWorks() {
   return (
-    <section className="py-20 md:py-24">
+    <section className="py-24 bg-cream-100">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="max-w-3xl mb-12">
-          <h2 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">
+        <div className="max-w-3xl mb-16">
+          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
             How it works
           </h2>
           <p className="mt-4 text-lg text-slate-700 leading-relaxed">
@@ -40,14 +40,17 @@ export default function HowItWorks() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="flex flex-col md:flex-row md:items-stretch gap-4 md:gap-3">
           {STAGES.map((stage, i) => (
-            <div key={stage.label} className="relative">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 h-full">
-                <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+            <div
+              key={stage.label}
+              className="relative flex md:flex-1 flex-col md:flex-row items-stretch"
+            >
+              <div className="flex-1 rounded-2xl bg-white p-6 shadow-soft border border-sage-100">
+                <div className="text-xs font-semibold tracking-wide text-sage-700 uppercase">
                   {stage.label}
                 </div>
-                <div className="mt-2 text-lg font-semibold text-slate-900">
+                <div className="mt-2 text-lg font-semibold text-slate-900 tracking-tight">
                   {stage.title}
                 </div>
                 <p className="mt-3 text-sm text-slate-700 leading-relaxed">
@@ -55,12 +58,20 @@ export default function HowItWorks() {
                 </p>
               </div>
               {i < STAGES.length - 1 && (
-                <div
-                  className="hidden md:block absolute top-1/2 -right-2 -translate-y-1/2 text-slate-400 text-2xl select-none"
-                  aria-hidden="true"
-                >
-                  &rarr;
-                </div>
+                <>
+                  <div
+                    className="hidden md:flex items-center justify-center px-1 text-sage-400 text-2xl select-none"
+                    aria-hidden="true"
+                  >
+                    &rarr;
+                  </div>
+                  <div
+                    className="md:hidden flex items-center justify-center py-2 text-sage-400 text-2xl select-none"
+                    aria-hidden="true"
+                  >
+                    &darr;
+                  </div>
+                </>
               )}
             </div>
           ))}

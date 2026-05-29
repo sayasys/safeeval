@@ -15,10 +15,10 @@ const PROBLEM_CARDS = [
 
 export default function Problem() {
   return (
-    <section className="py-20 md:py-24 bg-slate-50">
+    <section className="py-24 bg-cream-50">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="max-w-3xl mb-12">
-          <h2 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">
+        <div className="max-w-3xl mb-16">
+          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
             The problem
           </h2>
           <p className="mt-4 text-lg text-slate-700 leading-relaxed">
@@ -31,9 +31,9 @@ export default function Problem() {
           {PROBLEM_CARDS.map(card => (
             <div
               key={card.title}
-              className="rounded-2xl border border-slate-200 bg-white p-8"
+              className="rounded-3xl bg-white p-8 shadow-soft border border-sage-100"
             >
-              <h3 className="text-xl font-semibold text-slate-900">
+              <h3 className="text-xl font-semibold text-slate-900 tracking-tight">
                 {card.title}
               </h3>
               <p className="mt-4 text-base text-slate-700 leading-relaxed">

@@ -2,11 +2,11 @@ import Link from 'next/link';
 
 export default function Footer() {
   return (
-    <footer className="py-12 border-t border-slate-200 bg-white">
-      <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-sm text-slate-500">
+    <footer className="py-16 bg-cream-100 border-t border-sage-200">
+      <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-sm text-slate-600">
         <Link
           href="https://github.com/sayasys/safeeval"
-          className="hover:text-slate-700"
+          className="hover:text-sage-700 transition-colors"
         >
           GitHub
         </Link>

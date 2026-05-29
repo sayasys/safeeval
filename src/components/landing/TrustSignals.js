@@ -23,10 +23,10 @@ const SIGNALS = [
 
 export default function TrustSignals() {
   return (
-    <section className="py-20 md:py-24 bg-slate-50">
+    <section className="py-16 bg-cream-50">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl mb-12">
-          <h2 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900">
+          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
             Operator-credible by construction
           </h2>
           <p className="mt-4 text-lg text-slate-700 leading-relaxed">
@@ -39,12 +39,12 @@ export default function TrustSignals() {
           {SIGNALS.map(signal => (
             <div
               key={signal.label}
-              className="rounded-2xl border border-slate-200 bg-white p-6"
+              className="rounded-2xl bg-white p-6 shadow-soft border border-sage-100"
             >
-              <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <div className="text-xs font-semibold tracking-wide text-sage-700 uppercase">
                 {signal.label}
               </div>
-              <div className="mt-2 text-2xl font-semibold text-slate-900">
+              <div className="mt-2 text-3xl font-semibold text-sage-700 tracking-tight">
                 {signal.value}
               </div>
               <p className="mt-2 text-sm text-slate-600 leading-relaxed">
