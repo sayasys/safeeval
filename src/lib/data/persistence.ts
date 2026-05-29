@@ -25,6 +25,67 @@
 import { sanitize } from './sanitizer';
 import { getClient, type DbClientSurface, type InsertEvaluationRow } from './db-client';
 import type { V5Envelope, DispositionAction } from './types';
+import {
+  generateReport,
+  IMPLEMENTED_AUDIENCES,
+  type ImplementedAudience,
+  type GenerateReportOptions,
+} from '../report-generators';
+
+const PREGEN_FLAG = 'SAFEEVAL_PREGEN_REPORTS';
+
+export function pregenReportsEnabled(): boolean {
+  return process.env[PREGEN_FLAG] === 'true';
+}
+
+// Audiences pre-generated on block/human_review. Legal is excluded by
+// design: the legal-audience auth-gate refuses any call without
+// unredacted_access=true, so firing it from the background hook would burn
+// API budget for guaranteed gate-refusal. Phase 3 wires the legal-audience
+// auth-gate on the READ path, at which point the legal report can be pre-
+// generated unconditionally if Steven wants the pay-once / amortize-reads
+// behavior described in the implementation spec section 4.3. Phase 2 keeps
+// the four non-legal audiences only.
+const PREGEN_AUDIENCES: readonly ImplementedAudience[] =
+  IMPLEMENTED_AUDIENCES.filter((a) => a !== 'legal');
+
+async function pregenOneReport(
+  evaluation_id: string,
+  audience: ImplementedAudience,
+  client: DbClientSurface,
+): Promise<void> {
+  try {
+    const opts: GenerateReportOptions = {
+      source: 'pre_gen',
+      dbClient: client,
+    };
+    await generateReport(evaluation_id, audience, opts);
+  } catch (err) {
+    // Fire-and-forget semantics per spec section 4.1. The data-track post-
+    // write hook surfaces failures on the observation channel; persistence
+    // itself never throws on a report-gen failure. console.error mirrors
+    // the wire-up.ts pattern.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `pregen report failed (evaluation_id=${evaluation_id}, audience=${audience}):`,
+      message,
+    );
+  }
+}
+
+function triggerPregenReports(
+  evaluation_id: string,
+  disposition: DispositionAction,
+  client: DbClientSurface,
+): void {
+  if (!pregenReportsEnabled()) return;
+  if (disposition !== 'block' && disposition !== 'human_review') return;
+  // Fire-and-forget. Each per-audience call has its own try-catch so a
+  // single audience failure does not cancel the rest.
+  for (const audience of PREGEN_AUDIENCES) {
+    void pregenOneReport(evaluation_id, audience, client);
+  }
+}
 
 // FIELD_RECONCILIATION
 //   JSON-Schema envelope path                  -> DB column
@@ -217,6 +278,10 @@ export async function persistEvaluation(
     const { evaluation_id } = await client.withCustomerContext(customer_id, () =>
       client.insertEvaluation(row),
     );
+    // Post-write hook: pre-generate reports for block / human_review when
+    // SAFEEVAL_PREGEN_REPORTS=true. Fire-and-forget; never blocks the
+    // caller and never converts a successful persist into a failure.
+    triggerPregenReports(evaluation_id, disposition_action, client);
     return { evaluation_id };
   } catch (err) {
     if (err instanceof PersistError) throw err;

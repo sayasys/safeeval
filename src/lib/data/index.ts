@@ -10,6 +10,7 @@ export {
   persistEvaluation,
   PersistError,
   KMSNotImplementedError,
+  pregenReportsEnabled,
 } from './persistence';
 export type {
   PersistOptions,
