@@ -7,8 +7,9 @@ export default function Problem() {
             The problem
           </h2>
           <p className="mt-8 text-2xl md:text-3xl font-medium tracking-tight text-slate-800 leading-snug">
-            Fraud is one of the clearest near-term harms generative AI scales.
-            Most trust and safety tooling wasn't built for it. SafeEval is.
+            Fraud is one of the clearest near-term harms that generative AI
+            scales &mdash; and most trust and safety tools weren't built for it.
+            SafeEval was.
           </p>
           <p className="mt-8 text-lg text-slate-700 leading-relaxed">
             Existing trust and safety frameworks were designed for platform
