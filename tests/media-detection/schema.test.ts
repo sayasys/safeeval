@@ -19,7 +19,17 @@ interface SchemaDef {
   type?: string;
   additionalProperties?: boolean;
   required?: string[];
-  properties?: Record<string, { type?: string | string[]; enum?: string[]; minimum?: number; maximum?: number; minLength?: number }>;
+  properties?: Record<string, {
+    type?: string | string[];
+    enum?: string[];
+    minimum?: number;
+    maximum?: number;
+    minLength?: number;
+    items?: { type?: string; minLength?: number };
+    properties?: Record<string, { type?: string | string[]; enum?: string[]; minimum?: number; maximum?: number; minLength?: number; const?: string }>;
+    required?: string[];
+    additionalProperties?: boolean;
+  }>;
 }
 
 const schemaPath = resolve(process.cwd(), 'tests/schema/v5-envelope.schema.json');
@@ -109,6 +119,43 @@ describe('envelope schema -- regression guards', () => {
     const kinds = raw.$defs.input.oneOf.map((arm) => arm.properties.kind.const);
     expect(kinds).toContain('prompt');
     expect(kinds).toContain('conversation');
+  });
+});
+
+describe('envelope schema -- media_detection_result Phase 2 additive fields', () => {
+  it('defines optional reasoning sub-field with the closed-set verdict vocabulary', () => {
+    const def = schema.$defs.media_detection_result;
+    if (!def) throw new Error('media_detection_result def missing');
+    const props = def.properties;
+    if (!props) throw new Error('media_detection_result properties missing');
+    const reasoning = props.reasoning;
+    if (!reasoning) throw new Error('reasoning sub-field missing');
+    expect(reasoning.type).toBe('object');
+    expect(reasoning.additionalProperties).toBe(false);
+    expect(reasoning.required).toEqual(['verdict', 'confidence', 'reasoning', 'model_id']);
+    const subProps = reasoning.properties;
+    if (!subProps) throw new Error('reasoning properties missing');
+    expect(subProps.verdict!.enum).toEqual(['likely_synthetic', 'likely_real', 'still_ambiguous']);
+    expect(subProps.confidence!.minimum).toBe(0);
+    expect(subProps.confidence!.maximum).toBe(1);
+    expect(subProps.reasoning!.minLength).toBe(1);
+    expect(subProps.model_id!.minLength).toBe(1);
+    // reasoning is NOT in the required list (only present when ambiguous-band
+    // fallback fired).
+    expect(def.required).not.toContain('reasoning');
+  });
+
+  it('defines optional reason_codes_emitted as an array of non-empty strings', () => {
+    const def = schema.$defs.media_detection_result;
+    if (!def) throw new Error('media_detection_result def missing');
+    const props = def.properties;
+    if (!props) throw new Error('media_detection_result properties missing');
+    const list = props.reason_codes_emitted;
+    if (!list) throw new Error('reason_codes_emitted missing');
+    expect(list.type).toBe('array');
+    expect(list.items!.type).toBe('string');
+    expect(list.items!.minLength).toBe(1);
+    expect(def.required).not.toContain('reason_codes_emitted');
   });
 });
 
