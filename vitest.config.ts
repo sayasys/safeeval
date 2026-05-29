@@ -10,6 +10,7 @@ export default defineConfig({
       'tests/report-generators/**/*.test.ts',
       'tests/media-detection/**/*.test.ts',
       'tests/osint/**/*.test.ts',
+      'tests/feedback/**/*.test.ts',
     ],
     exclude: ['node_modules', '.next', 'tests/runner*.js', 'tests/unit-*.mjs'],
     reporters: ['default'],

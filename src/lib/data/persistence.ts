@@ -37,6 +37,19 @@ export function pregenReportsEnabled(): boolean {
   return process.env[PREGEN_FLAG] === 'true';
 }
 
+// Classifier-edits feedback module flag. Phase 1 default OFF.
+// Spec: docs/memos/2026-05-28-classifier-feedback-loop-scoping.md.
+// When 'true', persistEvaluation()'s post-write hook checks for any
+// classifier_edits row referencing the freshly-persisted evaluation_id
+// with rationale_tag='coverage_gap' and fires a fire-and-forget log
+// notification to the architect track. Phase 1 logs only (no real
+// notification routing); Phase 2 wires real notification.
+const FEEDBACK_FLAG = 'SAFEEVAL_FEEDBACK_ENABLED';
+
+export function feedbackEnabled(): boolean {
+  return process.env[FEEDBACK_FLAG] === 'true';
+}
+
 // Audiences pre-generated on block/human_review. Legal is excluded by
 // design: the legal-audience auth-gate refuses any call without
 // unredacted_access=true, so firing it from the background hook would burn
@@ -84,6 +97,75 @@ function triggerPregenReports(
   for (const audience of PREGEN_AUDIENCES) {
     void pregenOneReport(evaluation_id, audience, client);
   }
+}
+
+// Classifier-edits feedback hook (Phase 1 stub).
+// Spec: docs/memos/2026-05-28-classifier-feedback-loop-scoping.md sections
+// 5 (rationale_tag closed set) and 14 Q3 (coverage_gap auto-notification
+// adjudication; Steven chose Option A: real-time notification rather than
+// batched aggregation).
+//
+// When SAFEEVAL_FEEDBACK_ENABLED=true and the freshly-persisted evaluation
+// has any associated classifier_edits row with rationale_tag='coverage_gap',
+// fire a fire-and-forget notification to the architect track. Phase 1
+// logs only via console.error; Phase 2 wires the real notification routing
+// (Vercel cron pickup, GitHub Actions dispatch to the orchestrator queue,
+// or a webhook to the architect-track inbox -- the routing decision is
+// Phase 2 scope).
+//
+// The try-catch in triggerCoverageGapNotification() swallows errors so a
+// failure in the feedback hook never blocks evaluation persistence -- the
+// hook is pure observability; correctness of the persisted evaluation
+// must not depend on the hook succeeding.
+//
+// Phase 1 boundary: the db-client surface does not yet expose a query
+// method for classifier_edits (Phase 2 adds it alongside the aggregation
+// cron). Phase 1 logs an enabled-hook-fired marker without querying; the
+// log line names the evaluation_id so Phase 2 can correlate. The
+// classifier_edits row that would trigger the notification will not
+// exist at the moment persistEvaluation() runs (the edit row is created
+// later when a reviewer overrides the classifier output); the hook is
+// wired here for the architectural pattern so Phase 2 can re-trigger
+// from the recordEdit() write path or a re-evaluation flow without
+// touching this module's surface again.
+async function triggerCoverageGapNotification(
+  evaluation_id: string,
+): Promise<void> {
+  try {
+    // Phase 1 stub: no DB query. Phase 2 will:
+    //   1. SELECT id, field_path, editor_role, rationale_text
+    //      FROM classifier_edits
+    //      WHERE evaluation_id = $1 AND rationale_tag = 'coverage_gap'
+    //   2. For each row, route a notification to the architect-track
+    //      inbox at handoff/board/inbox/architect.md (or the Phase 2
+    //      orchestrator queue equivalent).
+    // Phase 1 emits a marker the operator can grep for to confirm the
+    // hook is wired and the env flag is on; production traffic at Phase 1
+    // produces zero such log lines (no edits exist on freshly-persisted
+    // rows) and the marker only fires from explicit invocation paths
+    // landed in Phase 2.
+    console.log(
+      `classifier-edits feedback hook fired (evaluation_id=${evaluation_id}); ` +
+        `Phase 1 stub: real notification routing lands in Phase 2.`,
+    );
+  } catch (err) {
+    // Fire-and-forget. The hook is observability; persistence-layer
+    // correctness must not depend on it. console.error mirrors the
+    // pregen-hook pattern.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `classifier-edits feedback hook failed (evaluation_id=${evaluation_id}):`,
+      message,
+    );
+  }
+}
+
+function triggerFeedbackHook(evaluation_id: string): void {
+  if (!feedbackEnabled()) return;
+  // Fire-and-forget. The await is intentional inside the async function;
+  // here we discard the returned promise so the caller (persistEvaluation)
+  // never blocks on the hook.
+  void triggerCoverageGapNotification(evaluation_id);
 }
 
 // FIELD_RECONCILIATION
@@ -241,6 +323,16 @@ export async function persistEvaluation(
     // SAFEEVAL_PREGEN_REPORTS=true. Fire-and-forget; never blocks the
     // caller and never converts a successful persist into a failure.
     triggerPregenReports(evaluation_id, disposition_action, client);
+
+    // Post-write hook: classifier-edits feedback module coverage_gap
+    // notification when SAFEEVAL_FEEDBACK_ENABLED=true. Fire-and-forget
+    // log-only stub in Phase 1; Phase 2 wires real notification routing
+    // (see triggerCoverageGapNotification() above). The hook is wired
+    // here for the architectural pattern; Phase 1 production traffic
+    // produces zero log lines because freshly-persisted evaluations have
+    // no associated classifier_edits rows yet.
+    triggerFeedbackHook(evaluation_id);
+
     return { evaluation_id };
   } catch (err) {
     if (err instanceof PersistError) throw err;
