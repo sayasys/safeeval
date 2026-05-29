@@ -6,7 +6,7 @@ Built to demonstrate the policy-to-classifier-to-product loop a fraud policy ana
 
 **Start here:** [Policy review case study — eight real fraud cases run through the v5 ontology; three improvements flagged, two shipped, one structural follow-up open](./docs/policy-reviews/index.md)
 
-**Live app:** [safeeval.vercel.app](https://safeeval.vercel.app)
+**Live app:** [safeeval.vercel.app](https://safeeval.vercel.app) — the home page is a landing surface; the v5 evaluator UI lives at [/evaluator](https://safeeval.vercel.app/evaluator).
 
 Mechanically, each input runs through five stages: Stage 0 turn parser (normalizing single prompts and multi-turn conversations), Stage 1 L1 domain triage on Haiku, Stage 2 FAF deep analysis on Sonnet (node attributes, component scores, bright-line indicators), Stage 3 L3 tag set plus disposition and reason codes, and Stage 4 a deterministic rule cascade that adjudicates dispositions and routes uncertain cases to human review. Schema v5.1, ontology v5.2: closed-set L1/L2 vocabularies, prefix-categorized L3 tags, fifteen bright-line indicators, four-verb disposition vocabulary (`allow`, `safe_completion`, `human_review`, `block`).
 
@@ -37,7 +37,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The app listens on `http://localhost:3000`. The single API route is `POST /api/evaluate` and takes `{ prompt: string }`; see `src/app/api/evaluate/route.js` for the shape. The classifier engine is `src/lib/safeeval-v5.js`; the docs/code lockstep validator is `scripts/check-lockstep.js` and runs in CI.
+The app listens on `http://localhost:3000` -- the home page is the marketing landing surface; the v5 evaluator UI is at `http://localhost:3000/evaluator`. The single API route is `POST /api/evaluate` and takes `{ prompt: string }`; see `src/app/api/evaluate/route.js` for the shape. The classifier engine is `src/lib/safeeval-v5.js`; the docs/code lockstep validator is `scripts/check-lockstep.js` and runs in CI.
 
 On Windows with OneDrive, run `git config core.filemode false` after cloning to suppress phantom executable-bit flips in `git status`.
 
