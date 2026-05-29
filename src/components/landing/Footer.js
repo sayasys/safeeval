@@ -11,7 +11,7 @@ export default function Footer() {
           GitHub
         </Link>
         <p className="text-center md:text-left">
-          Built end-to-end with Claude and Cursor as engineering surface.
+          Built end-to-end with Claude and Cursor.
         </p>
         <p>(c) 2026 Steven Sayasy. SafeEval is portfolio work, not a published standard.</p>
       </div>

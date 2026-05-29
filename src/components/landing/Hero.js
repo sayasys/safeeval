@@ -10,9 +10,9 @@ export default function Hero() {
               An AI safeguard built like trust &amp; safety actually works.
             </h1>
             <p className="mt-8 text-xl text-slate-700 leading-relaxed max-w-2xl">
-              Write the fraud policy, ship it as a versioned classifier, run real
-              cases through it, and turn every reviewer override into a structured
-              improvement.
+              Write a fraud policy. Ship it as a working product. Run real cases
+              through it. Treat every reviewer override as a signal the policy
+              should learn from.
             </p>
 
             <div className="mt-10 flex flex-col sm:flex-row gap-4">
@@ -23,7 +23,7 @@ export default function Hero() {
                 Try a demo
               </Link>
               <Link
-                href="https://github.com/sayasys/safeeval/blob/main/docs/policy-reviews/index.md"
+                href="/case-study"
                 className="inline-flex items-center justify-center rounded-full border-2 border-sage-300 text-slate-800 hover:bg-sage-50 px-8 py-3.5 text-base font-medium transition-colors"
               >
                 Read the case study

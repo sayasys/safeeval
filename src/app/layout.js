@@ -9,7 +9,7 @@ const inter = Inter({
 
 export const metadata = {
   title: 'SafeEval -- AI trust & safety policy framework',
-  description: 'An AI trust & safety policy framework, demonstrated through fraud and scams enforcement. Built on the Fraud Analysis Framework (FAF).',
+  description: 'An AI safeguard for fraud and scams. Write the policy. Ship a working classifier. Run real cases. Turn reviewer feedback into the next policy update.',
 };
 
 export default function RootLayout({ children }) {

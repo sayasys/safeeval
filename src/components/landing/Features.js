@@ -2,26 +2,24 @@ import Link from 'next/link';
 
 const FEATURES = [
   {
-    title: 'Versioned classifier',
-    body: 'Closed-set vocabularies, lockstep-verified policy-to-code surface, audit metadata on every evaluation. The classifier is the policy in executable form.',
-    href:
-      'https://github.com/sayasys/safeeval/blob/main/docs/memos/2026-05-24-parallel-cowork-tracks.md',
-    linkLabel: 'Framework memo',
+    title: 'A policy you can ship',
+    body: "The fraud policy and the live product never drift apart. An automated check enforces it on every commit, and every classification is traceable back to the rule that fired.",
+    href: '/product',
+    linkLabel: 'How the product works',
     icon: 'shield',
   },
   {
-    title: 'Policy-to-product loop',
-    body: 'Write the policy. Ship the classifier. Run real cases. Ship improvements grounded in what the cases surfaced -- not what a clean test set predicted.',
-    href: 'https://github.com/sayasys/safeeval/blob/main/docs/policy-reviews/index.md',
+    title: 'Live cases shape the next update',
+    body: 'Write the policy. Ship the product. Run real cases. Improvements come from what real cases surfaced, not from a neat textbook set.',
+    href: '/case-study',
     linkLabel: 'Read the case study',
     icon: 'loop',
   },
   {
-    title: 'Reviewer feedback',
-    body: 'Every override becomes structured supervision signal. The classifier-feedback loop closes back into the policy track without a separate retraining pipeline.',
-    href:
-      'https://github.com/sayasys/safeeval/blob/main/docs/memos/2026-05-28-classifier-feedback-loop-scoping.md',
-    linkLabel: 'Feedback-loop scoping',
+    title: 'Reviewer feedback feeds the policy',
+    body: 'Every override becomes a signal we can learn from. Reviewer feedback flows back into the policy without a separate retraining step.',
+    href: '/product',
+    linkLabel: 'How feedback works',
     icon: 'spark',
   },
 ];
@@ -82,8 +80,7 @@ export default function Features() {
             What it gives you
           </h2>
           <p className="mt-4 text-lg text-slate-700 leading-relaxed">
-            Three load-bearing properties, each tied to an artifact you can
-            inspect.
+            Three properties you can see in the live product.
           </p>
         </div>
 

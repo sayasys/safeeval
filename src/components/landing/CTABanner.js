@@ -9,8 +9,8 @@ export default function CTABanner() {
             Try the demo, or read the work.
           </h2>
           <p className="mt-6 text-lg text-slate-700 leading-relaxed">
-            The evaluator runs on the live v5 classifier. The case study walks
-            through eight real fixtures and what they surfaced.
+            The evaluator runs the live classifier. The case study walks through
+            eight real fraud cases and what they surfaced.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
@@ -21,7 +21,7 @@ export default function CTABanner() {
               Try a demo
             </Link>
             <Link
-              href="https://github.com/sayasys/safeeval/blob/main/docs/policy-reviews/index.md"
+              href="/case-study"
               className="inline-flex items-center justify-center rounded-full border-2 border-sage-300 text-slate-800 hover:bg-sage-50 px-8 py-3.5 text-base font-medium transition-colors"
             >
               Read the case study

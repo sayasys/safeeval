@@ -1,28 +1,28 @@
 const STAGES = [
   {
     label: 'Stage 0',
-    title: 'Turn parser',
-    body: 'Normalizes single prompts and multi-turn conversations into a stage-1 input.',
+    title: 'Read the input',
+    body: 'Handles single prompts and back-and-forth conversations, and gets them ready for the next step.',
   },
   {
     label: 'Stage 1',
     title: 'Triage',
-    body: 'L1 domain triage on Haiku; fast path for clearly benign and clearly risky cases.',
+    body: 'A fast first pass that sorts the clearly safe and clearly risky cases.',
   },
   {
     label: 'Stage 2',
-    title: 'FAF analysis',
-    body: 'Sonnet runs the Fraud Analysis Framework -- node attributes, component scores, bright-line indicators.',
+    title: 'Analyze',
+    body: 'A deeper model walks the case through the fraud policy and scores it against the patterns the product never allows.',
   },
   {
     label: 'Stage 3',
-    title: 'Classification',
-    body: 'Closed-set L3 tag set; disposition recommendation; structured reason codes.',
+    title: 'Classify',
+    body: 'Picks tags from a fixed list, names a recommended action, and writes down the reasons.',
   },
   {
     label: 'Stage 4',
-    title: 'Cascade',
-    body: 'Deterministic rule cascade adjudicates the disposition; uncertain cases route to human review.',
+    title: 'Decide',
+    body: 'A simple rule pipeline reads the analysis and decides what to do. Uncertain cases go to a human reviewer.',
   },
 ];
 
@@ -35,8 +35,8 @@ export default function HowItWorks() {
             How it works
           </h2>
           <p className="mt-4 text-lg text-slate-700 leading-relaxed">
-            Five stages, each with a defined job. The cascade at the end is the
-            policy surface; the stages before it produce the evidence.
+            Five stages, each with a defined job. The last stage is where the
+            rules live; the earlier stages produce what the rules read.
           </p>
         </div>
 

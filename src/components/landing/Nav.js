@@ -12,19 +12,13 @@ export default function Nav() {
         </Link>
 
         <div className="hidden md:flex items-center gap-8 text-sm text-slate-700">
-          <Link href="/evaluator" className="hover:text-slate-900 transition-colors">
+          <Link href="/product" className="hover:text-slate-900 transition-colors">
             Product
           </Link>
-          <Link
-            href="https://github.com/sayasys/safeeval/tree/main/docs"
-            className="hover:text-slate-900 transition-colors"
-          >
-            Docs
+          <Link href="/evaluator" className="hover:text-slate-900 transition-colors">
+            Evaluator
           </Link>
-          <Link
-            href="https://github.com/sayasys/safeeval/blob/main/docs/policy-reviews/index.md"
-            className="hover:text-slate-900 transition-colors"
-          >
+          <Link href="/case-study" className="hover:text-slate-900 transition-colors">
             Case study
           </Link>
           <Link
@@ -41,7 +35,7 @@ export default function Nav() {
           <span
             className="hidden md:inline-block bg-slate-100 text-slate-400 rounded-full px-5 py-2 text-sm cursor-not-allowed select-none"
             aria-disabled="true"
-            title="Sign up arrives with SaaS Phase 1"
+            title="Sign up coming soon"
           >
             Sign up
           </span>
