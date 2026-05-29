@@ -95,18 +95,36 @@ export interface Source {
 // observed_at_source is null for sources that do not publish a timestamp;
 // normalize.ts then falls back to fetched_at and marks the timestamp
 // approximate in the normalized record.
+//
+// fetcher_version is the SHA-256 of the source-module fetcher logic, set by
+// index.ts fetchAllSources() and threaded through normalize() onto the
+// ThreatSignal record. Phase 2 added it per sec memo section 4 audit
+// metadata extension; the field is optional here so test fixtures and
+// hand-built signals do not need to supply a hash.
 export interface RawSignal {
   source: SourceId;
   signal_type: SignalType;
   observed_at_source: string | null; // ISO 8601 if present in source response
   fetched_at: string;                // ISO 8601, always populated
   payload: unknown;                  // source-native shape
+  fetcher_version?: string;          // SHA-256 of fetcher logic, set in index.ts
 }
 
 // Uniform downstream shape after normalize.ts runs. The normalized.* fields
 // are the minimum surface the classifier and the dashboard queries read; the
-// raw response stays in raw_payload for analyst replay per the sec memo
-// section 4 source_response_hash de-duplication story (deferred to Phase 2).
+// raw response stays in raw_payload for analyst replay.
+//
+// Audit metadata (Phase 2, sec memo section 4):
+//   - fetcher_version: SHA-256 of source-module fetcher logic at fetch time.
+//     Threaded through from RawSignal.fetcher_version. Lets a forensic query
+//     answer "what fetcher logic produced this row?" without reconstructing
+//     the deployment's source tree at the historical commit.
+//   - source_response_hash: SHA-256 of raw_payload. Three uses:
+//     (a) de-duplication of identical signals across cron cycles,
+//     (b) replay -- re-classify without re-fetching, and
+//     (c) forensic correlation of multiple signals from one upstream response.
+//   The pair lands on every signal at normalize() time; classifier_prompt_hash
+//   lives on ClassificationResult because it is set later in the pipeline.
 export interface ThreatSignal {
   source: SourceId;
   signal_type: SignalType;
@@ -114,6 +132,8 @@ export interface ThreatSignal {
   fetched_at: string;          // ISO 8601, always populated
   raw_payload: unknown;        // source-native shape, stored as JSONB
   normalized: NormalizedFields;
+  fetcher_version: string;     // SHA-256 of fetcher logic (M9)
+  source_response_hash: string; // SHA-256 of raw_payload (M9)
 }
 
 // The narrow extracted-field surface defined in scoping memo section 2.2.
@@ -144,13 +164,28 @@ export interface NormalizedFields {
 // proposal_status default; rows written without classify.ts running land
 // in pending_classification and stay there until a real classifier runs.
 export type ClassificationVerdict =
-  | 'pending_classification'    // Phase 1 stub state
+  | 'pending_classification'    // Phase 1 stub state; Phase 2 API-unreachable fallback
   | 'known_ttp'
   | 'new_ttp_proposed'
   | 'low_signal_dismissed';
+
+// Phase 2 added classifier_prompt_hash (SHA-256 of the assembled prompt at
+// classification time) per sec memo section 4. Nullable because (a) the stub
+// path emits no prompt, and (b) M9 declares the column NULLable so signals
+// rerouted before classification can persist legibly.
+//
+// suggested_l3_entry is populated only when classification = 'new_ttp_proposed'.
+// The classifier proposes a candidate L3 entry; the architect adjudicates.
+export interface SuggestedL3Entry {
+  method: string;
+  tactic: string;
+  target: string;
+}
 
 export interface ClassificationResult {
   classification: ClassificationVerdict;
   confidence: Confidence;
   reasoning: string;
+  classifier_prompt_hash: string | null;
+  suggested_l3_entry?: SuggestedL3Entry;
 }

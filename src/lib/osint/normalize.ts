@@ -21,6 +21,7 @@
 // fetchers -- but the extraction logic is tested against fixture payloads
 // at Phase 1 so the contract is locked.
 
+import { createHash } from 'node:crypto';
 import {
   NormalizedFields,
   RawSignal,
@@ -41,6 +42,15 @@ const EMPTY_NORMALIZED: NormalizedFields = {
 
 // Public entry point. Source-specific extraction lives in the per-source
 // helpers below; this dispatcher routes on raw.source.
+//
+// Audit metadata (Phase 2, sec memo section 4):
+//   - source_response_hash: SHA-256 of the JSON-stringified raw payload.
+//     Canonical-JSON stringification means two byte-identical responses
+//     produce the same hash (the canonical form ignores ECMAScript object
+//     key-insertion order). Used downstream for de-dup at ingest.
+//   - fetcher_version: threaded through from RawSignal where index.ts set
+//     it; defaults to 'unknown' when callers (e.g. tests) hand-build a
+//     RawSignal without the field.
 export function normalize(raw: RawSignal): ThreatSignal {
   const observed_at = raw.observed_at_source ?? raw.fetched_at;
   return {
@@ -50,7 +60,32 @@ export function normalize(raw: RawSignal): ThreatSignal {
     fetched_at: raw.fetched_at,
     raw_payload: raw.payload,
     normalized: extractFields(raw.source, raw.payload),
+    fetcher_version: raw.fetcher_version ?? 'unknown',
+    source_response_hash: computeSourceResponseHash(raw.payload),
   };
+}
+
+// SHA-256 over a canonical JSON serialization of the payload. The canonical
+// form (sorted object keys, no whitespace) ensures the hash is stable across
+// key-insertion ordering and JSON whitespace variation -- the same source
+// response produces the same hash on every cycle, which is the load-bearing
+// property for de-duplication and replay (sec memo section 4 use cases a/b).
+export function computeSourceResponseHash(payload: unknown): string {
+  return createHash('sha256').update(canonicalJson(payload)).digest('hex');
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) {
+    return '[' + value.map(canonicalJson).join(',') + ']';
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return (
+    '{' +
+    keys.map((k) => JSON.stringify(k) + ':' + canonicalJson(obj[k])).join(',') +
+    '}'
+  );
 }
 
 function extractFields(source: SourceId, payload: unknown): NormalizedFields {

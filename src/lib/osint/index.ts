@@ -20,6 +20,7 @@
 // Phase 1 does not wire the persistence half; the M7 migration ships in this
 // phase but the dbClient surface and the cron orchestrator are deferred.
 
+import { createHash } from 'node:crypto';
 import { classify } from './classify';
 import { normalize } from './normalize';
 import { bleepingComputer } from './sources/bleeping-computer';
@@ -52,11 +53,22 @@ export function getSources(): readonly Source[] {
   return SOURCES;
 }
 
+// SHA-256 of the source-module fetcher logic. Per sec memo section 4 audit
+// metadata, the hash is stamped on every signal so a forensic query can
+// answer "what fetcher code produced this row?" without reconstructing the
+// historical source tree. We hash source.fetch.toString() so the value
+// changes when the fetcher logic changes, independent of build pipeline.
+export function computeFetcherVersion(source: Source): string {
+  return createHash('sha256')
+    .update(source.id + '\n' + source.fetch.toString())
+    .digest('hex');
+}
+
 // Invokes every source's fetch() and concatenates the RawSignal arrays.
 // Source-level failures are caught so one bad fetcher cannot poison the
 // whole cycle; the failing source is logged via console.error and skipped.
-// Phase 2 may upgrade this to a structured per-source failure record so
-// the digest can surface persistent fetcher errors.
+// Phase 2 stamps each RawSignal with the source's fetcher_version so the
+// downstream M9 column lands a value on every persisted row.
 export async function fetchAllSources(): Promise<RawSignal[]> {
   const settled = await Promise.allSettled(SOURCES.map((s) => s.fetch()));
   const out: RawSignal[] = [];
@@ -65,7 +77,10 @@ export async function fetchAllSources(): Promise<RawSignal[]> {
     const source = SOURCES[i];
     if (!result || !source) continue;
     if (result.status === 'fulfilled') {
-      out.push(...result.value);
+      const version = computeFetcherVersion(source);
+      for (const sig of result.value) {
+        out.push({ ...sig, fetcher_version: version });
+      }
     } else {
       const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
       console.error(`[osint] source ${source.id} fetch failed: ${reason}`);
@@ -103,5 +118,6 @@ export type {
   Source,
   SourceConfig,
   SourceId,
+  SuggestedL3Entry,
   ThreatSignal,
 } from './types';
