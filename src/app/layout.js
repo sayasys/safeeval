@@ -1,4 +1,11 @@
+import { Inter } from 'next/font/google';
 import './globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata = {
   title: 'SafeEval -- AI trust & safety policy framework',
@@ -7,8 +14,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className="bg-gray-50 text-gray-900 antialiased">{children}</body>
+    <html lang="en" className={inter.variable}>
+      <body className="bg-cream-50 text-slate-800 font-sans antialiased">{children}</body>
     </html>
   );
 }
