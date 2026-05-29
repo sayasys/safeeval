@@ -115,14 +115,14 @@ describe('maybePersistEvaluation: flag on, persist succeeds', () => {
     mockedPersist.mockResolvedValue({ evaluation_id: 'eval_42' });
   });
 
-  it('invokes persistEvaluation with kms.skip=true', async () => {
+  it('invokes persistEvaluation with no kms option (Tier A zero-storage)', async () => {
     const envelope = makeEnvelope();
     await maybePersistEvaluation('raw input', envelope);
     expect(mockedPersist).toHaveBeenCalledTimes(1);
     const [calledEnvelope, calledRaw, calledOpts] = mockedPersist.mock.calls[0]!;
     expect(calledEnvelope).toBe(envelope);
     expect(calledRaw).toBe('raw input');
-    expect(calledOpts).toEqual({ kms: { skip: true } });
+    expect(calledOpts).toEqual({});
   });
 
   it('populates envelope.evaluation_id with the returned id', async () => {

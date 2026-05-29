@@ -1,15 +1,15 @@
 // Public API surface for src/lib/data/.
 //
 // Phase 1 exposes the sanitizer and its types. Phase 2 adds persistEvaluation
-// (write-path orchestrator) and the db-client wrapper. Phase 3 will replace
-// the stub KMS branch in persistence.ts with a real call to a KMS module.
+// (write-path orchestrator) and the db-client wrapper. PII zero-storage Tier A
+// (memo 2026-05-28) dropped the KMS branch entirely; the sanitized envelope is
+// the single source of truth.
 
 export { sanitize, SANITIZER_VERSION } from './sanitizer';
 
 export {
   persistEvaluation,
   PersistError,
-  KMSNotImplementedError,
   pregenReportsEnabled,
 } from './persistence';
 export type {

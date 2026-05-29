@@ -59,9 +59,6 @@ export interface InsertEvaluationRow {
   disposition: 'allow' | 'safe_completion' | 'human_review' | 'block';
   aggregate_score: number | null;
   pii_redaction_log: unknown;                              // JSONB
-  unredacted_payload_kms_ciphertext: Buffer | null;
-  unredacted_payload_encrypted_dek: Buffer | null;
-  unredacted_payload_kms_key_id: string | null;
 }
 
 export interface InsertEvaluationResult {

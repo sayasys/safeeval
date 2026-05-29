@@ -217,9 +217,11 @@ export async function POST(request) {
     // pipeline saw, capped to PROMPT_LENGTH_MAX for the preview field.
     const previewText = describeConversationForStore(input.conversation, v5Result);
     const id = safeStore(previewText, v5Result);
-    // Persist the conversation envelope. For Phase 4 / 2 (kms.skip=true) the
-    // rawInput argument is unused inside persistEvaluation; we pass the JSON
-    // representation so Phase 3's KMS path has a faithful raw payload to encrypt.
+    // Persist the conversation envelope. The rawInput argument is retained
+    // on the persistEvaluation signature for caller compatibility but is
+    // unused inside the function (PII zero-storage Tier A dropped the KMS
+    // branch). The JSON serialization is left in place to keep parity with
+    // the prompt-path caller.
     const rawConvJson = (() => {
       try { return JSON.stringify(input.conversation); } catch { return previewText; }
     })();

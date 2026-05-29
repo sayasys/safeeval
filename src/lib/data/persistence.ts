@@ -1,16 +1,15 @@
-// Write-path orchestrator for SafeEval persistence (Phase 2).
+// Write-path orchestrator for SafeEval persistence.
 //
 // Spec: docs/memos/2026-05-28-data-track-implementation-spec.md section 5.
 // Q3 adjudication: docs/memos/compl/2026-05-28-pii-access-posture.md (fail-stop
 // on any sub-step error; no partial writes).
+// PII zero-storage Tier A: docs/memos/2026-05-28-pii-zero-storage-scoping.md.
+// The KMS branch was dropped per Tier A -- SafeEval does not store unredacted
+// PII; the sanitized envelope is the single source of truth.
 //
 // Sequence:
-//   1. Sanitize the engine envelope (PII redaction). Phase 1.
-//   2. Encrypt the raw input via KMS. Phase 3 deferral: Phase 2 either stores
-//      null (kms.skip === true, the default) or throws KMSNotImplementedError
-//      (kms.skip === false). DO NOT write a fake ciphertext: that would create
-//      a reviewer-escalation gap that Q3 explicitly forbids.
-//   3. Insert into the evaluations table via the Supabase db-client.
+//   1. Sanitize the engine envelope (PII redaction).
+//   2. Insert into the evaluations table via the Supabase db-client.
 //
 // Fail-stop. If any step throws, the persist is aborted; no partial state is
 // written. The error carries a typed code naming the step that failed plus
@@ -101,18 +100,14 @@ function triggerPregenReports(
 //   envelope.evidence.aggregate_score (nested) -> aggregate_score
 //   (sanitizer output)                         -> envelope (JSONB)
 //   (sanitizer output)                         -> pii_redaction_log (JSONB)
-//   (Phase 3 KMS output, null in Phase 2)      -> unredacted_payload_kms_ciphertext
-//   (Phase 3 KMS output, null in Phase 2)      -> unredacted_payload_encrypted_dek
-//   (Phase 3 KMS output, null in Phase 2)      -> unredacted_payload_kms_key_id
 
 export type PersistErrorCode =
   | 'SANITIZER_FAILURE'
-  | 'KMS_NOT_IMPLEMENTED'
   | 'DB_FAILURE'
   | 'INVALID_ENVELOPE';
 
 export interface PersistErrorContext {
-  step: 'sanitize' | 'kms' | 'insert' | 'validate';
+  step: 'sanitize' | 'insert' | 'validate';
   code: PersistErrorCode;
   cache_key?: string | undefined;
   stage2_prompt_hash?: string | undefined;
@@ -136,27 +131,8 @@ export class PersistError extends Error {
   }
 }
 
-// Phase 2 stub. Throws when callers opt into real KMS by passing kms.skip=false.
-// Phase 3 replaces the throw with a real call into kms.ts.
-export class KMSNotImplementedError extends Error {
-  override readonly name = 'KMSNotImplementedError';
-  constructor() {
-    super(
-      'KMS integration is deferred to Phase 3. Pass options.kms.skip = true to ' +
-        'persist with a null ciphertext column, or wait for the Phase 3 dispatch.',
-    );
-  }
-}
-
 export interface PersistOptions {
   customer_id?: string;
-  kms?: {
-    // Default true in Phase 2: persistence writes a null ciphertext column.
-    // When Phase 3 lands and a caller opts in (skip=false), the real KMS path
-    // fires; until then, skip=false explicitly throws KMSNotImplementedError so
-    // no caller silently writes fake ciphertext.
-    skip?: boolean;
-  };
   // Test seam: allow tests to inject a mock db-client without poking the
   // module-level singleton. Production callers do not pass this.
   dbClient?: DbClientSurface;
@@ -168,12 +144,14 @@ export interface PersistResult {
 
 export async function persistEvaluation(
   envelope: V5Envelope,
+  // rawInput is retained on the signature for caller compatibility but is
+  // intentionally unused: Tier A (PII zero-storage) removed the KMS branch
+  // that previously consumed it. See module header.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   rawInput: string,
   options: PersistOptions = {},
 ): Promise<PersistResult> {
   const customer_id = options.customer_id ?? 'self';
-  const kmsSkip = options.kms?.skip ?? true;
 
   // ---------------------------------------------------------------
   // Step 0: validate the envelope's required hoist fields.
@@ -233,27 +211,11 @@ export async function persistEvaluation(
     );
   }
 
-  // ---------------------------------------------------------------
-  // Step 2: KMS. Phase 2 stub.
-  //   - kms.skip === true (default): store null ciphertext.
-  //   - kms.skip === false: throw KMSNotImplementedError. Phase 3 replaces this
-  //     branch with a real call to kms.encryptEnvelope(rawInput).
-  // No silent fake-ciphertext path; see Q3 adjudication.
-  // The rawInput parameter is intentionally unused in Phase 2; Phase 3 will
-  // pass it through to kms.encryptEnvelope().
-  // ---------------------------------------------------------------
-  let unredacted_payload_kms_ciphertext: Buffer | null = null;
-  let unredacted_payload_encrypted_dek: Buffer | null = null;
-  let unredacted_payload_kms_key_id: string | null = null;
-
-  if (!kmsSkip) {
-    throw new KMSNotImplementedError();
-  }
   // Reference rawInput so strict noUnusedParameters / lint does not flag it.
   void rawInput;
 
   // ---------------------------------------------------------------
-  // Step 3: INSERT via db-client. Fail-stop on DB errors.
+  // Step 2: INSERT via db-client. Fail-stop on DB errors.
   // ---------------------------------------------------------------
   const row: InsertEvaluationRow = {
     customer_id,
@@ -268,9 +230,6 @@ export async function persistEvaluation(
     disposition: disposition_action,
     aggregate_score: extractAggregateScore(envelope),
     pii_redaction_log: redaction_log,
-    unredacted_payload_kms_ciphertext,
-    unredacted_payload_encrypted_dek,
-    unredacted_payload_kms_key_id,
   };
 
   const client = options.dbClient ?? getClient();

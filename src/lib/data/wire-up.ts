@@ -8,15 +8,15 @@
 //
 // Phase 4 ships persistence dark behind SAFEEVAL_PERSIST_EVALUATIONS. With the
 // flag off (the default everywhere -- local dev, CI, current Vercel), this is
-// a no-op. With the flag on, the v5 envelope and raw input are written to the
-// evaluations table via persistEvaluation(). On success, the canonical DB id
-// is attached to v5Result.evaluation_id. On failure, the error is logged and
-// the field is omitted -- no null sentinel that downstream callers would have
-// to special-case.
+// a no-op. With the flag on, the v5 envelope is written to the evaluations
+// table via persistEvaluation(). On success, the canonical DB id is attached
+// to v5Result.evaluation_id. On failure, the error is logged and the field is
+// omitted -- no null sentinel that downstream callers would have to
+// special-case.
 //
-// KMS remains stubbed (Phase 3 deferred per Steven's call on 2026-05-28). The
-// kms.skip=true option in persistEvaluation stores a null ciphertext column;
-// when Phase 3 lands we flip the option and the encrypted DEK bundle is written.
+// PII zero-storage Tier A (memo 2026-05-28) dropped the KMS branch from
+// persistence: the sanitized envelope is the single source of truth and the
+// rawInput parameter is retained for caller compatibility only.
 
 import { persistEvaluation } from './persistence';
 import type { V5Envelope } from './types';
@@ -41,9 +41,7 @@ export async function maybePersistEvaluation(
 ): Promise<void> {
   if (!persistEvaluationsEnabled()) return;
   try {
-    const { evaluation_id } = await persistEvaluation(v5Result, rawInput, {
-      kms: { skip: true },
-    });
+    const { evaluation_id } = await persistEvaluation(v5Result, rawInput, {});
     if (evaluation_id) v5Result.evaluation_id = evaluation_id;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

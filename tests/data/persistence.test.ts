@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   persistEvaluation,
   PersistError,
-  KMSNotImplementedError,
 } from '../../src/lib/data/persistence';
 import type {
   DbClientSurface,
@@ -226,51 +225,6 @@ describe('persistEvaluation: field reconciliation', () => {
     expect(row?.stage2_prompt_hash).toBeNull();
     expect(row?.stage3_prompt_hash).toBeNull();
     expect(row?.stage4_prompt_hash).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// KMS stub semantics (Phase 2 deferral)
-// ---------------------------------------------------------------------------
-
-describe('persistEvaluation: KMS stub', () => {
-  it('default kms.skip=true stores null ciphertext columns', async () => {
-    const client = makeMockClient();
-    await persistEvaluation(makeEnvelope(), 'raw input', { dbClient: client });
-    const row = client.capturedRows[0];
-    expect(row?.unredacted_payload_kms_ciphertext).toBeNull();
-    expect(row?.unredacted_payload_encrypted_dek).toBeNull();
-    expect(row?.unredacted_payload_kms_key_id).toBeNull();
-  });
-
-  it('explicit kms.skip=true also stores null ciphertext columns', async () => {
-    const client = makeMockClient();
-    await persistEvaluation(makeEnvelope(), 'raw input', {
-      dbClient: client,
-      kms: { skip: true },
-    });
-    expect(client.capturedRows[0]?.unredacted_payload_kms_ciphertext).toBeNull();
-  });
-
-  it('throws KMSNotImplementedError when kms.skip is false', async () => {
-    const client = makeMockClient();
-    await expect(
-      persistEvaluation(makeEnvelope(), 'raw input', {
-        dbClient: client,
-        kms: { skip: false },
-      }),
-    ).rejects.toBeInstanceOf(KMSNotImplementedError);
-  });
-
-  it('does not write a row when KMS path errors (Q3 fail-stop)', async () => {
-    const client = makeMockClient();
-    await expect(
-      persistEvaluation(makeEnvelope(), 'raw input', {
-        dbClient: client,
-        kms: { skip: false },
-      }),
-    ).rejects.toBeDefined();
-    expect(client.insertEvaluation).not.toHaveBeenCalled();
   });
 });
 
