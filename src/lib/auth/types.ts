@@ -19,6 +19,14 @@ export interface User {
   display_name: string | null;
   // ISO 8601.
   created_at: string;
+  // Coarse access role, set MANUALLY by ops in the auth provider's
+  // admin-only metadata (Supabase app_metadata.role) per the legal-report
+  // access runbook (docs/runbooks/legal-report-access.md). Provider-agnostic:
+  // the field is a plain string here, not a Supabase shape. Absent/null for
+  // ordinary users; 'pii_reviewer' grants legal-audience report access and
+  // 'admin' grants force-regeneration. Phase 4+ replaces the manual
+  // assignment with real RBAC.
+  role?: string | null;
 }
 
 export interface Organization {

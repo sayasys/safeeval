@@ -37,18 +37,33 @@ function extractAccessToken(cookies: CookieReaderLike): string | null {
 interface SupabaseAuthUserShape {
   id: string;
   email?: string | null;
-  user_metadata?: { display_name?: string | null; full_name?: string | null } | null;
+  user_metadata?: {
+    display_name?: string | null;
+    full_name?: string | null;
+    role?: string | null;
+  } | null;
+  // app_metadata is admin-only-writable in Supabase Auth -- the correct home
+  // for an ops-assigned access role (a user cannot self-escalate). See the
+  // legal-report access runbook.
+  app_metadata?: { role?: string | null } | null;
   created_at?: string | null;
 }
 
 function mapAuthUserToUser(raw: SupabaseAuthUserShape): User {
   const meta = raw.user_metadata ?? {};
   const display = meta.display_name ?? meta.full_name ?? null;
+  // Prefer the admin-only app_metadata.role; fall back to user_metadata.role
+  // only for local-dev convenience. Surfaced onto User for the legal-report
+  // auth gate (src/lib/report-generators/legal-auth-gate.ts). Attached only
+  // when present so the ordinary-user mapped shape stays {auth_user_id,
+  // email, display_name, created_at}.
+  const role = raw.app_metadata?.role ?? meta.role ?? null;
   return {
     auth_user_id: raw.id,
     email: raw.email ?? '',
     display_name: display,
     created_at: raw.created_at ?? new Date(0).toISOString(),
+    ...(role ? { role } : {}),
   };
 }
 

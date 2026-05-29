@@ -108,6 +108,36 @@ export interface EvaluationRow {
   schema_version: string;
 }
 
+// ---------------------------------------------------------------------------
+// Legal-access audit log surface (report-gen Phase 3, migration M10).
+//
+// Every legal-audience report access attempt -- granted OR denied -- writes a
+// row to legal_access_log. The denied rows are the security-review surface
+// ("user X attempted legal access at time T"); the granted rows are the
+// chain-of-custody record the legal audience itself documents.
+//
+// The write is best-effort from the gate's perspective (a logging failure
+// must not convert a denied access into a granted one), but the db-client
+// surface itself throws on error so the caller can decide.
+// ---------------------------------------------------------------------------
+
+export interface InsertLegalAccessLogRow {
+  // auth_user_id of the caller. May be null for an unauthenticated attempt
+  // that reached the gate (the middleware normally blocks these with a 401,
+  // so a null here is itself worth recording).
+  user_id: string | null;
+  evaluation_id: string;
+  // Always 'legal' in Phase 3; the column is extensible for future audiences
+  // that adopt the same audit-gate pattern.
+  audience: 'legal';
+  granted: boolean;
+  // Populated on a denied access (e.g. the presented role); null on grant.
+  denied_reason: string | null;
+  // Deferred audit field; left null in Phase 3. The route does not yet thread
+  // the caller IP through to the gate.
+  ip_address?: string | null;
+}
+
 // Subset of SupabaseClient that the data layer actually uses. Defined as an
 // interface so tests can pass a mock without depending on the real SDK shape.
 export interface DbClientSurface {
@@ -125,6 +155,9 @@ export interface DbClientSurface {
   ): Promise<ReportRow | null>;
   insertReportRecord(row: InsertReportRow): Promise<ReportRow>;
   incrementReportCacheHit(report_id: string): Promise<void>;
+
+  // Legal-access audit log (report-gen Phase 3, migration M10).
+  insertLegalAccessLog(row: InsertLegalAccessLogRow): Promise<void>;
 }
 
 // Singleton state. The first getClient() call materializes the client; later
@@ -321,6 +354,23 @@ export function makeClient(raw: SupabaseClient): DbClientSurface {
         throw new DbClientError(
           `incrementReportCacheHit (write) failed: ${writeErr.message}`,
           { cause: writeErr },
+        );
+      }
+    },
+
+    async insertLegalAccessLog(row: InsertLegalAccessLogRow): Promise<void> {
+      const { error } = await raw.from('legal_access_log').insert({
+        user_id: row.user_id,
+        evaluation_id: row.evaluation_id,
+        audience: row.audience,
+        granted: row.granted,
+        denied_reason: row.denied_reason,
+        ip_address: row.ip_address ?? null,
+      });
+      if (error) {
+        throw new DbClientError(
+          `insertLegalAccessLog failed: ${error.message}`,
+          { cause: error },
         );
       }
     },
