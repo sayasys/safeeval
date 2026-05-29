@@ -1,7 +1,7 @@
 # SafeEval v5 -- Ontology Reference
 
 **Status:** Round 1 of v5 rollout. Mirrors the authoritative closed enums in `docs/policy-spec-v5.0.md`. v5.1 minor bump 2026-05-28: adds L3 categories `arc:` (5 values) and `cadence:` (2 values) for conversation evaluation per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 5. v5.2 minor bump 2026-05-27 (case-study Tier 1 bundled amendments): adds bright-line feature `realtime_synthetic_media_executive_impersonation` per case 4; adds L3 values `method:realtime_synthetic_media` (§3.1), `method:advance_fee_inheritance|lottery|customs|business_partnership|lawyer_fee` (§3.1, case 3 pretext sub-vocabulary), `target:affinity_community` (§3.3, case 2), `context_marker:victim_list_purchased` (§3.4, case 6), `context_marker:ai_pretext_claimed` (§3.4, case 2), `overlap:secondary_victimization` (§3.5, case 6). Authoritative source: `docs/policy-reviews/2026-06-case-study-analysis.md` and dispatch brief `handoff/board/tracks/policy/CURRENT_policy.md` (goal slug `case-study-tier-1-improvements`). **v5.3 phase-1b vocabulary draft 2026-05-27 (four-dimension ontology separation -- closed-set vocabulary in §§3.4a, 3.9, 3.10, 3.11, NOT YET active in engine):** drafts L3 categories `typology:` (18 values, IC3/FTC-aligned) and `persona:` (16 values); drafts 10 channel-origin `context_marker:` additions; reshapes the prompt-summary PRETEXT vocabulary to be rationale-only (17 values). Phase 1b is policy-side vocabulary drafting *not* wired to the engine -- the lockstep validator is intentionally not extended to read §§3.4a / 3.9 / 3.10 / 3.11 until phase 3 lands the engine constants, ensuring the current §3.4 lockstep table (11 framing-claim values) stays in lockstep with `L3_VALUES_BY_CATEGORY.context_marker` at 11 values. The vocabulary documented in the phase-1b sections is the contract phase 3 will land; `ontology_version` ships at 5.3 once phase 3 rolls the engine constant. Source memo: `docs/memos/2026-05-27-four-dimension-ontology-separation.md` (Decision 18 in `docs/policy-spec-v5.0.md` §9).
-**Ontology version:** 5.2 (engine + lockstep-active doc surface; v5.3 phase-1b drafts in §§3.4a / 3.9 / 3.10 / 3.11 are policy-side only until phase 3; v5.2.1 patch-bump drafts in §§3.12 / 3.13 are policy-side only until pipeline-optimization phase 2; v5.2.2 patch-bump §3.14 audience vocabulary is lockstep-active against the downstream `src/lib/report-generators/` module via `checkAudienceLockstep`, separate from the engine `ONTOLOGY_VERSION` surface which remains at 5.2)
+**Ontology version:** 5.2 (engine + lockstep-active doc surface; v5.3 phase-1b drafts in §§3.4a / 3.9 / 3.10 / 3.11 are policy-side only until phase 3; v5.2.1 patch-bump drafts in §§3.12 / 3.13 are policy-side only until pipeline-optimization phase 2; v5.2.2 patch-bump §3.14 audience vocabulary is lockstep-active against the downstream `src/lib/report-generators/` module via `checkAudienceLockstep`, separate from the engine `ONTOLOGY_VERSION` surface which remains at 5.2; v5.2.3 patch-bump §§3.15 / 3.16 / 3.17 classifier-edits feedback vocabulary is lockstep-active against the downstream `src/lib/feedback/` module via `checkEditableFieldsLockstep` / `checkRationaleTagLockstep` / `checkEditorRoleLockstep`, also separate from the engine `ONTOLOGY_VERSION` surface which remains at 5.2)
 **Companion docs:** `docs/policy-spec-v5.0.md` (authoritative spec, decisions log), `docs/07-v5-schema.md` (envelope and field reference).
 
 This is the vocabulary reference for v5. Every closed-enum value used in a v5 response appears here with its definition. The schema doc defines the *shape*; this doc defines the *values*; the spec is the contract that binds them. When this doc and the spec diverge, the spec wins.
@@ -662,6 +662,116 @@ The vocabulary is closed; additions require policy-track scoping work analogous 
 
 ---
 
+### 3.15 `field_path` (closed-set vocabulary, v5.2.3, classifier-edits feedback module)
+
+The `field_path` vocabulary is the closed set of envelope fields a reviewer is permitted to edit through the classifier-edits feedback module (`src/lib/feedback/`). Each value identifies a single classifier-emitted field that may be overridden via `recordEdit()`; the aggregation cron clusters consistent overrides into amendment proposals routed to the architect track. Like §3.14 `audience`, this vocabulary participates in lockstep against a downstream module (`src/lib/feedback/`) rather than against the engine `ONTOLOGY_VERSION` constant -- the feedback surface is downstream-consumer and does not ride on the envelope.
+
+The vocabulary is closed; additions require policy-track scoping work analogous to a new L1 typology. `audit_metadata.*` and `pii_redaction_log` are explicitly NOT editable (see "Explicitly NOT editable" below); editing audit_metadata would break the replay surface, and editing the redaction log would inject sanitizer-error signals into a corpus that should reflect what the sanitizer actually produced. Raw input fields do not exist in the persisted envelope per the PII zero-storage Tier A decision (`docs/memos/2026-05-28-pii-zero-storage-scoping.md`); even if they did, editing user-submitted text would change the meaning of every other classifier field that referenced it.
+
+**Editable fields (closed set, 15 entries):**
+
+| field_path | What it represents | Edit semantics |
+|---|---|---|
+| `l1.category` | L1 domain assignment (one of 7 closed-set values per §1) | `modify` only; before / after are L1 enum values |
+| `l2.subcategory` | L2 risk pattern (closed-set per L1 per §2) | `modify` only; before / after are L2 enum values valid under the current L1 |
+| `l3.method` | L3 `method:` value (open vocabulary per §3.1) | `add` / `remove` / `modify` |
+| `l3.tactic` | L3 `tactic:` value (open vocabulary per §3.2) | `add` / `remove` / `modify` |
+| `l3.target` | L3 `target:` value (open vocabulary per §3.3) | `add` / `remove` / `modify` |
+| `l3.overlap` | L3 `overlap:` value (open vocabulary per §3.5) | `add` / `remove` / `modify` |
+| `reason_codes` | Indexed reason-code slot. Callers pass `reason_codes[N]` at runtime; the permission gate and closed-set check normalize to the bare `reason_codes` form. The aggregation cron preserves the original indexed path. | `add` (at index N), `remove` (at index N), `modify` (at index N) |
+| `disposition.action` | Stage 4 four-verb disposition (closed-set per §4) | `modify` only; before / after are in (`allow`, `safe_completion`, `human_review`, `block`) |
+| `evidence.aggregate_score` | Stage 4 aggregate score in `[0, 1]` | `modify` only; before / after are numbers |
+| `evidence.component_scores.target` | Component score for the target dimension | `modify` only; before / after are numbers in `[0, 3]` |
+| `evidence.component_scores.lure` | Component score for the lure dimension | same as target |
+| `evidence.component_scores.trust` | Component score for the trust dimension | same as target |
+| `evidence.component_scores.extract` | Component score for the extract dimension | same as target |
+| `evidence.component_scores.evade` | Component score for the evade dimension | same as target |
+| `persona.claimed` | Stage 4 persona claim (closed-set per §3.10 v5.3 draft) | `modify` only; before / after are persona enum values |
+
+**Explicitly NOT editable:**
+
+- `audit_metadata.*` -- provenance is immutable. The Stage 1-4 prompt hashes, the cache key, the ontology / schema versions, the engine timestamp -- none can be edited. Modifying audit_metadata would break the replay surface and create a class of evaluations whose recorded state diverges from the engine's actual output. The reviewer who needs to override audit_metadata is asking the wrong question; the right path is to re-run the engine against the new prompt revision, which produces a new evaluation row.
+- `pii_redaction_log` -- sanitizer output, not classifier output. Editing the redaction log retroactively would inject sanitizer-error signals into a corpus that should reflect what the sanitizer actually produced. If the sanitizer was wrong, the right fix is to revise the sanitizer and re-process.
+
+**Lockstep coverage.** The 15 editable values above are mirrored byte-for-byte in `src/lib/feedback/types.ts` (the `FIELD_PATHS` constant); the lockstep validator at `scripts/check-lockstep.js` extends with `checkEditableFieldsLockstep`, which: (a) parses the 15 field-path names from this §3.15 table, (b) extracts the `FIELD_PATHS` constant from `src/lib/feedback/types.ts`, (c) asserts set equality. Failure messages name this section as canonical and direct fixes at the code, not the doc.
+
+---
+
+### 3.16 `rationale_tag` (closed-set vocabulary, v5.2.3, classifier-edits feedback module)
+
+The `rationale_tag` vocabulary is the closed set of structured rationales a reviewer attaches to each classifier edit. Per Steven's hybrid framing (scoping memo `docs/memos/2026-05-28-classifier-feedback-loop-scoping.md` section 2 adjudication), the tag is the supervision signal (used by the aggregation cron's clustering key and by the Phase 2 fine-tuning corpus export), and an optional free-text `rationale_text` field carries the pattern-discovery signal (semantic clustering of `other` / `coverage_gap` entries surfaces candidate new closed-set additions).
+
+The set is intentionally sized between "minimal" (5-7 entries; misses too much) and "comprehensive" (50+ entries; reviewers cannot remember which to pick) -- 18 is the sweet spot per the closed-set-vocabulary discipline lessons from §1 (7 L1 values, easy to memorize) and §2 (10-15 L2 per L1, requires the L1 context for memorability). The `other` tag is the escape valve when no closed-set entry fits and requires `rationale_text` to be populated.
+
+| rationale_tag | Definition |
+|---|---|
+| `wrong_l1_category` | L1 assignment was incorrect; the case belongs in a different L1 domain. |
+| `wrong_l2_subcategory` | L2 assignment was incorrect given the L1; a different L2 within the same L1 better fits. |
+| `wrong_l3_method` | The L3 `method:` value misidentifies the attack mechanic (e.g., phishing labeled as vishing). |
+| `wrong_l3_tactic` | The L3 `tactic:` value misidentifies the psychological lever (e.g., urgency vs. authority). |
+| `wrong_l3_target` | The L3 `target:` value misidentifies who or what was targeted. |
+| `wrong_l3_overlap` | The L3 `overlap:` value misidentifies the cross-typology overlap. |
+| `missing_reason_code` | A reason code that should have fired did not; the reviewer is adding it. |
+| `extra_reason_code` | A reason code fired that should not have; the reviewer is removing it. |
+| `false_bright_line_fire` | A bright-line indicator fired on a case that does not actually match the bright-line definition. |
+| `missed_bright_line` | A bright-line indicator should have fired but did not (typically due to prose-pattern miss in Stage 2). |
+| `discriminator_boundary_unclear` | The Stage 2 discriminator-boundary prose did not give the model enough signal to choose between two adjacent L2s (e.g., `method:advance_fee_lawyer_fee` vs `L2:recovery_fraud` per §3.1). |
+| `severity_mismatch` | The case severity inferred by the engine (and reflected in the cascade) does not match the reviewer's assessment. |
+| `disposition_too_lenient` | The disposition was less restrictive than the case warranted (`allow` -> `human_review`, `safe_completion` -> `block`, etc.). |
+| `disposition_too_strict` | The disposition was more restrictive than the case warranted (the inverse). |
+| `component_score_off` | One of the five component scores (`target`, `lure`, `trust`, `extract`, `evade`) was numerically miscalibrated against the rubric. |
+| `persona_misidentified` | The Stage 4 persona claim (v5.3 draft vocabulary) misidentifies who the attacker is impersonating. |
+| `coverage_gap` | No existing vocabulary fits this case; the reviewer is signaling that the L3 vocabulary needs an addition. Per Steven's adjudication (scoping memo §14 Q3, Option A), each `coverage_gap` edit fires a real-time notification to the architect track rather than batching through the aggregation threshold path; the dedicated cadence reflects the vocabulary-extension-proposal semantic. Phase 1 logs the notification; Phase 2 wires real notification routing. |
+| `other` | None of the above fits; `rationale_text` MUST be populated with a free-text elaboration. The aggregation cron clusters `other` entries by free-text semantic similarity (deferred to Phase 2; LLM-assisted clustering per scoping memo §8.3) to identify candidate new closed-set additions. |
+
+The `coverage_gap` tag is structurally distinct from `other`: `coverage_gap` is a *category-of-disagreement* tag (the reviewer thinks the vocabulary itself is missing something), whereas `other` is a *catch-all* tag (the reviewer's rationale does not fit any existing tag). Both deserve aggregation but for different reasons -- `coverage_gap` clusters surface vocabulary-extension proposals at higher priority; `other` clusters require semantic similarity to be useful.
+
+**Lockstep coverage.** The 18 values above are mirrored byte-for-byte in `src/lib/feedback/types.ts` (the `RATIONALE_TAGS` constant); the lockstep validator at `scripts/check-lockstep.js` extends with `checkRationaleTagLockstep`, which: (a) parses the 18 tag names from this §3.16 table, (b) extracts the `RATIONALE_TAGS` constant from `src/lib/feedback/types.ts`, (c) asserts set equality. Failure messages name this section as canonical and direct fixes at the code, not the doc.
+
+---
+
+### 3.17 `editor_role` (closed-set vocabulary, v5.2.3, classifier-edits feedback module)
+
+The `editor_role` vocabulary is the closed set of reviewer roles permitted to submit classifier edits via `recordEdit()`. Three entries at Phase 1. The permission matrix below is the load-bearing security property -- which role can edit which `field_path` value -- and is encoded in code as the `EDITOR_ROLE_PERMISSIONS` constant in `src/lib/feedback/permissions.ts`. Phase 1 boundary: the role is passed via the caller's `editor_context` object and the auth gate trusts the caller's assertion (mirroring the `LegalAccessGateError` Phase 2 stub at `src/lib/report-generators/index.ts:84`); Phase 3 will replace this with a token-validation routine consulting a `reviewer_role_grants` table.
+
+| editor_role | Definition | Edit authority |
+|---|---|---|
+| `senior_reviewer` | Internal fraud reviewer with case-adjudication authority; senior in the sense of "has been trained on the discriminator-boundary policy" not in any HR sense. | Edit L1 / L2 / disposition / component_scores / reason_codes / aggregate_score; NOT permitted to edit L3 vocabularies or persona (those affect the closed-set vocabulary discipline at a level senior_reviewer is not authorized to influence). |
+| `policy_lead` | The policy-track author equivalent; the person who authors FAF amendments. | Edit anything except `audit_metadata` (which is structurally not editable per §3.15). Includes L3 vocabularies, persona, all reason_codes, disposition, component_scores. |
+| `qa_reviewer` | Flag-only role; proposes edits to a senior_reviewer queue but cannot directly commit edits to `classifier_edits`. | Edit NOTHING directly. QA reviewer edits go to a separate `qa_proposed_edits` queue (deferred to Standard tier per scoping memo §11.2; the role is named here so the closed set is correct on day one). |
+
+**Permission matrix:**
+
+| field_path | senior_reviewer | policy_lead | qa_reviewer |
+|---|---|---|---|
+| `l1.category` | allow | allow | deny |
+| `l2.subcategory` | allow | allow | deny |
+| `l3.method` | deny | allow | deny |
+| `l3.tactic` | deny | allow | deny |
+| `l3.target` | deny | allow | deny |
+| `l3.overlap` | deny | allow | deny |
+| `reason_codes` | allow | allow | deny |
+| `disposition.action` | allow | allow | deny |
+| `evidence.aggregate_score` | allow | allow | deny |
+| `evidence.component_scores.target` | allow | allow | deny |
+| `evidence.component_scores.lure` | allow | allow | deny |
+| `evidence.component_scores.trust` | allow | allow | deny |
+| `evidence.component_scores.extract` | allow | allow | deny |
+| `evidence.component_scores.evade` | allow | allow | deny |
+| `persona.claimed` | deny | allow | deny |
+
+The matrix above is canonical. `EDITOR_ROLE_PERMISSIONS` in `src/lib/feedback/permissions.ts` mirrors it byte-for-byte; `checkEditorRoleLockstep` parses this table and asserts row-for-row equality with the code constant.
+
+Why three roles and not more:
+
+- The Phase 1 three-role set covers the actual escalation gradient: case-level reviewer (`senior_reviewer`), framework-level author (`policy_lead`), and pre-adjudication flagger (`qa_reviewer`).
+- Additional roles (`admin`, `auditor`, `read_only_observer`) are deferred. The `read_only_observer` role overlaps with the existing reviewer Postgres-grant pattern from the data-track Compliance-ready scope; the Postgres role grants do the work without a separate edit-table role being defined.
+- Three roles is also a manageable matrix to memorize. A nine-role set would push reviewer training into a separate doc; three roles fit in one paragraph of the runbook.
+
+**Lockstep coverage.** The three role names above plus the per-row permission matrix are mirrored byte-for-byte in `src/lib/feedback/types.ts` (the `EDITOR_ROLES` constant) and `src/lib/feedback/permissions.ts` (the `EDITOR_ROLE_PERMISSIONS` constant); the lockstep validator at `scripts/check-lockstep.js` extends with `checkEditorRoleLockstep`, which: (a) parses the three role names from this §3.17 first table, (b) extracts the `EDITOR_ROLES` constant from `types.ts`, (c) asserts set equality on the role names, (d) parses the permission-matrix table above, (e) extracts the `EDITOR_ROLE_PERMISSIONS` constant from `permissions.ts`, (f) asserts row-for-row equality between the table's allow/deny cells and the code's per-role permitted-field sets. Failure messages name this section as canonical and direct fixes at the code, not the doc.
+
+---
+
 ## 3.7 Component-score vocabulary vs process-flag vocabulary (clarification)
 
 Two distinct closed vocabularies appear in `evidence` and are routinely conflated. They live in different fields and answer different questions.
@@ -862,6 +972,26 @@ Bundled P1 policy-memo authoring covering the two closed-set vocabularies the Sa
 - **Phase 2 scope (forward reference, OUT OF SCOPE for this Phase 1 commit).** `generateReport()` dispatcher; audit-metadata-keyed `cache.ts`; `reports` table DDL + migration in the data track; post-generation defensive-prompting validator implementation. Phase 3: `auth-gate.ts` (manual ops-runbook gate for the legal audience); HTTP route at `/api/reports/:evaluation_id/:audience`. Phase 4: engine pre-gen hook firing on `block` and `human_review`; markdown→PDF rendering. The `end_user` audience implementation is gated separately on the disclosure-policy memo.
 
 - **Source citations.** Implementation spec: `docs/memos/2026-05-28-report-generator-implementation-spec.md` §§2.1, 2.2, 3, 9. Scoping memo: `docs/memos/2026-05-28-report-generator-scoping.md` §§4, 5, 8, 9 (Standard tier), §13.2 (deferral adversarial review). Related skill: `safeeval-agents:stakeholder-communicator` is the architectural pattern this surface generalizes from framework-level to per-evaluation outputs.
+
+**Ontology 5.2.3 patch addition (2026-05-29, classifier-edits feedback vocabulary -- Phase 1):**
+
+§§3.15 (`field_path`), 3.16 (`rationale_tag`), 3.17 (`editor_role`) added per the classifier-edits feedback loop scoping memo at `docs/memos/2026-05-28-classifier-feedback-loop-scoping.md` (Standard tier adopted; Phase 1 ships the API surface, vocabularies, M8 migration, auth-gate stub, and lockstep verifiers). 15 editable field paths + 18 rationale tags + 3 editor roles. The aggregation cron, qa_proposed_edits flow, LLM-assisted free-text clustering, fine-tuning corpus export, and reviewer UI are all out of Phase 1 scope per the scoping memo deferral list.
+
+- **Architectural placement.** The classifier-edits vocabulary is a *downstream consumer* concept (reviewer overrides of classifier output), not an L3 evidence category. It does not ride on the envelope's L3 surface and does not bump the engine `ONTOLOGY_VERSION` constant (which stays at 5.2). The lockstep target is the `src/lib/feedback/` module (specifically the `FIELD_PATHS` / `RATIONALE_TAGS` / `EDITOR_ROLES` constants in `types.ts` and the `EDITOR_ROLE_PERMISSIONS` constant in `permissions.ts`), not the engine. This mirrors the §3.14 audience-vocabulary architectural pattern.
+
+- **Lockstep coverage.** `scripts/check-lockstep.js` gains three verifiers: `checkEditableFieldsLockstep` (§3.15 table vs `FIELD_PATHS`), `checkRationaleTagLockstep` (§3.16 table vs `RATIONALE_TAGS`), and `checkEditorRoleLockstep` (§3.17 role list vs `EDITOR_ROLES`, AND §3.17 permission-matrix table vs `EDITOR_ROLE_PERMISSIONS`). Failure messages name `docs/08-v5-ontology.md` §§3.15 / 3.16 / 3.17 as canonical and direct fixes at the code, never the doc. The three verifiers run from `main()` alongside the other check functions; CI is the source of truth.
+
+- **Steven-locked adjudications baked in.** (a) Notation grammar: `classifier <field>, changed <before> to <after>, because <rationale_tag>` (API-validated by `recordEdit()`); (b) closed-set roles: `senior_reviewer`, `policy_lead`, `qa_reviewer` (`qa_reviewer` is flag-only in Phase 1 with empty permission set; the `qa_proposed_edits` queue surface is deferred to Standard tier per scoping memo §11.2); (c) 15 editable field paths -- `audit_metadata.*` and `pii_redaction_log` explicitly NOT editable per scoping memo §4 ("Explicitly NOT editable"); (d) 18 rationale tags including the `coverage_gap` real-time-notification semantic (scoping memo §14 Q3 Option A) and the `other` escape valve (rationale_text mandatory when rationale_tag='other', enforced by both the API validator and the M8 CHECK constraint); (e) hybrid rationale: closed-set `rationale_tag` primary + optional free-text `rationale_text` elaboration; (f) corpus export gated behind `SAFEEVAL_CORPUS_EXPORT_ENABLED` env flag (Phase 2 implementation; Phase 1 documents the var in `.env.example` only).
+
+- **`ontology_version` decision and rationale.** Patch-bump 5.2.2 -> 5.2.3 within the annotated drafts on the header line; the primary engine-active version on the line stays at `5.2` so the engine/doc ontology_version lockstep (the existing `checkV52CaseStudyLockstep` invariant) continues to pass. The classifier-edits vocabulary does not extend the L3 evidence axis (it lives in a separate downstream module) and the §7 extension policy's "new L3 category = minor bump" rule does not apply structurally. The patch-bump call mirrors the §3.14 audience-vocabulary 5.2.2 patch-bump pattern.
+
+- **Post-write hook (Phase 1 stub).** `src/lib/data/persistence.ts` gains a post-write hook gated on `SAFEEVAL_FEEDBACK_ENABLED` (default OFF). When a successful evaluation persist completes AND any associated `classifier_edits` row carries `rationale_tag='coverage_gap'`, the hook fires a fire-and-forget log notification (Phase 1 stub; Phase 2 wires real notification routing to the architect track). The hook's try-catch swallows errors so feedback failures never block evaluation persistence.
+
+- **M8 migration.** `src/lib/data/schema/M8_classifier_edits.sql` lands the `classifier_edits` table with CHECK constraints matching all three closed-set vocabularies, FK to `evaluations(id) ON DELETE CASCADE` for 90-day TTL inheritance (matches the M4 reports-table pattern), tenant-isolation RLS policy joining against `evaluations.customer_id`, and a reversible DOWN block.
+
+- **Phase 2 scope (forward reference, OUT OF SCOPE for this Phase 1 commit).** Daily aggregation cron (`src/lib/feedback/aggregation.ts` + Vercel cron / GitHub Actions cron); structured `route-to-steven` proposals to the architect track when clusters meet the threshold; fine-tuning corpus export (`src/lib/feedback/export.ts`) with `SAFEEVAL_CORPUS_EXPORT_ENABLED` env-flag gating; real notification routing to the architect track for `coverage_gap` edits. Phase 3: the `qa_proposed_edits` flag-only flow; the auth-gate token-validation routine replacing the Phase 1 stub. Phase 4: LLM-assisted free-text semantic clustering of `rationale_text` for `other` and `coverage_gap` edits.
+
+- **Source citations.** Scoping memo: `docs/memos/2026-05-28-classifier-feedback-loop-scoping.md` §§2 (notation grammar), 3 (DDL), 4 (field_path closed set), 5 (rationale_tag closed set), 6 (editor_role and permission matrix), 7 (API surface), 11.1 (MVP scope), 14 (open questions with Steven adjudications). Companion memo for the persistence-layer pattern: `docs/memos/2026-05-28-data-track-implementation-spec.md` (M1 evaluations table; 90-day TTL convention; RLS pattern). Companion memo for the auth-gate Phase 2 stub pattern: `docs/memos/2026-05-28-report-generator-implementation-spec.md` (the `LegalAccessGateError` structural model that `EditorRoleGateError` mirrors).
 
 **Ontology 5.1 additions (2026-05-28, conversation evaluation):**
 

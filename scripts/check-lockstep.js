@@ -1260,6 +1260,424 @@ function checkAudienceLockstep(rootDir) {
   return true;
 }
 
+// Classifier-edits feedback module lockstep (Phase 1, v5.2.3, 2026-05-29).
+//
+// Three verifiers covering the three closed-set vocabularies in
+// docs/08-v5-ontology.md sections 3.15 (field_path), 3.16 (rationale_tag),
+// and 3.17 (editor_role + permission matrix). Each verifier mirrors the
+// rootDir-override pattern from checkAudienceLockstep so the synthetic-
+// mini-repo unit tests at tests/feedback/lockstep.test.ts can drive them
+// against a fabricated docs / src tree. Production callers (CI, npm run
+// check-lockstep) pass no argument and the function uses the script ROOT.
+//
+// Canonical source for all three vocabularies is the ontology doc; failure
+// messages name the doc section and direct fixes at the code (types.ts /
+// permissions.ts), not the doc.
+
+function extractMarkdownTableFirstColumnFromSection(docSrc, sectionHeader) {
+  // Walk from the section header to the next heading at the same or higher
+  // level (### or ## or #). Within the section, extract every
+  // single-backtick-wrapped token from the first column of every markdown
+  // table row that begins with `| \`<token>\` |`. Returns the bare tokens
+  // (without backticks). Used for sections 3.15 and 3.16 first-column extraction.
+  const startIdx = docSrc.indexOf(sectionHeader);
+  if (startIdx < 0) {
+    throw new Error('Ontology section missing: ' + sectionHeader);
+  }
+  let nextIdx = docSrc.length;
+  const reNext = /\n(##? |### )/g;
+  reNext.lastIndex = startIdx + sectionHeader.length;
+  let nm;
+  while ((nm = reNext.exec(docSrc)) !== null) { nextIdx = nm.index; break; }
+  const slice = docSrc.slice(startIdx, nextIdx);
+  const tokens = new Set();
+  // Match table rows whose first column is a backticked token; the rest
+  // of the row is ignored. The regex matches lowercase identifiers and
+  // dotted forms (e.g., l1.category, evidence.component_scores.target).
+  const reRow = /^\s*\|\s*`([a-z0-9_.]+)`\s*\|/gm;
+  let rm;
+  while ((rm = reRow.exec(slice)) !== null) {
+    tokens.add(rm[1]);
+  }
+  return Array.from(tokens);
+}
+
+function extractTypesArrayConstant(typesSrc, constName) {
+  // Match: export const <constName> = [ 'a', 'b', ... ] as const;
+  // The body may span multiple lines; the regex captures everything
+  // between `[` and `]`.
+  const re = new RegExp(
+    'export\\s+const\\s+' + constName + '\\s*=\\s*\\[([\\s\\S]*?)\\]\\s*as\\s+const',
+  );
+  const m = typesSrc.match(re);
+  if (!m) {
+    throw new Error('Constant not found in types.ts: ' + constName);
+  }
+  const tokens = [];
+  const reLit = /'([a-z0-9_.[\]]+)'/g;
+  let lm;
+  while ((lm = reLit.exec(m[1])) !== null) tokens.push(lm[1]);
+  if (tokens.length === 0) {
+    throw new Error('Constant body parsed but no string-literal values extracted: ' + constName);
+  }
+  return tokens;
+}
+
+// Section 3.15 expects EDITABLE field-path entries only; the
+// "Explicitly NOT editable" subsection also lists fields but those are
+// prose paragraphs, not table rows, so the table-row extractor naturally
+// skips them. The version-annotation token "v5.2.3" inside the section
+// header is also not table-cell content and is skipped.
+function checkEditableFieldsLockstep(rootDir) {
+  const root = rootDir || ROOT;
+  const ontologyPath = path.join(root, 'docs', '08-v5-ontology.md');
+  const typesPath    = path.join(root, 'src', 'lib', 'feedback', 'types.ts');
+
+  if (!fs.existsSync(ontologyPath)) {
+    console.error('FAIL editable-fields lockstep: ontology doc missing at ' + ontologyPath);
+    return false;
+  }
+  if (!fs.existsSync(typesPath)) {
+    console.error('FAIL editable-fields lockstep: types.ts missing at ' + typesPath);
+    return false;
+  }
+
+  let docNames;
+  try {
+    docNames = extractMarkdownTableFirstColumnFromSection(
+      fs.readFileSync(ontologyPath, 'utf-8'),
+      '### 3.15 `field_path`',
+    );
+  } catch (e) {
+    console.error('FAIL editable-fields lockstep (ontology parse): ' + e.message);
+    return false;
+  }
+
+  let codeNames;
+  try {
+    codeNames = extractTypesArrayConstant(
+      fs.readFileSync(typesPath, 'utf-8'),
+      'FIELD_PATHS',
+    );
+  } catch (e) {
+    console.error('FAIL editable-fields lockstep (types.ts parse): ' + e.message);
+    return false;
+  }
+
+  if (!setsEqual(docNames, codeNames)) {
+    const extraDoc = setDiff(docNames, codeNames);
+    const extraCode = setDiff(codeNames, docNames);
+    console.error('LOCKSTEP FAIL editable-fields vocabulary (ontology section 3.15 vs types.ts FIELD_PATHS):');
+    if (extraDoc.length > 0)  console.error('  ontology has but types.ts lacks: ' + extraDoc.join(', '));
+    if (extraCode.length > 0) console.error('  types.ts has but ontology lacks: ' + extraCode.join(', '));
+    console.error('Canonical source is docs/08-v5-ontology.md section 3.15. Update the FIELD_PATHS constant in src/lib/feedback/types.ts to match the doc, NOT the other way around.');
+    return false;
+  }
+
+  console.log('OK editable-fields vocabulary (' + docNames.length + ' values; ontology section 3.15 = types.ts FIELD_PATHS)');
+  return true;
+}
+
+function checkRationaleTagLockstep(rootDir) {
+  const root = rootDir || ROOT;
+  const ontologyPath = path.join(root, 'docs', '08-v5-ontology.md');
+  const typesPath    = path.join(root, 'src', 'lib', 'feedback', 'types.ts');
+
+  if (!fs.existsSync(ontologyPath)) {
+    console.error('FAIL rationale-tag lockstep: ontology doc missing at ' + ontologyPath);
+    return false;
+  }
+  if (!fs.existsSync(typesPath)) {
+    console.error('FAIL rationale-tag lockstep: types.ts missing at ' + typesPath);
+    return false;
+  }
+
+  let docNames;
+  try {
+    docNames = extractMarkdownTableFirstColumnFromSection(
+      fs.readFileSync(ontologyPath, 'utf-8'),
+      '### 3.16 `rationale_tag`',
+    );
+  } catch (e) {
+    console.error('FAIL rationale-tag lockstep (ontology parse): ' + e.message);
+    return false;
+  }
+
+  let codeNames;
+  try {
+    codeNames = extractTypesArrayConstant(
+      fs.readFileSync(typesPath, 'utf-8'),
+      'RATIONALE_TAGS',
+    );
+  } catch (e) {
+    console.error('FAIL rationale-tag lockstep (types.ts parse): ' + e.message);
+    return false;
+  }
+
+  if (!setsEqual(docNames, codeNames)) {
+    const extraDoc = setDiff(docNames, codeNames);
+    const extraCode = setDiff(codeNames, docNames);
+    console.error('LOCKSTEP FAIL rationale-tag vocabulary (ontology section 3.16 vs types.ts RATIONALE_TAGS):');
+    if (extraDoc.length > 0)  console.error('  ontology has but types.ts lacks: ' + extraDoc.join(', '));
+    if (extraCode.length > 0) console.error('  types.ts has but ontology lacks: ' + extraCode.join(', '));
+    console.error('Canonical source is docs/08-v5-ontology.md section 3.16. Update the RATIONALE_TAGS constant in src/lib/feedback/types.ts to match the doc, NOT the other way around.');
+    return false;
+  }
+
+  console.log('OK rationale-tag vocabulary (' + docNames.length + ' values; ontology section 3.16 = types.ts RATIONALE_TAGS)');
+  return true;
+}
+
+// Permission-matrix extraction. Section 3.17 contains two tables:
+//   - the role-definition table (3 rows: senior_reviewer, policy_lead,
+//     qa_reviewer with Definition and Edit-authority columns), and
+//   - the permission matrix (15 rows: one per field_path, with one
+//     "allow" / "deny" cell per role column).
+// The role-name set comes from the first table (column 1); the matrix
+// extraction parses the second table into a Record<role, Set<fieldPath>>.
+// Rows in the role-definition table are skipped during matrix parsing
+// because their column shape (Definition, Edit authority) does not match
+// the matrix shape (allow / deny per role).
+function extractEditorRoleDefinitionsFromSection(docSrc) {
+  const sectionHeader = '### 3.17 `editor_role`';
+  const startIdx = docSrc.indexOf(sectionHeader);
+  if (startIdx < 0) {
+    throw new Error('Ontology section missing: ' + sectionHeader);
+  }
+  let nextIdx = docSrc.length;
+  const reNext = /\n(##? |### )/g;
+  reNext.lastIndex = startIdx + sectionHeader.length;
+  let nm;
+  while ((nm = reNext.exec(docSrc)) !== null) { nextIdx = nm.index; break; }
+  const slice = docSrc.slice(startIdx, nextIdx);
+
+  // The role-definition table is the FIRST markdown table in the section.
+  // It has 3 rows whose first column is a backticked role name. The
+  // permission matrix is the SECOND table, anchored by a bolded
+  // "**Permission matrix:**" header.
+  const matrixMarker = slice.indexOf('**Permission matrix:**');
+  if (matrixMarker < 0) {
+    throw new Error('Permission matrix anchor not found in section 3.17');
+  }
+  const firstTableSlice = slice.slice(0, matrixMarker);
+
+  const roles = [];
+  const reRow = /^\s*\|\s*`([a-z_]+)`\s*\|/gm;
+  let rm;
+  while ((rm = reRow.exec(firstTableSlice)) !== null) {
+    roles.push(rm[1]);
+  }
+  return roles;
+}
+
+function extractPermissionMatrixFromSection(docSrc) {
+  const sectionHeader = '### 3.17 `editor_role`';
+  const startIdx = docSrc.indexOf(sectionHeader);
+  if (startIdx < 0) {
+    throw new Error('Ontology section missing: ' + sectionHeader);
+  }
+  let nextIdx = docSrc.length;
+  const reNext = /\n(##? |### )/g;
+  reNext.lastIndex = startIdx + sectionHeader.length;
+  let nm;
+  while ((nm = reNext.exec(docSrc)) !== null) { nextIdx = nm.index; break; }
+  const slice = docSrc.slice(startIdx, nextIdx);
+
+  const matrixMarker = slice.indexOf('**Permission matrix:**');
+  if (matrixMarker < 0) {
+    throw new Error('Permission matrix anchor not found in section 3.17');
+  }
+  const matrixSlice = slice.slice(matrixMarker);
+
+  // The header row names the roles. Find the first table-header row that
+  // begins with `| field_path |` (or the field-path column header).
+  // Parse columns 2..N as the role names.
+  const headerMatch = matrixSlice.match(/^\s*\|\s*field_path\s*\|([^\n]+)$/m);
+  if (!headerMatch) {
+    throw new Error('Permission matrix header row not found in section 3.17');
+  }
+  const headerCells = headerMatch[1]
+    .split('|')
+    .map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.length > 0; });
+  const roleColumns = headerCells;
+
+  // Find every data row of shape `| \`<field_path>\` | <cell> | <cell> | ... |`.
+  // The cells are "allow" or "deny" (case-insensitive).
+  const matrix = {};
+  for (const role of roleColumns) {
+    matrix[role] = new Set();
+  }
+  const reRow = /^\s*\|\s*`([a-z0-9_.]+)`\s*\|([^\n]+)$/gm;
+  let rm;
+  while ((rm = reRow.exec(matrixSlice)) !== null) {
+    const fieldPath = rm[1];
+    const cells = rm[2]
+      .split('|')
+      .map(function (s) { return s.trim().toLowerCase(); })
+      .filter(function (s) { return s.length > 0; });
+    if (cells.length !== roleColumns.length) {
+      throw new Error('Permission matrix row width mismatch on ' + fieldPath + ': expected ' + roleColumns.length + ' cells, got ' + cells.length);
+    }
+    for (let i = 0; i < roleColumns.length; i++) {
+      const cell = cells[i];
+      if (cell !== 'allow' && cell !== 'deny') {
+        throw new Error('Permission matrix cell on ' + fieldPath + ' / ' + roleColumns[i] + ' is not allow/deny: "' + cell + '"');
+      }
+      if (cell === 'allow') {
+        matrix[roleColumns[i]].add(fieldPath);
+      }
+    }
+  }
+  return matrix;
+}
+
+function extractPermissionMatrixFromCode(permissionsSrc) {
+  // Parse src/lib/feedback/permissions.ts EDITOR_ROLE_PERMISSIONS literal.
+  // Shape:
+  //   export const EDITOR_ROLE_PERMISSIONS: Record<...> = {
+  //     senior_reviewer: new Set<FieldPath>([ 'a', 'b', ... ]),
+  //     policy_lead:     new Set<FieldPath>([ 'a', ... ]),
+  //     qa_reviewer:     new Set<FieldPath>(),
+  //   };
+  const decl = permissionsSrc.match(/export\s+const\s+EDITOR_ROLE_PERMISSIONS\s*:[\s\S]*?=\s*\{([\s\S]*?)\n\};/);
+  if (!decl) {
+    throw new Error('EDITOR_ROLE_PERMISSIONS literal not found in permissions.ts');
+  }
+  const body = decl[1];
+  // For each role: find `<role>: new Set<FieldPath>([...])` OR
+  // `<role>: new Set<FieldPath>()` (empty).
+  const matrix = {};
+  const reRole = /^\s*([a-z_]+)\s*:\s*new\s+Set<FieldPath>\s*\(\s*(\[[\s\S]*?\])?\s*\)\s*,?\s*$/gm;
+  let rm;
+  while ((rm = reRole.exec(body)) !== null) {
+    const role = rm[1];
+    const arrLiteral = rm[2];
+    const set = new Set();
+    if (arrLiteral) {
+      const reLit = /'([a-z0-9_.]+)'/g;
+      let lm;
+      while ((lm = reLit.exec(arrLiteral)) !== null) {
+        set.add(lm[1]);
+      }
+    }
+    matrix[role] = set;
+  }
+  return matrix;
+}
+
+function checkEditorRoleLockstep(rootDir) {
+  const root = rootDir || ROOT;
+  const ontologyPath    = path.join(root, 'docs', '08-v5-ontology.md');
+  const typesPath       = path.join(root, 'src', 'lib', 'feedback', 'types.ts');
+  const permissionsPath = path.join(root, 'src', 'lib', 'feedback', 'permissions.ts');
+
+  if (!fs.existsSync(ontologyPath)) {
+    console.error('FAIL editor-role lockstep: ontology doc missing at ' + ontologyPath);
+    return false;
+  }
+  if (!fs.existsSync(typesPath)) {
+    console.error('FAIL editor-role lockstep: types.ts missing at ' + typesPath);
+    return false;
+  }
+  if (!fs.existsSync(permissionsPath)) {
+    console.error('FAIL editor-role lockstep: permissions.ts missing at ' + permissionsPath);
+    return false;
+  }
+
+  const ontologySrc    = fs.readFileSync(ontologyPath, 'utf-8');
+  const typesSrc       = fs.readFileSync(typesPath, 'utf-8');
+  const permissionsSrc = fs.readFileSync(permissionsPath, 'utf-8');
+
+  let totalMisses = 0;
+
+  // (a) Role-name set equality: ontology section 3.17 first table vs
+  // EDITOR_ROLES constant in types.ts.
+  let docRoles, codeRoles;
+  try {
+    docRoles = extractEditorRoleDefinitionsFromSection(ontologySrc);
+  } catch (e) {
+    console.error('FAIL editor-role lockstep (ontology role-name extraction): ' + e.message);
+    return false;
+  }
+  try {
+    codeRoles = extractTypesArrayConstant(typesSrc, 'EDITOR_ROLES');
+  } catch (e) {
+    console.error('FAIL editor-role lockstep (EDITOR_ROLES extraction): ' + e.message);
+    return false;
+  }
+  if (!setsEqual(docRoles, codeRoles)) {
+    const extraDoc = setDiff(docRoles, codeRoles);
+    const extraCode = setDiff(codeRoles, docRoles);
+    console.error('LOCKSTEP FAIL editor-role vocabulary (ontology section 3.17 vs types.ts EDITOR_ROLES):');
+    if (extraDoc.length > 0)  console.error('  ontology has but types.ts lacks: ' + extraDoc.join(', '));
+    if (extraCode.length > 0) console.error('  types.ts has but ontology lacks: ' + extraCode.join(', '));
+    console.error('Canonical source is docs/08-v5-ontology.md section 3.17. Update the EDITOR_ROLES constant in src/lib/feedback/types.ts to match the doc, NOT the other way around.');
+    totalMisses++;
+  }
+
+  // (b) Permission matrix equality: ontology section 3.17 second table vs
+  // EDITOR_ROLE_PERMISSIONS constant in permissions.ts.
+  let docMatrix, codeMatrix;
+  try {
+    docMatrix = extractPermissionMatrixFromSection(ontologySrc);
+  } catch (e) {
+    console.error('FAIL editor-role lockstep (ontology permission-matrix extraction): ' + e.message);
+    return false;
+  }
+  try {
+    codeMatrix = extractPermissionMatrixFromCode(permissionsSrc);
+  } catch (e) {
+    console.error('FAIL editor-role lockstep (EDITOR_ROLE_PERMISSIONS extraction): ' + e.message);
+    return false;
+  }
+
+  // For each role appearing in either matrix, compare the field-path
+  // allow-set. Roles missing on either side are reported.
+  const allRolesInEitherMatrix = new Set();
+  Object.keys(docMatrix).forEach(function (r) { allRolesInEitherMatrix.add(r); });
+  Object.keys(codeMatrix).forEach(function (r) { allRolesInEitherMatrix.add(r); });
+  let matrixMisses = 0;
+  for (const role of Array.from(allRolesInEitherMatrix).sort()) {
+    const docSet = docMatrix[role];
+    const codeSet = codeMatrix[role];
+    if (!docSet) {
+      console.error('LOCKSTEP FAIL editor-role permission-matrix: role "' + role + '" appears in EDITOR_ROLE_PERMISSIONS but not in ontology section 3.17 permission matrix.');
+      matrixMisses++;
+      continue;
+    }
+    if (!codeSet) {
+      console.error('LOCKSTEP FAIL editor-role permission-matrix: role "' + role + '" appears in ontology section 3.17 permission matrix but not in EDITOR_ROLE_PERMISSIONS.');
+      matrixMisses++;
+      continue;
+    }
+    const docArr = Array.from(docSet);
+    const codeArr = Array.from(codeSet);
+    if (!setsEqual(docArr, codeArr)) {
+      const extraDoc = setDiff(docArr, codeArr);
+      const extraCode = setDiff(codeArr, docArr);
+      console.error('LOCKSTEP FAIL editor-role permission-matrix for role "' + role + '":');
+      if (extraDoc.length > 0)  console.error('  ontology allows but EDITOR_ROLE_PERMISSIONS lacks: ' + extraDoc.join(', '));
+      if (extraCode.length > 0) console.error('  EDITOR_ROLE_PERMISSIONS allows but ontology lacks: ' + extraCode.join(', '));
+      matrixMisses++;
+    }
+  }
+
+  if (matrixMisses > 0) {
+    console.error('Canonical source is docs/08-v5-ontology.md section 3.17 permission matrix. Update EDITOR_ROLE_PERMISSIONS in src/lib/feedback/permissions.ts to match the doc, NOT the other way around.');
+    totalMisses += matrixMisses;
+  }
+
+  if (totalMisses > 0) {
+    console.error('');
+    console.error('editor-role lockstep failed with ' + totalMisses + ' miss(es).');
+    return false;
+  }
+
+  console.log('OK editor-role vocabulary (' + docRoles.length + ' values; ontology section 3.17 = types.ts EDITOR_ROLES; permission matrix matches EDITOR_ROLE_PERMISSIONS)');
+  return true;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -1276,23 +1694,32 @@ function main() {
   const conditionalForcedL2Ok = checkConditionalForcedL2Lockstep();
   console.log('');
   const audienceOk = checkAudienceLockstep();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk) {
+  console.log('');
+  const editableFieldsOk = checkEditableFieldsLockstep();
+  console.log('');
+  const rationaleTagOk = checkRationaleTagLockstep();
+  console.log('');
+  const editorRoleOk = checkEditorRoleLockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk) {
     process.exit(1);
   }
   console.log('');
   console.log('All lockstep checks passed.');
 }
 
-// Allow the file to be require()'d as a module (the test suite at
-// tests/report-generators/lockstep.test.ts imports checkAudienceLockstep
-// to drive it against a synthetic mini-repo). When executed directly via
-// `node scripts/check-lockstep.js` (CI's npm run check-lockstep), main()
-// fires and the process exits with the lockstep status code.
+// Allow the file to be require()'d as a module. The audience and feedback
+// lockstep verifiers all accept a rootDir override so the synthetic-mini-
+// repo unit tests can drive them against fabricated docs / src trees;
+// production callers (CI, npm run check-lockstep) pass no argument and
+// the functions use the script ROOT.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     checkAudienceLockstep: checkAudienceLockstep,
     extractOntologyAudienceVocab: extractOntologyAudienceVocab,
     extractAudienceLiteralFromTypes: extractAudienceLiteralFromTypes,
+    checkEditableFieldsLockstep: checkEditableFieldsLockstep,
+    checkRationaleTagLockstep: checkRationaleTagLockstep,
+    checkEditorRoleLockstep: checkEditorRoleLockstep,
   };
 }
 
