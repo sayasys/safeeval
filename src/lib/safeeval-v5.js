@@ -38,6 +38,34 @@ import {
   validateAndNormalizeStage0,
   canonicalizeSender,
 } from './conversation-parser.js';
+// Synthetic-media detection module (Phase 2 wire-up). Statically imported so
+// Next.js bundles the module once; the engine only enters detectMedia when an
+// opts.media_artifact is supplied by the caller. Spec:
+// docs/memos/2026-05-28-synthetic-media-detection-implementation-spec.md
+// section 4.1 (Stage 0 routing) and Steven's Q1 / Q3 adjudications -- Stage 2
+// prompt is NOT touched in Demo tier; media evidence flows through Stage 3
+// reason-code emission only.
+import { detectMedia } from './media-detection';
+
+// Phase 2 Stage 3 emission threshold for media_likely_synthetic. Configurable
+// via MEDIA_SYNTHETIC_THRESHOLD env var (default 0.5). When the upstream
+// detector's is_synthetic exceeds the threshold OR the Gemini reasoning
+// verdict is 'likely_synthetic', the engine emits the media_likely_synthetic
+// secondary reason code per ontology section 3.13. Demo-tier scope; the full
+// disposition.reason_codes[] surface is pending the Stage 4 wiring dispatch
+// (the ontology section 3.13 "phase 2 wiring" forward reference). Until that
+// lands, the emission is recorded on
+// envelope.media_detection_result.reason_codes_emitted -- a future Stage 4
+// dispatch will read it and emit into disposition.reason_codes[].
+const MEDIA_LIKELY_SYNTHETIC = 'media_likely_synthetic';
+const DEFAULT_MEDIA_SYNTHETIC_THRESHOLD = 0.5;
+function resolveMediaSyntheticThreshold() {
+  const raw = process.env.MEDIA_SYNTHETIC_THRESHOLD;
+  if (typeof raw !== 'string' || raw.length === 0) return DEFAULT_MEDIA_SYNTHETIC_THRESHOLD;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1) return DEFAULT_MEDIA_SYNTHETIC_THRESHOLD;
+  return n;
+}
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -2044,6 +2072,10 @@ export async function evaluateConversationV5(input, opts) {
 // Shared orchestrator. Branches on input.kind. Prompt-mode is the unchanged
 // four-stage cascade. Conversation-mode adds Stage 0 (parser) before Stage 1
 // and runs the same four stages with conversation context propagated.
+// Phase 2 of synthetic-media detection adds an OPTIONAL Stage 0 media-detector
+// pass when opts.media_artifact is supplied -- runs before the conversation
+// parser; the textual frame still flows through Stages 1-4 unchanged (media
+// evidence is additive, not a short-circuit). Spec section 4.1.
 async function evaluateInputV5(input, opts) {
   opts = opts || {};
   const debug = !!opts.debug;
@@ -2057,6 +2089,45 @@ async function evaluateInputV5(input, opts) {
     errors: [],
   };
   const modelsUsed = [];
+
+  // Phase 2 synthetic-media detection. Routes BEFORE the conversation parser
+  // so the media result is available to all downstream stages. Existing
+  // prompt-mode and conversation-mode flows are unchanged when opts.media_
+  // artifact is absent -- the branch is dormant. detectMedia is designed to
+  // never throw (degraded results carry an error field instead); the
+  // try / catch is belt-and-suspenders against future implementation drift.
+  let mediaDetectionResult = null;
+  const mediaArtifact = (opts.media_artifact && typeof opts.media_artifact === 'object')
+    ? opts.media_artifact : null;
+  if (mediaArtifact) {
+    try {
+      mediaDetectionResult = await detectMedia(mediaArtifact);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      mediaDetectionResult = {
+        is_synthetic: 0,
+        confidence: 0,
+        model_id: 'media-detection-router',
+        latency_ms: 0,
+        error: 'detectMedia threw: ' + message,
+      };
+    }
+    // Stage 3 reason-code emission. Threshold is configurable via
+    // MEDIA_SYNTHETIC_THRESHOLD env var. Either path -- detector score over
+    // threshold OR Gemini reasoning verdict 'likely_synthetic' -- emits the
+    // media_likely_synthetic secondary modifier per ontology section 3.13.
+    const threshold = resolveMediaSyntheticThreshold();
+    const reasoningVerdict = mediaDetectionResult.reasoning && mediaDetectionResult.reasoning.verdict;
+    const tripsThreshold = typeof mediaDetectionResult.is_synthetic === 'number' &&
+      mediaDetectionResult.is_synthetic > threshold;
+    const tripsReasoning = reasoningVerdict === 'likely_synthetic';
+    if (!mediaDetectionResult.error && (tripsThreshold || tripsReasoning)) {
+      const emitted = Array.isArray(mediaDetectionResult.reason_codes_emitted)
+        ? mediaDetectionResult.reason_codes_emitted.slice() : [];
+      if (!emitted.includes(MEDIA_LIKELY_SYNTHETIC)) emitted.push(MEDIA_LIKELY_SYNTHETIC);
+      mediaDetectionResult = Object.assign({}, mediaDetectionResult, { reason_codes_emitted: emitted });
+    }
+  }
 
   const isConversation = input && input.kind === 'conversation';
 
@@ -2091,6 +2162,7 @@ async function evaluateInputV5(input, opts) {
           degraded:                 true,
         },
         modelsUsed, trace, debug,
+        mediaArtifact, mediaDetectionResult,
       });
     }
     conversationContext = {
@@ -2159,6 +2231,7 @@ async function evaluateInputV5(input, opts) {
       evidence:    stubEvidence(s1.output),
       disposition: shortCircuitDisposition,
       modelsUsed, trace, debug,
+      mediaArtifact, mediaDetectionResult,
     });
   }
 
@@ -2218,6 +2291,7 @@ async function evaluateInputV5(input, opts) {
     stage0: trace.stage_0,
     prompt: effectivePrompt,
     classification, evidence, disposition, modelsUsed, trace, debug,
+    mediaArtifact, mediaDetectionResult,
   });
 }
 
@@ -2495,6 +2569,16 @@ function assembleEnvelope(p) {
   } else {
     envelope.input = { kind: 'prompt', text: p.prompt || '' };
   }
+
+  // Phase 2 synthetic-media detection emission. Both top-level fields are
+  // optional per the schema delta in tests/schema/v5-envelope.schema.json
+  // ($defs.media_artifact, $defs.media_detection_result). The engine emits
+  // them as a pair whenever opts.media_artifact was supplied. The Stage 3
+  // reason-code emission (media_likely_synthetic) lives on
+  // media_detection_result.reason_codes_emitted -- the full disposition.
+  // reason_codes[] surface is pending the Stage 4 wiring dispatch.
+  if (p.mediaArtifact) envelope.media_artifact = p.mediaArtifact;
+  if (p.mediaDetectionResult) envelope.media_detection_result = p.mediaDetectionResult;
 
   // pipeline_trace is omitted entirely (not nulled) when debug is off. (Decision 5.)
   if (p.debug) envelope.pipeline_trace = p.trace;

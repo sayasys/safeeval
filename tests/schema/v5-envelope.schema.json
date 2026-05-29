@@ -75,7 +75,7 @@
     },
 
     "media_detection_result": {
-      "description": "Optional response field populated by the media-detection module when media_artifact was supplied. Phase 1 emits the flat detector-only shape; Phase 2 will add Gemini reasoning fields. error is set when the detector was unreachable or rejected the input; downstream stages MUST degrade gracefully.",
+      "description": "Optional response field populated by the media-detection module when media_artifact was supplied. Phase 1 shipped the flat detector-only shape; Phase 2 (2026-05-29, memo 2026-05-28-synthetic-media-detection-implementation-spec section 6) adds the optional `reasoning` sub-field (Gemini 1.5 Flash fallback on the 0.4-0.6 ambiguous band) and the optional `reason_codes_emitted` list carrying media_likely_synthetic per ontology section 3.13. error is set when the upstream detector was unreachable or rejected the input; downstream stages MUST degrade gracefully.",
       "type": "object",
       "additionalProperties": false,
       "required": ["is_synthetic", "confidence", "model_id", "latency_ms"],
@@ -84,7 +84,24 @@
         "confidence":   { "type": "number", "minimum": 0, "maximum": 1 },
         "model_id":     { "type": "string", "minLength": 1 },
         "latency_ms":   { "type": "number", "minimum": 0 },
-        "error":        { "type": "string", "minLength": 1 }
+        "error":        { "type": "string", "minLength": 1 },
+        "reasoning": {
+          "description": "Phase 2 Gemini 1.5 Flash reasoning fallback result. Present only when the upstream HF detector's is_synthetic landed in the ambiguous band [0.4, 0.6] AND the GEMINI_API_KEY env var was configured. On Gemini failure (timeout, non-2xx, malformed JSON, out-of-vocab verdict) the layer still populates this field with verdict='still_ambiguous' and confidence=0 so the caller never sees a missing field.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verdict", "confidence", "reasoning", "model_id"],
+          "properties": {
+            "verdict":    { "type": "string", "enum": ["likely_synthetic", "likely_real", "still_ambiguous"] },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+            "reasoning":  { "type": "string", "minLength": 1 },
+            "model_id":   { "type": "string", "minLength": 1 }
+          }
+        },
+        "reason_codes_emitted": {
+          "description": "Phase 2 modifier reason codes the engine attached on this media_detection_result. Populated when the configurable MEDIA_SYNTHETIC_THRESHOLD env var (default 0.5) is exceeded OR when the Gemini reasoning verdict is 'likely_synthetic'. The value 'media_likely_synthetic' mirrors ontology section 3.13 secondary closed set. The full disposition.reason_codes[] surface is pending the Stage 4 wiring dispatch; this field is the Demo-tier emission point.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
       }
     },
 
