@@ -58,6 +58,7 @@ function makeMockClient(overrides: Partial<{
       throw new Error('insertReportRecord not implemented in this mock');
     }),
     incrementReportCacheHit: vi.fn(async () => {}),
+    insertLegalAccessLog: vi.fn(async () => {}),
     capturedRows,
     capturedCustomerIds,
   };

@@ -53,6 +53,7 @@ function makeClient(overrides: Partial<CacheMockClient> = {}): CacheMockClient {
     getReportRecord: vi.fn(),
     insertReportRecord: vi.fn(),
     incrementReportCacheHit: vi.fn(),
+    insertLegalAccessLog: vi.fn(),
     ...overrides,
   };
   return surface;
