@@ -18,6 +18,12 @@ export type {
 } from './persistence';
 
 export {
+  maybePersistEvaluation,
+  persistEvaluationsEnabled,
+} from './wire-up';
+export type { V5EnvelopeWithPersistedId } from './wire-up';
+
+export {
   getClient,
   makeClient,
   setClientForTesting,

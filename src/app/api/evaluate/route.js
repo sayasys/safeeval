@@ -71,6 +71,7 @@ import {
   parseConversationFromImage,
   parseConversationFromText,
 } from '@/lib/conversation-parser';
+import { maybePersistEvaluation } from '@/lib/data';
 
 function badRequest(code, detail) {
   const body = { error: code };
@@ -179,6 +180,7 @@ export async function POST(request) {
         return serverError('evaluation_failed', err && err.message ? err.message : err);
       }
       const id = safeStore(text, v5Result);
+      await maybePersistEvaluation(text, v5Result);
       return NextResponse.json(Object.assign({ id }, v5Result));
     }
     // input.kind === 'conversation'
@@ -215,6 +217,13 @@ export async function POST(request) {
     // pipeline saw, capped to PROMPT_LENGTH_MAX for the preview field.
     const previewText = describeConversationForStore(input.conversation, v5Result);
     const id = safeStore(previewText, v5Result);
+    // Persist the conversation envelope. For Phase 4 / 2 (kms.skip=true) the
+    // rawInput argument is unused inside persistEvaluation; we pass the JSON
+    // representation so Phase 3's KMS path has a faithful raw payload to encrypt.
+    const rawConvJson = (() => {
+      try { return JSON.stringify(input.conversation); } catch { return previewText; }
+    })();
+    await maybePersistEvaluation(rawConvJson, v5Result);
     return NextResponse.json(Object.assign({ id }, v5Result));
   }
 
@@ -231,6 +240,7 @@ export async function POST(request) {
   }
 
   const id = safeStore(prompt, v5Result);
+  await maybePersistEvaluation(prompt, v5Result);
   return NextResponse.json(Object.assign({ id }, v5Result));
 }
 
