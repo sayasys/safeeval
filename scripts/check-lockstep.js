@@ -1108,6 +1108,158 @@ function checkConditionalForcedL2Lockstep() {
   return false;
 }
 
+// Audience-vocabulary lockstep (Phase 1 of the report-generator surface,
+// per docs/memos/2026-05-28-report-generator-implementation-spec.md).
+//
+// Verifies that:
+//   (a) the five audience names in docs/08-v5-ontology.md section 3.14
+//       match the Audience literal type in
+//       src/lib/report-generators/types.ts exactly,
+//   (b) every IMPLEMENTED audience has a corresponding
+//       src/lib/report-generators/prompts/<audience>.ts file,
+//   (c) every DEFERRED audience has NO corresponding prompts/<audience>.ts
+//       file (the deferral is enforced in both directions),
+//   (d) at least one DEFERRED entry exists (sanity check: end_user is
+//       structurally expected per Phase 1 scope).
+//
+// The function accepts an optional rootDir parameter so the unit tests at
+// tests/report-generators/lockstep.test.ts can drive it against a
+// synthetic mini-repo on disk. Production callers (CI, npm run check-
+// lockstep) pass no argument and the function uses the script's ROOT.
+function extractOntologyAudienceVocab(ontologySrc) {
+  const sectionHeader = '### 3.14 `audience`';
+  const startIdx = ontologySrc.indexOf(sectionHeader);
+  if (startIdx < 0) {
+    throw new Error('Ontology section missing: ' + sectionHeader);
+  }
+  // Stop at the next heading (### or ##) or end of doc.
+  let nextIdx = ontologySrc.length;
+  const reNext = /\n(##? |### )/g;
+  reNext.lastIndex = startIdx + sectionHeader.length;
+  let nm;
+  while ((nm = reNext.exec(ontologySrc)) !== null) { nextIdx = nm.index; break; }
+  const slice = ontologySrc.slice(startIdx, nextIdx);
+
+  // Parse table rows. First column is `| \`audience_name\` |`. We capture
+  // the rest of the line to detect the DEFERRED marker in the
+  // implementation-status column.
+  const audiences = [];
+  const reRow = /^\s*\|\s*`([a-z_]+)`\s*\|([^\n]+)$/gm;
+  let rm;
+  while ((rm = reRow.exec(slice)) !== null) {
+    audiences.push({
+      name: rm[1],
+      row: rm[2],
+      deferred: /\bDEFERRED\b/.test(rm[2]),
+    });
+  }
+  return audiences;
+}
+
+function extractAudienceLiteralFromTypes(typesSrc) {
+  // Match: export type Audience = 'a' | 'b' | ... ;
+  // The body may span multiple lines; the regex captures everything between
+  // the `=` and the terminating `;`.
+  const m = typesSrc.match(/export\s+type\s+Audience\s*=\s*([\s\S]*?);/);
+  if (!m) {
+    throw new Error('Audience literal type not found in src/lib/report-generators/types.ts');
+  }
+  const names = [];
+  const reLit = /'([a-z_]+)'/g;
+  let lm;
+  while ((lm = reLit.exec(m[1])) !== null) names.push(lm[1]);
+  if (names.length === 0) {
+    throw new Error('Audience literal type body parsed but no string-literal values extracted');
+  }
+  return names;
+}
+
+function checkAudienceLockstep(rootDir) {
+  const root = rootDir || ROOT;
+  const ontologyPath = path.join(root, 'docs', '08-v5-ontology.md');
+  const typesPath    = path.join(root, 'src', 'lib', 'report-generators', 'types.ts');
+  const promptsDir   = path.join(root, 'src', 'lib', 'report-generators', 'prompts');
+
+  let totalMisses = 0;
+
+  if (!fs.existsSync(ontologyPath)) {
+    console.error('FAIL audience lockstep: ontology doc missing at ' + ontologyPath);
+    return false;
+  }
+  if (!fs.existsSync(typesPath)) {
+    console.error('FAIL audience lockstep: types.ts missing at ' + typesPath);
+    return false;
+  }
+
+  let audiences;
+  try {
+    audiences = extractOntologyAudienceVocab(fs.readFileSync(ontologyPath, 'utf-8'));
+  } catch (e) {
+    console.error('FAIL audience lockstep (ontology parse): ' + e.message);
+    return false;
+  }
+  if (audiences.length === 0) {
+    console.error('FAIL audience lockstep: no audience rows parsed from docs/08-v5-ontology.md section 3.14');
+    return false;
+  }
+
+  let codeNames;
+  try {
+    codeNames = extractAudienceLiteralFromTypes(fs.readFileSync(typesPath, 'utf-8'));
+  } catch (e) {
+    console.error('FAIL audience lockstep (types.ts parse): ' + e.message);
+    return false;
+  }
+
+  const docNames = audiences.map(function (a) { return a.name; });
+  const deferredDocNames = audiences.filter(function (a) { return a.deferred; }).map(function (a) { return a.name; });
+  const implementedDocNames = audiences.filter(function (a) { return !a.deferred; }).map(function (a) { return a.name; });
+
+  if (!setsEqual(docNames, codeNames)) {
+    const extraDoc = setDiff(docNames, codeNames);
+    const extraCode = setDiff(codeNames, docNames);
+    console.error('LOCKSTEP FAIL audience vocabulary (ontology section 3.14 vs types.ts Audience):');
+    if (extraDoc.length > 0)  console.error('  ontology has but types.ts lacks: ' + extraDoc.join(', '));
+    if (extraCode.length > 0) console.error('  types.ts has but ontology lacks: ' + extraCode.join(', '));
+    console.error('Canonical source is docs/08-v5-ontology.md section 3.14. Update the Audience literal in src/lib/report-generators/types.ts to match the doc, NOT the other way around.');
+    totalMisses++;
+  }
+
+  // IMPLEMENTED audiences require a prompts/<name>.ts file.
+  for (const name of implementedDocNames) {
+    const promptFile = path.join(promptsDir, name + '.ts');
+    if (!fs.existsSync(promptFile)) {
+      console.error('LOCKSTEP FAIL audience lockstep: IMPLEMENTED audience "' + name + '" has no prompt file at src/lib/report-generators/prompts/' + name + '.ts. Either author the prompt module or mark the audience DEFERRED in docs/08-v5-ontology.md section 3.14.');
+      totalMisses++;
+    }
+  }
+
+  // DEFERRED audiences must NOT have a prompts/<name>.ts file.
+  for (const name of deferredDocNames) {
+    const promptFile = path.join(promptsDir, name + '.ts');
+    if (fs.existsSync(promptFile)) {
+      console.error('LOCKSTEP FAIL audience lockstep: DEFERRED audience "' + name + '" has a prompt file at src/lib/report-generators/prompts/' + name + '.ts. DEFERRED audiences must not be implemented; either delete the file or change the implementation status in docs/08-v5-ontology.md section 3.14 to IMPLEMENTED.');
+      totalMisses++;
+    }
+  }
+
+  // Sanity: Phase 1 expects at least one DEFERRED entry (end_user). If the
+  // ontology drops all DEFERRED entries without a corresponding Phase 2+
+  // dispatch landing, the deferral discipline has slipped silently.
+  if (deferredDocNames.length === 0) {
+    console.error('LOCKSTEP FAIL audience lockstep: no DEFERRED audiences found in section 3.14. Phase 1 scope reserves the end_user slot as DEFERRED; if Phase 2+ has landed end_user implementation, update this lockstep check to drop the sanity assertion.');
+    totalMisses++;
+  }
+
+  if (totalMisses > 0) {
+    console.error('');
+    console.error('audience lockstep failed with ' + totalMisses + ' miss(es).');
+    return false;
+  }
+  console.log('OK audience vocabulary (' + docNames.length + ' values; ontology section 3.14 = types.ts Audience; ' + implementedDocNames.length + ' implemented, ' + deferredDocNames.length + ' deferred)');
+  return true;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -1122,11 +1274,28 @@ function main() {
   const discriminatorOk = checkDiscriminatorBoundaryLockstep();
   console.log('');
   const conditionalForcedL2Ok = checkConditionalForcedL2Lockstep();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok) {
+  console.log('');
+  const audienceOk = checkAudienceLockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk) {
     process.exit(1);
   }
   console.log('');
   console.log('All lockstep checks passed.');
 }
 
-main();
+// Allow the file to be require()'d as a module (the test suite at
+// tests/report-generators/lockstep.test.ts imports checkAudienceLockstep
+// to drive it against a synthetic mini-repo). When executed directly via
+// `node scripts/check-lockstep.js` (CI's npm run check-lockstep), main()
+// fires and the process exits with the lockstep status code.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    checkAudienceLockstep: checkAudienceLockstep,
+    extractOntologyAudienceVocab: extractOntologyAudienceVocab,
+    extractAudienceLiteralFromTypes: extractAudienceLiteralFromTypes,
+  };
+}
+
+if (require.main === module) {
+  main();
+}
