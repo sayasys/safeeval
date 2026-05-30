@@ -32,8 +32,18 @@ const AUTH_URL_ENV = 'NEXT_PUBLIC_SUPABASE_URL';
 const AUTH_ANON_KEY_ENV = 'NEXT_PUBLIC_SUPABASE_ANON_KEY';
 
 function readEnv(): { url: string; anonKey: string } | null {
-  const url = process.env[AUTH_URL_ENV];
-  const anonKey = process.env[AUTH_ANON_KEY_ENV];
+  // STATIC LITERAL ACCESS IS REQUIRED -- DO NOT refactor to process.env[KEY].
+  // The signup/login pages are 'use client' components, so this runs in the
+  // browser bundle. Next.js exposes NEXT_PUBLIC_* vars to client code only by
+  // statically replacing the literal text `process.env.NEXT_PUBLIC_FOO` at
+  // build time. A dynamic/computed key (process.env[AUTH_URL_ENV]) is never
+  // matched by that replacement, so the value is undefined in the browser no
+  // matter what is configured in Vercel -- which is exactly the bug this
+  // shape fixes. The AUTH_*_ENV constants below are kept only for the error
+  // message text. On the server, process.env is the live object and either
+  // form works; the literal form is the one that also works client-side.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return null;
   return { url, anonKey };
 }
