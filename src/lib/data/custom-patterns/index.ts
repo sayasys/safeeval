@@ -39,6 +39,13 @@ export {
 } from './envelope';
 
 export {
+  matchPatterns,
+  evaluatePattern,
+  type ClassificationTagSet,
+  type PatternEvaluation,
+} from './matcher';
+
+export {
   makeSupabaseCustomPatternsStore,
   makeInMemoryCustomPatternsStore,
   CustomPatternsStoreError,
