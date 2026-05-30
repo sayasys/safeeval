@@ -43,6 +43,8 @@ import {
   BRIGHT_LINE_MAX_LENGTH,
   BRIGHT_LINE_INDICATORS_MAX,
   CONFLICTS_WITH_MAX,
+  PROMOTION_VOLUME_N,
+  PROMOTION_FEEDBACK_M,
 } from '../../src/lib/data/custom-patterns/constants';
 import type { NewPattern, NewCustomL3Classifier, NewCustomL3Example } from '../../src/lib/data/custom-patterns/types';
 
@@ -86,6 +88,37 @@ function sampleExamples(): NewCustomL3Example[] {
   ];
 }
 
+// Seed the M15 persistence so a shadow classifier clears the precision-proxy
+// promotion gate (memo 6.3): >= PROMOTION_VOLUME_N checks logged and >=
+// PROMOTION_FEEDBACK_M confirm-feedback events from 2 distinct reviewers
+// (precision proxy 1.0). promoteToLive enforces the gate server-side, so the
+// Phase 1 success / cap tests below seed this before promoting.
+async function seedReadyForPromotion(
+  orgId: string,
+  classifierId: string,
+  opts: { store: CustomPatternsStore },
+): Promise<void> {
+  for (let i = 0; i < PROMOTION_VOLUME_N; i++) {
+    await opts.store.insertMatchLog({
+      organization_id: orgId,
+      classifier_id: classifierId,
+      evaluation_id: null,
+      matched: true,
+      confidence: 0.9,
+      via: 'inference',
+    });
+  }
+  for (let i = 0; i < PROMOTION_FEEDBACK_M; i++) {
+    await opts.store.insertMatchFeedback({
+      organization_id: orgId,
+      classifier_id: classifierId,
+      match_log_id: null,
+      reviewer_id: i % 2 === 0 ? 'rev_1' : 'rev_2',
+      verdict: 'confirm',
+    });
+  }
+}
+
 // Fully promote a classifier to live, for the cap test.
 async function makeLiveClassifier(
   orgId: string,
@@ -99,6 +132,7 @@ async function makeLiveClassifier(
     opts,
   );
   await promoteToShadow(orgId, created.id, opts);
+  await seedReadyForPromotion(orgId, created.id, opts);
   await promoteToLive(orgId, created.id, ['rev_1', 'rev_2'], opts);
 }
 
@@ -312,10 +346,11 @@ describe('custom L3 classifiers persistence + lifecycle', () => {
     await expect(promoteToShadow(ORG_A, created.id, opts)).rejects.toBeInstanceOf(InvalidStatusTransitionError);
   });
 
-  it('promotes shadow -> live with >= 2 distinct reviewers', async () => {
+  it('promotes shadow -> live with >= 2 distinct reviewers once the gate is met', async () => {
     const opts = freshStore();
     const created = await createCustomClassifier(ORG_A, sampleClassifier(), sampleExamples(), opts);
     await promoteToShadow(ORG_A, created.id, opts);
+    await seedReadyForPromotion(ORG_A, created.id, opts);
     const live = await promoteToLive(ORG_A, created.id, ['rev_1', 'rev_2'], opts);
     expect(live.status).toBe('live');
     expect(live.promoted_at).toBeTruthy();
@@ -355,6 +390,9 @@ describe('custom L3 classifiers persistence + lifecycle', () => {
       opts,
     );
     await promoteToShadow(ORG_A, overflow.id, opts);
+    // Seed the gate so the overflow promotion clears the precision-proxy check
+    // and reaches the cap check (which is what this test asserts).
+    await seedReadyForPromotion(ORG_A, overflow.id, opts);
     await expect(promoteToLive(ORG_A, overflow.id, ['rev_1', 'rev_2'], opts)).rejects.toBeInstanceOf(
       OrgClassifierCapExceededError,
     );
