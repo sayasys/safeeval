@@ -16,37 +16,55 @@ import {
   signUpWithEmailPassword,
   signInWithOAuth,
 } from '@/lib/auth';
+import { deriveSignupState, friendlyAuthError } from './feedback';
+
+const IDLE = { status: 'idle', message: null, showLoginLink: false };
+const SUBMITTING = { status: 'submitting', message: null, showLoginLink: false };
 
 export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  // Single source of truth for the request lifecycle. status drives the
+  // in-flight (disabled + relabeled button), success, and error UI. Inputs
+  // are preserved across an error so the user does not lose what they typed.
+  const [feedback, setFeedback] = useState(IDLE);
+  const busy = feedback.status === 'submitting';
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError(null);
-    setBusy(true);
-    const result = await signUpWithEmailPassword(email, password);
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error || 'Sign up failed.');
+    setFeedback(SUBMITTING);
+    let result;
+    try {
+      result = await signUpWithEmailPassword(email, password);
+    } catch (err) {
+      result = { ok: false, error: err instanceof Error ? err.message : '' };
+    }
+    const next = deriveSignupState(result, email);
+    if (next.status === 'success-immediate') {
+      // Session established (email confirmation disabled). Leave the form in
+      // the submitting state so it stays disabled while we navigate.
+      router.push('/app/welcome');
       return;
     }
-    router.push('/app/welcome');
+    setFeedback(next);
   }
 
   async function handleOAuth(provider) {
-    setError(null);
-    setBusy(true);
-    const result = await signInWithOAuth(provider, `${window.location.origin}/app/welcome`);
-    if (!result.ok) {
-      setBusy(false);
-      setError(result.error || 'OAuth sign in failed.');
+    setFeedback(SUBMITTING);
+    let result;
+    try {
+      result = await signInWithOAuth(provider, `${window.location.origin}/app/welcome`);
+    } catch (err) {
+      result = { ok: false, error: err instanceof Error ? err.message : '' };
     }
-    // On success the browser is redirected; busy stays true so the form is
-    // visually disabled until the redirect completes.
+    if (!result.ok) {
+      const friendly = friendlyAuthError(result.error);
+      setFeedback({ status: 'error', message: friendly.text, showLoginLink: friendly.showLoginLink });
+      return;
+    }
+    // On success the browser is redirected; status stays 'submitting' so the
+    // form is visually disabled until the redirect completes.
   }
 
   return (
@@ -63,6 +81,27 @@ export default function SignupPage() {
 
         <div className="bg-white border border-sage-100 rounded-lg p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-slate-900 mb-6">Sign up</h1>
+
+          {feedback.status === 'success-pending-confirmation' && (
+            <div
+              role="status"
+              className="mb-6 rounded-md bg-sage-50 border border-sage-200 text-sage-700 text-sm px-3 py-2 flex items-start gap-2"
+            >
+              <svg
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4 mt-0.5 flex-shrink-0"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M16.704 5.29a1 1 0 010 1.42l-7.5 7.5a1 1 0 01-1.42 0l-3.5-3.5a1 1 0 011.42-1.42l2.79 2.8 6.79-6.8a1 1 0 011.42 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <span>{feedback.message}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -99,12 +138,21 @@ export default function SignupPage() {
               <p className="mt-1 text-xs text-slate-500">At least 8 characters.</p>
             </div>
 
-            {error && (
+            {feedback.status === 'error' && (
               <div
                 role="alert"
                 className="rounded-md bg-coral-50 border border-coral-200 text-coral-900 text-sm px-3 py-2"
               >
-                {error}
+                {feedback.message}
+                {feedback.showLoginLink && (
+                  <>
+                    {' '}
+                    <Link href="/login" className="font-medium underline">
+                      Log in
+                    </Link>
+                    .
+                  </>
+                )}
               </div>
             )}
 

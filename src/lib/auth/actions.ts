@@ -19,6 +19,14 @@ export interface AuthActionResult {
   ok: boolean;
   // Provider-agnostic error message; UI surfaces this verbatim.
   error?: string;
+  // Set true only by signUpWithEmailPassword when the provider accepted the
+  // signup but no session was established because email confirmation is
+  // pending (Supabase returns a user with a null session). The UI uses this
+  // to show a "check your email" message instead of redirecting into the
+  // gated app, where the missing session would silently bounce the user.
+  // Provider-agnostic boolean -- the underlying Supabase Session never leaves
+  // provider.ts/actions.ts, per the migration-readiness rule in types.ts.
+  pendingEmailConfirmation?: boolean;
 }
 
 // Minimal DOM type surface. The auth module is compiled under a Node-target
@@ -85,7 +93,11 @@ export async function signUpWithEmailPassword(
     // confirmation is disabled, the session is populated immediately and we
     // can write the cookie so /app/* is reachable on the next nav.
     persistFromSession(data.session as SupabaseSessionShape | null);
-    return { ok: true };
+    // Surface the confirmation-pending case so the UI can tell the user to
+    // check their email rather than redirecting into the gated app with no
+    // session. Supabase signals this with a user present but no session.
+    const pendingEmailConfirmation = Boolean(data.user) && !data.session;
+    return { ok: true, pendingEmailConfirmation };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
