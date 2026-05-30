@@ -23,13 +23,15 @@ describe('M12 migration: discovery + apply order', () => {
     const files = runner.listMigrationFiles();
     expect(files).toContain(M12);
     // M12 must sort after the existing M1..M11 chain -- the point of the
-    // M6->M12 renumber. (The M13 custom-patterns migration now sorts after M12
-    // as the numeric tail, so the tail check moved to M13 below.)
+    // M6->M12 renumber. M13 (custom patterns) sorts after M12, and M14 (the
+    // bright_line + conflicts_with backfill) is now the numeric tail.
     const m11Index = files.findIndex((f) => f.startsWith('M11_'));
     expect(files.indexOf(M12)).toBeGreaterThan(m11Index);
     const m13Index = files.findIndex((f) => f.startsWith('M13_'));
     expect(m13Index).toBeGreaterThan(files.indexOf(M12));
-    expect(files[files.length - 1]).toBe('M13_custom_patterns_and_classifiers.sql');
+    const m14Index = files.findIndex((f) => f.startsWith('M14_'));
+    expect(m14Index).toBeGreaterThan(m13Index);
+    expect(files[files.length - 1]).toBe('M14_classifier_bright_line_and_conflicts.sql');
   });
 });
 
