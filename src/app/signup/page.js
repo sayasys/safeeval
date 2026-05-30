@@ -141,7 +141,7 @@ export default function SignupPage() {
             {feedback.status === 'error' && (
               <div
                 role="alert"
-                className="rounded-md bg-coral-50 border border-coral-200 text-coral-900 text-sm px-3 py-2"
+                className="rounded-md bg-red-50 border border-red-200 text-red-900 text-sm px-3 py-2"
               >
                 {feedback.message}
                 {feedback.showLoginLink && (

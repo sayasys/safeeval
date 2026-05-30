@@ -94,9 +94,9 @@ export default function ClassifierForm({ existing = [] }) {
   const defLen = definition.length;
   const defCounterClass =
     defLen > DEFINITION_MAX_LENGTH
-      ? 'text-coral-600'
+      ? 'text-red-600'
       : defLen >= DEFINITION_MAX_LENGTH * 0.9
-        ? 'text-coral-500'
+        ? 'text-red-500'
         : defLen >= DEFINITION_MAX_LENGTH * 0.75
           ? 'text-sage-600'
           : 'text-slate-400';
@@ -193,7 +193,7 @@ export default function ClassifierForm({ existing = [] }) {
           className="w-full rounded-md border border-sage-200 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
         />
         {collision && !tagError && (
-          <p className="mt-1 text-xs text-coral-600">
+          <p className="mt-1 text-xs text-red-600">
             A classifier named <span className="font-mono">{tagName}</span> already
             exists in this group. You can still submit, but it will be rejected as a
             duplicate -- choose a different name.
@@ -295,7 +295,7 @@ export default function ClassifierForm({ existing = [] }) {
       {serverError && (
         <div
           role="alert"
-          className="rounded-md border border-coral-400 bg-coral-400/10 text-coral-600 text-sm px-3 py-2"
+          className="rounded-md border border-red-400 bg-red-400/10 text-red-600 text-sm px-3 py-2"
         >
           {serverError}
         </div>
@@ -327,7 +327,7 @@ function Field({ label, htmlFor, help, error, children }) {
       {help && <p className="mt-0.5 mb-1.5 text-xs text-slate-500">{help}</p>}
       {children}
       {error && (
-        <p role="alert" className="mt-1 text-xs text-coral-600">
+        <p role="alert" className="mt-1 text-xs text-red-600">
           {error}
         </p>
       )}
@@ -377,7 +377,7 @@ function ExampleList({
                 </button>
               </div>
               {rowError && (
-                <p className="mt-1 text-xs text-coral-600">{rowError}</p>
+                <p className="mt-1 text-xs text-red-600">{rowError}</p>
               )}
             </div>
           );
@@ -392,7 +392,7 @@ function ExampleList({
         Add example
       </button>
       {listError && (
-        <p role="alert" className="mt-1 text-xs text-coral-600">
+        <p role="alert" className="mt-1 text-xs text-red-600">
           {listError}
         </p>
       )}
@@ -457,7 +457,7 @@ function OptionalList({
                   Remove
                 </button>
               </div>
-              {rowError && <p className="mt-1 text-xs text-coral-600">{rowError}</p>}
+              {rowError && <p className="mt-1 text-xs text-red-600">{rowError}</p>}
             </div>
           );
         })}
@@ -471,7 +471,7 @@ function OptionalList({
         {addLabel}
       </button>
       {listError && (
-        <p role="alert" className="mt-1 text-xs text-coral-600">
+        <p role="alert" className="mt-1 text-xs text-red-600">
           {listError}
         </p>
       )}

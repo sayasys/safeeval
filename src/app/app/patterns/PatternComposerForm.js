@@ -150,7 +150,7 @@ export default function PatternComposerForm({ customByGroup = {}, existingNames 
           className="w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
         />
         {collision && !nameError && (
-          <p className="mt-1 text-xs text-coral-600">
+          <p className="mt-1 text-xs text-red-600">
             A pattern named <span className="font-medium">{name}</span> already
             exists in this organization. You can still submit, but it will be
             rejected as a duplicate -- choose a different name.
@@ -197,7 +197,7 @@ export default function PatternComposerForm({ customByGroup = {}, existingNames 
           from any of the six L3 groups; groups you leave empty are wildcards.
         </p>
         {(submitted || touched.components) && errors.components && (
-          <p role="alert" className="mb-3 text-xs text-coral-600">
+          <p role="alert" className="mb-3 text-xs text-red-600">
             {errors.components}
           </p>
         )}
@@ -225,7 +225,7 @@ export default function PatternComposerForm({ customByGroup = {}, existingNames 
       {serverError && (
         <div
           role="alert"
-          className="rounded-md border border-coral-400 bg-coral-400/10 text-coral-600 text-sm px-3 py-2"
+          className="rounded-md border border-red-400 bg-red-400/10 text-red-600 text-sm px-3 py-2"
         >
           {serverError}
         </div>
@@ -257,7 +257,7 @@ function Field({ label, htmlFor, help, error, children }) {
       {help && <p className="mt-0.5 mb-1.5 text-xs text-slate-500">{help}</p>}
       {children}
       {error && (
-        <p role="alert" className="mt-1 text-xs text-coral-600">
+        <p role="alert" className="mt-1 text-xs text-red-600">
           {error}
         </p>
       )}
@@ -309,7 +309,7 @@ function GroupComposer({ group, label, hint, options, selected, onAdd, onRemove,
                 onClick={() => onRemove(c.tag_id)}
                 disabled={busy}
                 aria-label={`Remove ${c.tag_id} from ${label}`}
-                className="ml-0.5 rounded px-1 text-slate-400 hover:bg-cream-100 hover:text-coral-600 disabled:opacity-40"
+                className="ml-0.5 rounded px-1 text-slate-400 hover:bg-cream-100 hover:text-red-600 disabled:opacity-40"
               >
                 &times;
               </button>
