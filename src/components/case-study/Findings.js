@@ -26,7 +26,7 @@ export default function Findings() {
           <Finding
             number="03"
             title="The deepfake-CFO case"
-            body="A live deepfake video conference impersonating a CFO authorized roughly $25 million in transfers. The existing policy blocked the case correctly, but it treated a live deepfake call the same as a forged email. Those are not the same attack. A reviewer who would have caught the email by calling the executive cannot catch the deepfake the same way -- the deepfake is on the call. The policy needed a sharper rule for the live-synthetic-media case."
+            body="In a live deepfake video conference impersonating a CFO, an employee was deceived into authorizing roughly $25 million in transfers. The existing policy blocked the case correctly, but it treated a live deepfake call the same as a forged email. Those are not the same attack. A reviewer who would have caught the email by calling the executive cannot catch the deepfake the same way -- the deepfake is on the call. The policy needed a sharper rule for the live-synthetic-media case."
           />
           <Finding
             number="04"
