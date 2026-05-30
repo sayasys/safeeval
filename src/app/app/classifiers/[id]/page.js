@@ -86,6 +86,20 @@ export default async function ClassifierDetailPage({ params }) {
           </p>
         </Section>
 
+        {/* Optional: bright-line indicators (memo 5.5). Omitted when empty. */}
+        {classifier.bright_line_indicators?.length > 0 && (
+          <Section title="Bright-line indicators">
+            <ChipList items={classifier.bright_line_indicators} />
+          </Section>
+        )}
+
+        {/* Optional: conflicts-with (memo 5.6). Omitted when empty. */}
+        {classifier.conflicts_with?.length > 0 && (
+          <Section title="Conflicts with">
+            <ChipList items={classifier.conflicts_with} mono />
+          </Section>
+        )}
+
         {/* Examples */}
         <Section title={`Positive examples (${positives.length})`}>
           <ExampleRows rows={positives} empty="No positive examples." />
@@ -122,6 +136,26 @@ function Section({ title, children }) {
       </h2>
       {children}
     </section>
+  );
+}
+
+// Renders an array of short strings (bright-line indicators or conflicting tag
+// names) as a wrapped list of chips. `mono` is set for tag-name references so
+// they read consistently with the closed-set tag styling elsewhere.
+function ChipList({ items, mono }) {
+  return (
+    <ul className="flex flex-wrap gap-2">
+      {items.map((value, i) => (
+        <li
+          key={`${value}-${i}`}
+          className={`rounded-md border border-sage-200 bg-white px-2.5 py-1 text-sm text-slate-700${
+            mono ? ' font-mono' : ''
+          }`}
+        >
+          {value}
+        </li>
+      ))}
+    </ul>
   );
 }
 
