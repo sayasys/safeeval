@@ -28,6 +28,15 @@ export {
 } from './classifiers';
 
 export {
+  computePromotionReadiness,
+  recordMatchCheck,
+  recordInferencePass,
+  recordMatchFeedback,
+  getFeedbackReviewerIds,
+  type PromotionReadiness,
+} from './promotion';
+
+export {
   composeEvaluationEnvelope,
   missingAgnosticBaseKeys,
   AGNOSTIC_BASE_ENVELOPE_KEYS,

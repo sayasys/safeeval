@@ -81,15 +81,18 @@ export const EXAMPLE_MAX_LENGTH = 2000;
 // bright_line_indicators[] -- a phrase that deterministically triggers the tag
 // when present in the input (memo 5.5). Bounded 1--200 chars, printable ASCII.
 //
-// RECONCILIATION NOTE (architect follow-up). Memo 5.5 describes the validation
-// shape as "lowercase, regex-safe characters, length cap 100." This
-// implementation follows the Phase-3 backfill dispatch brief instead -- printable
-// ASCII, length cap 200, no lowercase / regex-metacharacter restriction -- and
-// stores the strings as inert data. The stricter lowercase + regex-safety
-// discipline is potentially load-bearing for the Phase 4 deterministic-match
-// path (if it compiles these to regexes); that is the right place to add it,
-// since adding it here would reject phrases the brief intends to allow and Phase
-// 4 matching is not yet built. Flagged for architect reconciliation of memo 5.5.
+// RECONCILIATION NOTE -- RESOLVED (Phase 4, 2026-05-30). Memo 5.5 describes the
+// validation shape as "lowercase, regex-safe characters, length cap 100"; the M14
+// backfill stored printable ASCII up to 200 chars instead and deferred the
+// regex-safety question to Phase 4, on the theory that Phase 4 matching might
+// compile these to regexes. Phase 4 does NOT compile them to regexes. The
+// inference pass (src/lib/data/custom-patterns/inference.ts, matchBrightLine)
+// treats a bright-line indicator as a CASE-INSENSITIVE SUBSTRING match. Substring
+// matching has no metacharacter semantics, so the "regex-safe characters"
+// concern does not arise, and the case-insensitive compare subsumes the
+// "lowercase" intent. The stored shape (printable ASCII <= 200) therefore needs
+// no tightening: the values are matched as literal substrings, never interpreted
+// as patterns. No architect follow-up remains for memo 5.5.
 export const BRIGHT_LINE_MIN_LENGTH = 1;
 export const BRIGHT_LINE_MAX_LENGTH = 200;
 

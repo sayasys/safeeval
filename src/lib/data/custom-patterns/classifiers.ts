@@ -52,7 +52,9 @@ import {
   OrgClassifierCapExceededError,
   ClassifierRetirementForbiddenError,
   InvalidStatusTransitionError,
+  PromotionGateNotMetError,
 } from './errors';
+import { computePromotionReadiness } from './promotion';
 // Type-only import: keeps the data layer free of any runtime dependency on the
 // auth provider while reusing the canonical OrgRole vocabulary. The retirement
 // authority predicate (owner/admin) mirrors roleSatisfies(actorRole, 'admin')
@@ -255,11 +257,15 @@ export async function promoteToShadow(
   return updated;
 }
 
-// shadow -> live. Enforces the distinct-reviewer floor (Q4 / memo R5) and the
-// per-org live cap (Q9) BEFORE writing. Sets promoted_at. The precision-proxy
-// computation that gates the in-app "Ready to promote" banner is Phase 4; this
-// helper is the structural guard that no live classifier is written without the
-// reviewer-diversity and cap checks passing.
+// shadow -> live. Enforces, server-side and BEFORE writing (defense in depth --
+// the UI banner is not the bright line, memo 6.4): the distinct-reviewer floor on
+// the passed approver set (Q4 / memo R5), the precision-proxy promotion gate
+// (memo 6.3, computed from the M15 shadow-phase persistence), and the per-org
+// live cap (Q9). Sets promoted_at.
+//
+// Two distinct-reviewer surfaces both apply: `reviewerIds` is the set attesting
+// to THIS promotion action; computePromotionReadiness independently counts the
+// distinct reviewers who gave shadow feedback. Both must clear the floor.
 export async function promoteToLive(
   orgId: string,
   classifierId: string,
@@ -276,6 +282,13 @@ export async function promoteToLive(
   const distinctReviewers = new Set(reviewerIds ?? []).size;
   if (distinctReviewers < MIN_DISTINCT_REVIEWERS) {
     throw new InsufficientReviewersError(MIN_DISTINCT_REVIEWERS, distinctReviewers);
+  }
+
+  // Precision-proxy promotion gate (memo 6.3): volume N + feedback M + distinct
+  // reviewers + precision >= threshold, all computed from the M15 persistence.
+  const readiness = await computePromotionReadiness(orgId, classifierId, options);
+  if (!readiness.ready) {
+    throw new PromotionGateNotMetError(readiness.reason);
   }
 
   // Q9: the cap counts classifiers already in 'live' status for this org. The

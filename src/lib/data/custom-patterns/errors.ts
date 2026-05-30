@@ -14,7 +14,8 @@ export type CustomPatternsErrorCode =
   | 'INSUFFICIENT_REVIEWERS'
   | 'ORG_CLASSIFIER_CAP_EXCEEDED'
   | 'RETIREMENT_FORBIDDEN'
-  | 'INVALID_STATUS_TRANSITION';
+  | 'INVALID_STATUS_TRANSITION'
+  | 'PROMOTION_GATE_NOT_MET';
 
 export class CustomPatternsError extends Error {
   readonly code: CustomPatternsErrorCode;
@@ -113,6 +114,18 @@ export class ClassifierRetirementForbiddenError extends CustomPatternsError {
       'RETIREMENT_FORBIDDEN',
     );
     this.actorRole = actorRole;
+  }
+}
+
+// promoteToLive precision-proxy gate (memo 6.3): the volume / feedback /
+// precision / distinct-reviewer conditions are not all met. Carries the readiness
+// snapshot's `reason` so the route layer can surface the progress to the customer.
+export class PromotionGateNotMetError extends CustomPatternsError {
+  override readonly name = 'PromotionGateNotMetError';
+  readonly detail: string;
+  constructor(detail: string) {
+    super(`promotion gate not met: ${detail}`, 'PROMOTION_GATE_NOT_MET');
+    this.detail = detail;
   }
 }
 
