@@ -69,7 +69,7 @@ export const STATUS_META: Record<ClassifierStatus, StatusMeta> = {
     label: 'Shadow',
     badgeClass: 'bg-sage-50 text-sage-700 border border-sage-300',
     description:
-      'Collecting calibration data. Verdicts are visible to reviewers but not in member-facing evaluation cards. Promotion to live arrives in a later phase.',
+      'Collecting calibration data. Verdicts are visible to reviewers but not in member-facing evaluation cards. Promote to live once the calibration gate is met.',
   },
   live: {
     label: 'Live',

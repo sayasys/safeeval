@@ -13,8 +13,18 @@ import { getCustomClassifier } from '@/lib/data/custom-patterns';
 import StatusBadge from '../StatusBadge';
 import LifecycleActions from '../LifecycleActions';
 import { GROUP_LABELS, STATUS_META } from '../labels';
+import { runGetPromotionReadiness } from '../action-core';
 
 export const dynamic = 'force-dynamic';
+
+// Promotion-gate readiness is only meaningful while a classifier is in shadow
+// (memo 6.3). Returns null for any other status, or when the store is
+// unreachable -- the detail view degrades to the "Awaiting calibration" label.
+async function loadReadiness(orgId, classifier) {
+  if (classifier.status !== 'shadow') return null;
+  const result = await runGetPromotionReadiness(orgId, classifier.id);
+  return result.ok ? result.data : null;
+}
 
 // ISO -> YYYY-MM-DD. Deterministic (no locale), enough for an audit-style date.
 function fmtDate(iso) {
@@ -43,6 +53,7 @@ export default async function ClassifierDetailPage({ params }) {
   const positives = classifier.examples.filter((e) => e.kind === 'positive');
   const negatives = classifier.examples.filter((e) => e.kind === 'negative');
   const meta = STATUS_META[classifier.status];
+  const readiness = await loadReadiness(org.id, classifier);
 
   return (
     <main className="min-h-screen bg-cream-50 text-slate-800 px-6 py-12">
@@ -76,7 +87,11 @@ export default async function ClassifierDetailPage({ params }) {
           <p className="mb-4 text-sm text-slate-600">
             {meta ? meta.description : null}
           </p>
-          <LifecycleActions id={classifier.id} status={classifier.status} />
+          <LifecycleActions
+            id={classifier.id}
+            status={classifier.status}
+            readiness={readiness}
+          />
         </div>
 
         {/* Definition */}

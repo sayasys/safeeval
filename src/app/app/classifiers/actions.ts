@@ -25,6 +25,7 @@ import {
 import {
   runCreateClassifier,
   runPromoteToShadow,
+  runPromoteToLive,
   runRetireClassifier,
   type ActionResult,
   type ActionFailure,
@@ -121,6 +122,23 @@ export async function promoteToShadowAction(
     return mapAuthError(err);
   }
   return runPromoteToShadow(ctx.orgId, classifierId);
+}
+
+// ---------------------------------------------------------------------------
+// shadow -> live. Owner/admin gated (memo 6.4). The "I accept calibration risk"
+// acknowledgment is collected client-side before this action fires; the
+// server-side gate (promoteToLive) is the bright line, not the checkbox.
+// ---------------------------------------------------------------------------
+export async function promoteToLiveAction(
+  classifierId: string,
+): Promise<ActionResult<CustomL3Classifier>> {
+  let ctx: WriteContext;
+  try {
+    ctx = await resolveWriteContext('admin');
+  } catch (err) {
+    return mapAuthError(err);
+  }
+  return runPromoteToLive(ctx.orgId, classifierId);
 }
 
 // ---------------------------------------------------------------------------

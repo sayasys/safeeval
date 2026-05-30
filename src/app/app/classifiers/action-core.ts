@@ -12,7 +12,10 @@
 import {
   createCustomClassifier,
   promoteToShadow,
+  promoteToLive,
   retireClassifier,
+  getFeedbackReviewerIds,
+  computePromotionReadiness,
   CustomPatternsError,
   CustomPatternsValidationError,
   type CustomPatternsOptions,
@@ -20,6 +23,7 @@ import {
   type CustomL3Classifier,
   type NewCustomL3Example,
   type L3GroupName,
+  type PromotionReadiness,
 } from '../../../lib/data/custom-patterns';
 import type { OrgRole } from '../../../lib/auth';
 
@@ -142,6 +146,41 @@ export async function runPromoteToShadow(
   try {
     const updated = await promoteToShadow(orgId, classifierId, options);
     return { ok: true, data: updated };
+  } catch (err) {
+    return toFailure(err);
+  }
+}
+
+// shadow -> live. Derives the distinct shadow-feedback reviewer set and hands it
+// to promoteToLive, which enforces the full precision-proxy gate server-side
+// (volume / feedback / precision / distinct reviewers) plus the Q9 live cap. A
+// gate miss surfaces as a PROMOTION_GATE_NOT_MET failure whose message carries
+// the readiness progress; the cap miss as ORG_CLASSIFIER_CAP_EXCEEDED.
+export async function runPromoteToLive(
+  orgId: string,
+  classifierId: string,
+  options?: CustomPatternsOptions,
+): Promise<ActionResult<CustomL3Classifier>> {
+  try {
+    const reviewerIds = await getFeedbackReviewerIds(orgId, classifierId, options);
+    const updated = await promoteToLive(orgId, classifierId, reviewerIds, options);
+    return { ok: true, data: updated };
+  } catch (err) {
+    return toFailure(err);
+  }
+}
+
+// Read the promotion-gate readiness snapshot for a shadow classifier (memo 6.3).
+// The detail view renders the progress / banner off this; promoteToLive
+// re-enforces the gate server-side, so this is display-only and safe to surface.
+export async function runGetPromotionReadiness(
+  orgId: string,
+  classifierId: string,
+  options?: CustomPatternsOptions,
+): Promise<ActionResult<PromotionReadiness>> {
+  try {
+    const readiness = await computePromotionReadiness(orgId, classifierId, options);
+    return { ok: true, data: readiness };
   } catch (err) {
     return toFailure(err);
   }
