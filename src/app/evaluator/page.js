@@ -2,7 +2,17 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ShieldCheck, UserRound, Ban, TriangleAlert, X, Plus, MoreVertical } from 'lucide-react';
+import { Check, ShieldCheck, UserRound, Ban, TriangleAlert, X, Plus, MoreVertical, Upload, Sparkles, HelpCircle } from 'lucide-react';
+import { deriveMediaVerdict } from '@/lib/media-evaluator/verdict';
+import {
+  validateMediaFile,
+  IMAGE_ACCEPT,
+  AUDIO_ACCEPT,
+  IMAGE_FORMATS_LABEL,
+  AUDIO_FORMATS_LABEL,
+  maxLabelFor,
+} from '@/lib/media-evaluator/upload';
+import { samplesForMode } from '@/lib/media-evaluator/samples';
 
 // Bright-line descriptions. MUST stay in sync with BRIGHT_LINE_FEATURES in
 // src/lib/safeeval-v5.js. Missing entries silently break tooltips. See
@@ -662,12 +672,13 @@ export default function Home() {
   // confirmDialog: 4-scenario switch confirmation (null=closed).
   // tipsOpen: "Show formatting tips" disclosure.
   // sonnetEscalating: flag to render the right Stage 0 status line.
+  // mode: 'prompt' | 'conversation' | 'image' | 'audio'. The media modes
+  // (image/audio) drive the synthetic-media detection tabs.
   const [mode, setMode] = useState(() => {
     if (typeof window === 'undefined') return 'prompt';
     try {
-      return new URLSearchParams(window.location.search).get('mode') === 'conversation'
-        ? 'conversation'
-        : 'prompt';
+      const m = new URLSearchParams(window.location.search).get('mode');
+      return (m === 'conversation' || m === 'image' || m === 'audio') ? m : 'prompt';
     } catch (e) {
       return 'prompt';
     }
@@ -693,6 +704,22 @@ export default function Home() {
   const parseAbortRef = useRef(null);
   const fileInputRef = useRef(null);
   const txtFileInputRef = useRef(null);
+
+  // Synthetic-media detection state (image / audio tabs). Entirely separate
+  // from the conversation-screenshot state above so switching tabs cannot leak
+  // one mode's input into another. mediaBlob is the File/Blob handed to
+  // FormData; mediaPreviewUrl is an object URL for the <img>/<audio> preview
+  // (revoked on replace/clear); mediaResult holds the detector's
+  // media_detection_result; mediaLoading/mediaError drive the result region.
+  const [mediaBlob, setMediaBlob] = useState(null);
+  const [mediaName, setMediaName] = useState('');
+  const [mediaMimeType, setMediaMimeType] = useState('');
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
+  const [mediaResult, setMediaResult] = useState(null);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaError, setMediaError] = useState('');
+  const [mediaDragHover, setMediaDragHover] = useState(false);
+  const mediaInputRef = useRef(null);
 
   // Stale-tracking is mode-aware. In prompt mode the existing rule holds
   // (text changed after evaluate -> stale). In conversation mode the working
@@ -734,7 +761,7 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
-    if (mode === 'conversation') url.searchParams.set('mode', 'conversation');
+    if (mode !== 'prompt') url.searchParams.set('mode', mode);
     else url.searchParams.delete('mode');
     const next = url.pathname + (url.search ? url.search : '') + url.hash;
     window.history.replaceState({ mode }, '', next);
@@ -764,65 +791,147 @@ export default function Home() {
     }
   }
 
-  // Mode-switch entry point. Inspects transient state to decide whether a
-  // confirm dialog fires (Scenarios B/C/D in display spec section 19.3).
+  // Clear synthetic-media input state (image/audio tabs). Revokes the preview
+  // object URL so the browser does not leak the blob.
+  function resetMediaInputState() {
+    if (mediaPreviewUrl) {
+      try { URL.revokeObjectURL(mediaPreviewUrl); } catch (e) { /* no-op */ }
+    }
+    setMediaBlob(null);
+    setMediaName('');
+    setMediaMimeType('');
+    setMediaPreviewUrl('');
+    setMediaResult(null);
+    setMediaError('');
+    setMediaLoading(false);
+    setMediaDragHover(false);
+  }
+
+  // Adopt a picked / fetched media blob: validate, build a fresh preview URL,
+  // and clear any prior result. forMode is the tab the file is being loaded
+  // into ('image' | 'audio').
+  function setMediaSelection(blob, name, mime, forMode) {
+    const v = validateMediaFile({ name: name || '', type: mime || (blob && blob.type) || '', size: (blob && blob.size) || 0 }, forMode);
+    if (!v.ok) {
+      setMediaError(v.error);
+      return;
+    }
+    if (mediaPreviewUrl) {
+      try { URL.revokeObjectURL(mediaPreviewUrl); } catch (e) { /* no-op */ }
+    }
+    let urlObj = '';
+    try { urlObj = URL.createObjectURL(blob); } catch (e) { urlObj = ''; }
+    setMediaBlob(blob);
+    setMediaName(name || (forMode === 'audio' ? 'audio-clip' : 'image'));
+    setMediaMimeType(mime || (blob && blob.type) || '');
+    setMediaPreviewUrl(urlObj);
+    setMediaResult(null);
+    setMediaError('');
+  }
+
+  function handleMediaFile(file) {
+    if (!file) return;
+    setMediaSelection(file, file.name, file.type, mode);
+  }
+
+  async function loadSampleMedia(sample) {
+    setMediaError('');
+    try {
+      const res = await fetch(sample.src);
+      if (!res.ok) throw new Error('fetch failed');
+      const blob = await res.blob();
+      setMediaSelection(blob, sample.filename, blob.type || sample.mime, sample.mode);
+    } catch (e) {
+      setMediaError('Could not load the sample file. Try uploading your own.');
+    }
+  }
+
+  async function handleEvaluateMedia() {
+    if (!mediaBlob || (mode !== 'image' && mode !== 'audio')) return;
+    setMediaLoading(true);
+    setMediaError('');
+    setMediaResult(null);
+    try {
+      const form = new FormData();
+      form.append('media_type', mode);
+      form.append('file', mediaBlob, mediaName || 'upload');
+      const res = await fetch('/api/evaluate', { method: 'POST', body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || 'Evaluation failed');
+      }
+      setMediaResult(data.media_detection_result || null);
+    } catch (err) {
+      setMediaError(err && err.message ? err.message : 'Evaluation failed');
+    } finally {
+      setMediaLoading(false);
+    }
+  }
+
+  // Mode-switch entry point. Inspects the CURRENT mode's transient state to
+  // decide whether a discard-confirm dialog fires before switching. The
+  // prompt/conversation messages are preserved verbatim from display spec
+  // section 19.3; the media tabs add their own discard messages.
+  function modeLabel(target) {
+    if (target === 'conversation') return 'conversation evaluation';
+    if (target === 'image') return 'image evaluation';
+    if (target === 'audio') return 'audio evaluation';
+    return 'prompt evaluation';
+  }
+
+  function clearModeInput(sourceMode) {
+    if (sourceMode === 'prompt') { setPrompt(''); return; }
+    if (sourceMode === 'conversation') { resetConversationInputState(); return; }
+    if (sourceMode === 'image' || sourceMode === 'audio') { resetMediaInputState(); return; }
+  }
+
+  // Returns a discard-confirm message for the current mode, or null when there
+  // is nothing to discard (Scenario A: switch immediately).
+  function currentModeDiscardMessage() {
+    if (mode === 'prompt') {
+      return prompt.trim().length > 0
+        ? 'Switching modes will discard the text in your prompt. Switch anyway?'
+        : null;
+    }
+    if (mode === 'conversation') {
+      const hasParsed = Array.isArray(previewTurns) && previewTurns.length > 0;
+      if (hasParsed) {
+        const n = previewTurns.length;
+        return `Switching modes will discard your parsed conversation (${n} turn${n === 1 ? '' : 's'}). Switch anyway?`;
+      }
+      if (imageBase64.length > 0) return 'Switching modes will discard the image you attached. Switch anyway?';
+      if (convText.trim().length > 0) return 'Switching modes will discard the text you typed. Switch anyway?';
+      return null;
+    }
+    if (mode === 'image' || mode === 'audio') {
+      if (mediaBlob) {
+        return mode === 'audio'
+          ? 'Switching modes will discard the audio you selected. Switch anyway?'
+          : 'Switching modes will discard the image you selected. Switch anyway?';
+      }
+      return null;
+    }
+    return null;
+  }
+
   function requestModeSwitch(target) {
     if (target === mode) return;
-    if (target === 'conversation') {
-      // Scenario A or B: prompt -> conversation.
-      if (prompt.trim().length > 0) {
-        setConfirmDialog({
-          message: 'Switching modes will discard the text in your prompt. Switch anyway?',
-          onConfirm: () => {
-            setPrompt('');
-            setMode('conversation');
-            setModeAnnouncement('Switched to conversation evaluation');
-            setConfirmDialog(null);
-          },
-          onCancel: () => setConfirmDialog(null),
-        });
-        return;
-      }
-      setMode('conversation');
-      setModeAnnouncement('Switched to conversation evaluation');
-      return;
-    }
-    // target === 'prompt'. Scenarios C / D (image attached, or parsed turns).
-    const hasImage = imageBase64.length > 0;
-    const hasParsed = Array.isArray(previewTurns) && previewTurns.length > 0;
-    const hasText = convText.trim().length > 0;
-    if (hasParsed) {
-      const n = previewTurns.length;
+    const sourceMode = mode;
+    const doSwitch = () => {
+      clearModeInput(sourceMode);
+      setMode(target);
+      setModeAnnouncement('Switched to ' + modeLabel(target));
+    };
+    const message = currentModeDiscardMessage();
+    if (message) {
       setConfirmDialog({
-        message: `Switching modes will discard your parsed conversation (${n} turn${n === 1 ? '' : 's'}). Switch anyway?`,
-        onConfirm: () => {
-          resetConversationInputState();
-          setMode('prompt');
-          setModeAnnouncement('Switched to prompt evaluation');
-          setConfirmDialog(null);
-        },
+        message,
+        onConfirm: () => { doSwitch(); setConfirmDialog(null); },
         onCancel: () => setConfirmDialog(null),
       });
       return;
     }
-    if (hasImage || hasText) {
-      setConfirmDialog({
-        message: hasImage
-          ? 'Switching modes will discard the image you attached. Switch anyway?'
-          : 'Switching modes will discard the text you typed. Switch anyway?',
-        onConfirm: () => {
-          resetConversationInputState();
-          setMode('prompt');
-          setModeAnnouncement('Switched to prompt evaluation');
-          setConfirmDialog(null);
-        },
-        onCancel: () => setConfirmDialog(null),
-      });
-      return;
-    }
-    // Scenario A: nothing to discard.
-    setMode('prompt');
-    setModeAnnouncement('Switched to prompt evaluation');
+    doSwitch();
   }
 
   async function handleEvaluate() {
@@ -1185,26 +1294,35 @@ export default function Home() {
   const v5ModelsRun = v5 && Array.isArray(v5.model_pipeline) ? v5.model_pipeline.length : 0;
   const v5StagesRun = Math.min(v5ModelsRun || STAGE_LABELS.length, Object.keys(stageConfidences).length || STAGE_LABELS.length);
 
+  // Media modes (image / audio) render their own input panel and result card,
+  // independent of the v5 fraud-disposition pipeline above.
+  const isMediaMode = mode === 'image' || mode === 'audio';
+  const regionBusy = isMediaMode ? mediaLoading : loading;
+
   return (
       <main className="max-w-4xl mx-auto px-6 py-16 space-y-8">
         <div className="max-w-3xl">
           <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900 leading-[1.1]">
             Evaluate a prompt
           </h1>
-          <p className="mt-5 text-lg text-slate-700 leading-relaxed">
-            Paste a prompt to see how SafeEval classifies it. It reads the prompt,
-            walks it through the same fraud-and-scams policy a reviewer would apply,
-            and returns a structured classification plus the reasoning behind it.
-          </p>
-          <p className="mt-4 text-sm text-slate-500 leading-relaxed">
-            Try a sample below or paste your own.{' '}
-            <a
-              href="https://github.com/sayasys/safeeval/tree/main/docs"
-              className="text-sage-700 underline underline-offset-2 hover:text-sage-800 transition-colors"
-            >
-              Read the full policy framework -&gt;
-            </a>
-          </p>
+          {mode !== 'image' && mode !== 'audio' && (
+            <>
+              <p className="mt-5 text-lg text-slate-700 leading-relaxed">
+                Paste a prompt to see how SafeEval classifies it. It reads the prompt,
+                walks it through the same fraud-and-scams policy a reviewer would apply,
+                and returns a structured classification plus the reasoning behind it.
+              </p>
+              <p className="mt-4 text-sm text-slate-500 leading-relaxed">
+                Try a sample below or paste your own.{' '}
+                <a
+                  href="https://github.com/sayasys/safeeval/tree/main/docs"
+                  className="text-sage-700 underline underline-offset-2 hover:text-sage-800 transition-colors"
+                >
+                  Read the full policy framework -&gt;
+                </a>
+              </p>
+            </>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-sage-100 shadow-soft p-6 space-y-4">
@@ -1224,6 +1342,23 @@ export default function Home() {
               loading={loading}
               onEvaluate={handleEvaluate}
               error={error}
+            />
+          ) : mode === 'image' || mode === 'audio' ? (
+            <MediaInput
+              mode={mode}
+              mediaBlob={mediaBlob}
+              mediaName={mediaName}
+              mediaPreviewUrl={mediaPreviewUrl}
+              mediaMimeType={mediaMimeType}
+              loading={mediaLoading}
+              error={mediaError}
+              onPickFile={handleMediaFile}
+              onClear={resetMediaInputState}
+              onEvaluate={handleEvaluateMedia}
+              onLoadSample={loadSampleMedia}
+              dragHover={mediaDragHover}
+              setDragHover={setMediaDragHover}
+              fileInputRef={mediaInputRef}
             />
           ) : (
             <ConversationInput
@@ -1282,10 +1417,10 @@ export default function Home() {
           />
         )}
 
-        <div aria-live="polite" aria-busy={loading} className="space-y-8">
+        <div aria-live="polite" aria-busy={regionBusy} className="space-y-8">
 
         {/* section 2.8 Loading state -- replaces result-card region while loading. */}
-        {loading && (
+        {!isMediaMode && loading && (
           <div className="rounded-2xl border border-sage-100 shadow-soft bg-white p-6">
             <div className="text-xs font-semibold uppercase tracking-wider text-sage-700 mb-4">
               Evaluating
@@ -1301,15 +1436,40 @@ export default function Home() {
           </div>
         )}
 
+        {/* Media (image / audio) result region. Loading -> result card ->
+            empty state, fully separate from the v5 fraud-disposition card. */}
+        {isMediaMode && mediaLoading && (
+          <div className="rounded-2xl border border-sage-100 shadow-soft bg-white p-6 flex items-center gap-3" aria-live="polite">
+            <svg className="w-5 h-5 text-slate-500 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" d="M12 3v3M12 18v3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M3 12h3M18 12h3M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
+            </svg>
+            <span className="text-sm text-slate-700">
+              Running detection on your {mode === 'audio' ? 'audio clip' : 'image'}...
+            </span>
+          </div>
+        )}
+
+        {isMediaMode && !mediaLoading && mediaResult && (
+          <MediaResult result={mediaResult} mediaType={mode} />
+        )}
+
+        {isMediaMode && !mediaLoading && !mediaResult && (
+          <div className="rounded-2xl border border-dashed border-sage-200 bg-cream-50 px-6 py-10 text-center">
+            <p className="text-sm text-slate-400">
+              Your detection result will appear here.
+            </p>
+          </div>
+        )}
+
         {/* Stale-result hint -- shows under the input area, visible while result is stale. */}
-        {resultIsStale && !loading && (
+        {!isMediaMode && resultIsStale && !loading && (
           <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
             Result below is for the previous input. Run the evaluation again to update.
           </p>
         )}
 
         {/* v5 result card. Greyed out when stale. */}
-        {!loading && v5 && v5Cfg && (
+        {!isMediaMode && !loading && v5 && v5Cfg && (
           <div className={`rounded-2xl border-2 shadow-soft ${v5Cfg.border} ${v5Cfg.bg} p-6 space-y-6 ${resultIsStale ? 'opacity-40 pointer-events-none' : ''}`}>
 
             {/* section 2.1 Disposition banner */}
@@ -1864,7 +2024,7 @@ export default function Home() {
 
         {/* Empty state -- before the first evaluation, a subtle placeholder so
             the region below the tool card does not read as broken or cut off. */}
-        {!loading && !v5 && (
+        {!isMediaMode && !loading && !v5 && (
           <div className="rounded-2xl border border-dashed border-sage-200 bg-cream-50 px-6 py-10 text-center">
             <p className="text-sm text-slate-400">
               Your evaluation will appear here.
@@ -2517,65 +2677,58 @@ function TriggerRow({ label, items, chipClass, descriptions }) {
 // phase-4-frontend.md). Spec authoritative source is
 // docs/ux/design-system/v5-result-card.md sections 19-26.
 
-// Mode-switch segmented control (display spec section 19.1).
-// ARIA tablist + arrow-key nav per section 19.5.
+// Mode-switch segmented control (display spec section 19.1, extended for the
+// synthetic-media tabs). ARIA tablist + arrow-key nav per section 19.5.
+const MODE_TABS = [
+  { mode: 'prompt', id: 'mode-tab-prompt', panel: 'mode-panel-prompt', long: 'Evaluate a prompt', short: 'Prompt' },
+  { mode: 'conversation', id: 'mode-tab-conv', panel: 'mode-panel-conv', long: 'Evaluate a conversation', short: 'Conversation' },
+  { mode: 'image', id: 'mode-tab-image', panel: 'mode-panel-image', long: 'Evaluate an image', short: 'Image' },
+  { mode: 'audio', id: 'mode-tab-audio', panel: 'mode-panel-audio', long: 'Evaluate audio', short: 'Audio' },
+];
+
 function ModeSwitch({ mode, onRequestSwitch }) {
-  const promptRef = useRef(null);
-  const convRef = useRef(null);
+  const refs = useRef({});
   function onKeyDown(e) {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-      e.preventDefault();
-      const next = mode === 'prompt' ? 'conversation' : 'prompt';
-      onRequestSwitch(next);
-      window.setTimeout(() => {
-        const target = next === 'prompt' ? promptRef.current : convRef.current;
-        if (target) target.focus();
-      }, 0);
-    }
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    const idx = MODE_TABS.findIndex(t => t.mode === mode);
+    const delta = e.key === 'ArrowRight' ? 1 : -1;
+    const nextIdx = (idx + delta + MODE_TABS.length) % MODE_TABS.length;
+    const next = MODE_TABS[nextIdx].mode;
+    onRequestSwitch(next);
+    window.setTimeout(() => {
+      const target = refs.current[next];
+      if (target) target.focus();
+    }, 0);
   }
   return (
     <div
       role="tablist"
       aria-label="Evaluation mode"
       onKeyDown={onKeyDown}
-      className="inline-flex bg-slate-100 rounded-lg p-1 max-w-full"
+      className="inline-flex flex-wrap bg-slate-100 rounded-lg p-1 max-w-full gap-0.5"
     >
-      <button
-        ref={promptRef}
-        role="tab"
-        type="button"
-        id="mode-tab-prompt"
-        aria-selected={mode === 'prompt'}
-        aria-controls="mode-panel-prompt"
-        tabIndex={mode === 'prompt' ? 0 : -1}
-        onClick={() => onRequestSwitch('prompt')}
-        className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 ${
-          mode === 'prompt'
-            ? 'bg-slate-900 text-white'
-            : 'text-slate-700 hover:bg-slate-200'
-        }`}
-      >
-        <span className="hidden sm:inline">Evaluate a prompt</span>
-        <span className="inline sm:hidden">Prompt</span>
-      </button>
-      <button
-        ref={convRef}
-        role="tab"
-        type="button"
-        id="mode-tab-conv"
-        aria-selected={mode === 'conversation'}
-        aria-controls="mode-panel-conv"
-        tabIndex={mode === 'conversation' ? 0 : -1}
-        onClick={() => onRequestSwitch('conversation')}
-        className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 ${
-          mode === 'conversation'
-            ? 'bg-slate-900 text-white'
-            : 'text-slate-700 hover:bg-slate-200'
-        }`}
-      >
-        <span className="hidden sm:inline">Evaluate a conversation</span>
-        <span className="inline sm:hidden">Conversation</span>
-      </button>
+      {MODE_TABS.map(tab => (
+        <button
+          key={tab.mode}
+          ref={el => { refs.current[tab.mode] = el; }}
+          role="tab"
+          type="button"
+          id={tab.id}
+          aria-selected={mode === tab.mode}
+          aria-controls={tab.panel}
+          tabIndex={mode === tab.mode ? 0 : -1}
+          onClick={() => onRequestSwitch(tab.mode)}
+          className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 ${
+            mode === tab.mode
+              ? 'bg-slate-900 text-white'
+              : 'text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <span className="hidden sm:inline">{tab.long}</span>
+          <span className="inline sm:hidden">{tab.short}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -3389,6 +3542,225 @@ function SenderAttribution({ arcSignals, perTurn, classification, modalityHint }
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// --- Synthetic-media tabs (image / audio) ----------------------------------
+
+const MEDIA_TAB_COPY = {
+  image: {
+    subheading: 'Upload an image to check whether it was AI-generated. SafeEval runs it through sdxl-detector and falls back to a reasoning model when the confidence is ambiguous.',
+    dropPrompt: 'Drop an image here, or click to choose a file',
+    pickAria: 'Upload an image to evaluate',
+    accept: IMAGE_ACCEPT,
+    formats: IMAGE_FORMATS_LABEL,
+    panelId: 'mode-panel-image',
+    tabId: 'mode-tab-image',
+  },
+  audio: {
+    subheading: 'Upload an audio file to check for synthetic speech. SafeEval runs it through Deepfake-audio-V2 with the same ambiguous-band reasoning fallback.',
+    dropPrompt: 'Drop an audio file here, or click to choose a file',
+    pickAria: 'Upload an audio file to evaluate',
+    accept: AUDIO_ACCEPT,
+    formats: AUDIO_FORMATS_LABEL,
+    panelId: 'mode-panel-audio',
+    tabId: 'mode-tab-audio',
+  },
+};
+
+// Media upload + preview + run-evaluation panel. One component serves both the
+// image and audio tabs; `mode` selects the copy, accept list, and preview
+// element. State lives in the page; this is a presentational panel.
+function MediaInput({
+  mode, mediaBlob, mediaName, mediaPreviewUrl, mediaMimeType,
+  loading, error, onPickFile, onClear, onEvaluate, onLoadSample,
+  dragHover, setDragHover, fileInputRef,
+}) {
+  const copy = MEDIA_TAB_COPY[mode] || MEDIA_TAB_COPY.image;
+  const samples = samplesForMode(mode);
+  const hasFile = !!mediaBlob;
+  function pick() { if (fileInputRef.current) fileInputRef.current.click(); }
+  function onDrop(e) {
+    e.preventDefault();
+    setDragHover(false);
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) onPickFile(f);
+  }
+  return (
+    <div
+      id={copy.panelId}
+      role="tabpanel"
+      aria-labelledby={copy.tabId}
+      className="space-y-4"
+    >
+      <p className="text-sm text-slate-600 leading-relaxed">{copy.subheading}</p>
+
+      <div
+        onDragOver={e => { e.preventDefault(); setDragHover(true); }}
+        onDragLeave={() => setDragHover(false)}
+        onDrop={onDrop}
+        onClick={pick}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } }}
+        role="button"
+        tabIndex={0}
+        aria-label={copy.pickAria}
+        className={`border-2 ${dragHover ? 'border-slate-400 bg-slate-50' : 'border-dashed border-slate-300 bg-white'} rounded-md p-8 flex flex-col items-center gap-2 text-center cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400`}
+      >
+        <Upload className="w-8 h-8 text-slate-400" aria-hidden="true" />
+        <p className="text-sm text-slate-700">{copy.dropPrompt}</p>
+        <p className="text-xs text-slate-500">{copy.formats}. Max {maxLabelFor(mode)}.</p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={copy.accept}
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files && e.target.files[0];
+            if (f) onPickFile(f);
+            e.target.value = '';
+          }}
+        />
+      </div>
+
+      {hasFile && (
+        <div className="space-y-3">
+          {/* Preview: image element for image mode, audio player for audio. */}
+          {mode === 'image' && mediaPreviewUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mediaPreviewUrl}
+              alt={'Selected image preview: ' + (mediaName || 'image')}
+              className="max-h-64 rounded-md border border-sage-200 mx-auto"
+            />
+          )}
+          {mode === 'audio' && mediaPreviewUrl && (
+            <audio src={mediaPreviewUrl} controls className="w-full" aria-label={'Audio preview: ' + (mediaName || 'audio clip')} />
+          )}
+          <div className="text-xs text-slate-600 flex items-center gap-2">
+            <Check className="w-3.5 h-3.5" aria-hidden="true" />
+            <span className="truncate max-w-[16rem]">Selected: {mediaName}</span>
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-slate-500 hover:text-slate-700 underline"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      )}
+
+      {samples.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+            Try one of these
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {samples.map(s => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => onLoadSample(s)}
+                className="text-xs border border-sage-200 bg-cream-50 hover:bg-sage-50 text-slate-700 rounded-full px-3 py-1.5 transition-colors"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</p>
+      )}
+
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          onClick={onEvaluate}
+          disabled={!hasFile || loading}
+          className="shrink-0 bg-coral-500 hover:bg-coral-600 disabled:bg-sage-200 disabled:text-slate-400 text-white text-sm font-medium px-6 py-2.5 rounded-full transition-colors"
+        >
+          {loading ? 'Running...' : 'Run evaluation'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Verdict badge tones for the media result card.
+const MEDIA_VERDICT_STYLE = {
+  likely_human: { border: 'border-green-300', bg: 'bg-green-50', badge: 'bg-green-100 text-green-900', Icon: UserRound },
+  likely_synthetic: { border: 'border-red-300', bg: 'bg-red-50', badge: 'bg-red-100 text-red-900', Icon: Sparkles },
+  uncertain: { border: 'border-sage-300', bg: 'bg-sage-50', badge: 'bg-sage-100 text-sage-900', Icon: HelpCircle },
+  error: { border: 'border-slate-300', bg: 'bg-slate-50', badge: 'bg-slate-200 text-slate-700', Icon: TriangleAlert },
+};
+
+// Synthetic-media result card. Renders the verdict badge, the synthetic-
+// likelihood bar, a detector caption, and the reasoning paragraph when the
+// Gemini ambiguous-band fallback ran. Shape derives purely from
+// deriveMediaVerdict so the page and tests agree.
+function MediaResult({ result, mediaType }) {
+  const view = deriveMediaVerdict(result);
+  const style = MEDIA_VERDICT_STYLE[view.verdict] || MEDIA_VERDICT_STYLE.error;
+  const Icon = style.Icon;
+  const isError = view.verdict === 'error';
+  return (
+    <div className={`rounded-2xl border-2 shadow-soft ${style.border} ${style.bg} p-6 space-y-5`}>
+      <div className="flex flex-wrap items-center gap-3">
+        <span
+          className={`inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-full ${style.badge}`}
+          aria-label={'Verdict: ' + view.label}
+        >
+          {Icon && <Icon className="w-4 h-4" aria-hidden="true" />}
+          {view.label}
+        </span>
+        <span className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full font-mono">
+          {mediaType === 'audio' ? 'audio' : 'image'} detection
+        </span>
+        {view.reasoningUsed && (
+          <span className="text-xs bg-white border border-sage-200 text-sage-700 px-3 py-1.5 rounded-full">
+            reasoning fallback used
+          </span>
+        )}
+      </div>
+
+      {!isError && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span className="uppercase tracking-wide font-semibold">Synthetic likelihood</span>
+            <span className="font-mono text-gray-900">{view.syntheticPct}%</span>
+          </div>
+          <div className="h-2.5 w-full rounded-full bg-white border border-gray-200 overflow-hidden">
+            <div
+              className={`h-full ${view.verdict === 'likely_synthetic' ? 'bg-red-400' : view.verdict === 'likely_human' ? 'bg-green-400' : 'bg-sage-400'}`}
+              style={{ width: view.syntheticPct + '%' }}
+              role="progressbar"
+              aria-valuenow={view.syntheticPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Synthetic likelihood"
+            />
+          </div>
+        </div>
+      )}
+
+      {(view.reasoning || isError) && (
+        <div className="bg-white border border-sage-200 rounded-xl px-4 py-3">
+          <p className="text-sm text-gray-700 leading-relaxed">
+            {isError
+              ? 'The detector could not complete this evaluation. ' + (view.error || '') + ' This usually means the detection service is not configured for this deployment. The upload, preview, and result flow still work; configure HF_API_TOKEN to enable live scoring.'
+              : view.reasoning}
+          </p>
+        </div>
+      )}
+
+      <div className="text-xs text-gray-400 flex flex-wrap gap-x-4 gap-y-1">
+        <span>Detector: <span className="font-mono">{view.detectorModel}</span></span>
+        {!isError && <span>Detector confidence: {view.detectorConfidencePct}%</span>}
+        {view.latencyMs > 0 && <span>Latency: {view.latencyMs}ms</span>}
       </div>
     </div>
   );
