@@ -35,8 +35,9 @@ export default function HowItWorks() {
             How it works
           </h2>
           <p className="mt-4 text-lg text-slate-700 leading-relaxed">
-            Five stages, each with a defined job. The last stage is where the
-            rules live; the earlier stages produce what the rules read.
+            Each stage has a defined job. The earlier stages parse the input
+            and extract signals. The final stage applies the rules to those
+            signals.
           </p>
         </div>
 
