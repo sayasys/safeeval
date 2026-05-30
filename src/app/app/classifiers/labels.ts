@@ -51,8 +51,9 @@ export const GROUP_OPTIONS: GroupOption[] = L3_GROUP_NAMES.map((value) => ({
 
 export interface StatusMeta {
   label: string;
-  // Tailwind classes for the status badge. Restricted to the cream / sage /
-  // slate palette; coral is reserved for destructive actions.
+  // Tailwind classes for the status badge. Cool-institutional palette: slate
+  // for neutral/terminal states, brand-blue for the in-progress and live
+  // states; red is reserved for destructive actions.
   badgeClass: string;
   // One-line description shown on the detail view next to the lifecycle action.
   description: string;
@@ -61,19 +62,19 @@ export interface StatusMeta {
 export const STATUS_META: Record<ClassifierStatus, StatusMeta> = {
   proposed: {
     label: 'Proposed',
-    badgeClass: 'bg-cream-100 text-slate-700 border border-sage-200',
+    badgeClass: 'bg-slate-100 text-slate-700 border border-slate-200',
     description:
       'Draft. Add at least two positive and two negative examples, then move it to shadow.',
   },
   shadow: {
     label: 'Shadow',
-    badgeClass: 'bg-sage-50 text-sage-700 border border-sage-300',
+    badgeClass: 'bg-blue-50 text-brand-blue border border-blue-200',
     description:
       'Collecting calibration data. Verdicts are visible to reviewers but not in member-facing evaluation cards. Promote to live once the calibration gate is met.',
   },
   live: {
     label: 'Live',
-    badgeClass: 'bg-sage-100 text-sage-700 border border-sage-400',
+    badgeClass: 'bg-blue-100 text-blue-800 border border-blue-300',
     description:
       'Appearing in this organization\'s evaluation cards alongside the base envelope.',
   },

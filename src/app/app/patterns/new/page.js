@@ -57,7 +57,7 @@ export default async function NewPatternPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 px-6 py-12">
       <div className="mx-auto w-full max-w-2xl">
         <nav className="mb-6 text-sm">
           <Link
@@ -78,7 +78,7 @@ export default async function NewPatternPage() {
           classification; it never replaces it.
         </p>
 
-        <div className="rounded-lg border border-sage-100 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <PatternComposerForm
             customByGroup={customByGroup}
             existingNames={existingNames}

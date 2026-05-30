@@ -83,20 +83,20 @@ describe('evaluator page: labelled chips + clarified CTA', () => {
     expect(PAGE_SRC).toContain('Try one of these');
   });
 
-  it('uses a coral "Run evaluation" CTA instead of a dark "Evaluate"', () => {
+  it('uses a brand-blue "Run evaluation" CTA instead of a dark "Evaluate"', () => {
     expect(PAGE_SRC).toContain('Run evaluation');
-    expect(PAGE_SRC).toContain('bg-coral-500');
+    expect(PAGE_SRC).toContain('bg-brand-blue');
     // The old echo-the-title button copy is gone from the prompt CTA.
     expect(PAGE_SRC).not.toMatch(/\?\s*'Evaluating\.\.\.'\s*:\s*'Evaluate'/);
   });
 });
 
 describe('evaluator page: result + empty state design language', () => {
-  it('uses sage borders and a soft-shadowed disposition card', () => {
-    expect(PAGE_SRC).toContain('bg-white border border-sage-200 rounded-xl');
+  it('uses cool slate borders and a soft-shadowed disposition card', () => {
+    expect(PAGE_SRC).toContain('bg-white border border-slate-200 rounded-xl');
     expect(PAGE_SRC).toContain('rounded-2xl border-2 shadow-soft');
-    // Section eyebrows moved onto the sage scale.
-    expect(PAGE_SRC).toContain('text-xs font-semibold text-sage-700 uppercase tracking-wider');
+    // Section eyebrows moved onto the cool slate scale.
+    expect(PAGE_SRC).toContain('text-xs font-semibold text-slate-700 uppercase tracking-wider');
   });
 
   it('shows a subtle placeholder before the first evaluation', () => {

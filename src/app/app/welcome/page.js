@@ -19,7 +19,7 @@ export default async function AppWelcomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 px-6 py-16">
+    <main className="min-h-screen bg-tool text-slate-800 px-6 py-16">
       <div className="mx-auto w-full max-w-3xl">
         <h1 className="text-3xl font-semibold text-slate-900">
           Welcome to SafeEval.
@@ -59,7 +59,7 @@ export default async function AppWelcomePage() {
 
 function NextStepCard({ title, description, cta, href }) {
   return (
-    <div className="flex flex-col rounded-lg border border-sage-100 bg-white p-6 shadow-sm">
+    <div className="flex flex-col rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
       <p className="mt-2 flex-1 text-sm text-slate-600">{description}</p>
       <Link

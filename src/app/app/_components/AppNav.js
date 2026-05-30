@@ -40,7 +40,7 @@ export default function AppNav({ email }) {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-cream-50/80 backdrop-blur-md border-b border-sage-100">
+    <nav className="sticky top-0 z-50 bg-tool/80 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link
           href="/app/dashboard"
@@ -78,7 +78,7 @@ export default function AppNav({ email }) {
             type="button"
             onClick={handleSignOut}
             disabled={signingOut}
-            className="rounded-full border border-sage-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-cream-100 disabled:opacity-60"
+            className="rounded-full border border-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-60"
           >
             {signingOut ? 'Signing out...' : 'Sign out'}
           </button>
@@ -89,7 +89,7 @@ export default function AppNav({ email }) {
           aria-label="Toggle navigation menu"
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
-          className="md:hidden inline-flex items-center justify-center rounded-md p-2 text-slate-700 hover:bg-cream-100"
+          className="md:hidden inline-flex items-center justify-center rounded-md p-2 text-slate-700 hover:bg-slate-100"
         >
           <svg
             width="22"
@@ -111,7 +111,7 @@ export default function AppNav({ email }) {
       </div>
 
       {menuOpen && (
-        <div className="md:hidden border-t border-sage-100 bg-cream-50 px-6 py-4">
+        <div className="md:hidden border-t border-slate-200 bg-slate-50 px-6 py-4">
           <div className="flex flex-col gap-3 text-sm">
             {APP_NAV_LINKS.map((link) => (
               <Link
@@ -128,7 +128,7 @@ export default function AppNav({ email }) {
               </Link>
             ))}
           </div>
-          <div className="mt-4 flex items-center justify-between border-t border-sage-100 pt-4">
+          <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
             {email && (
               <span
                 className="max-w-[12rem] truncate text-sm text-slate-500"
@@ -141,7 +141,7 @@ export default function AppNav({ email }) {
               type="button"
               onClick={handleSignOut}
               disabled={signingOut}
-              className="rounded-full border border-sage-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-cream-100 disabled:opacity-60"
+              className="rounded-full border border-slate-200 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-60"
             >
               {signingOut ? 'Signing out...' : 'Sign out'}
             </button>

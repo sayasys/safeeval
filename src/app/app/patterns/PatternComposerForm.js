@@ -147,7 +147,7 @@ export default function PatternComposerForm({ customByGroup = {}, existingNames 
           disabled={busy}
           autoComplete="off"
           placeholder="Romance-crypto cross-pollination"
-          className="w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
         />
         {collision && !nameError && (
           <p className="mt-1 text-xs text-red-600">
@@ -171,7 +171,7 @@ export default function PatternComposerForm({ customByGroup = {}, existingNames 
           spellCheck={false}
           autoComplete="off"
           placeholder="investment_fraud"
-          className="w-full rounded-md border border-sage-200 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+          className="w-full rounded-md border border-slate-200 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
         />
       </Field>
 
@@ -179,7 +179,7 @@ export default function PatternComposerForm({ customByGroup = {}, existingNames 
       <div>
         <span className="block text-sm font-medium text-slate-800">Match mode</span>
         <div className="mt-1.5 flex items-center gap-2">
-          <span className="inline-flex items-center rounded-md border border-sage-300 bg-sage-50 px-2.5 py-1 text-sm font-medium text-sage-700">
+          <span className="inline-flex items-center rounded-md border border-slate-300 bg-slate-50 px-2.5 py-1 text-sm font-medium text-slate-700">
             Subset
           </span>
           <span className="text-xs text-slate-500">
@@ -289,7 +289,7 @@ function GroupComposer({ group, label, hint, options, selected, onAdd, onRemove,
   }
 
   return (
-    <div className="rounded-md border border-sage-100 bg-cream-50/40 px-4 py-3">
+    <div className="rounded-md border border-slate-200 bg-slate-50/40 px-4 py-3">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-slate-800">{label}</span>
         <span className="text-xs text-slate-400">{hint}</span>
@@ -300,7 +300,7 @@ function GroupComposer({ group, label, hint, options, selected, onAdd, onRemove,
           {selected.map((c) => (
             <li
               key={c.tag_id}
-              className="inline-flex items-center gap-1.5 rounded-md border border-sage-200 bg-white py-1 pl-2 pr-1 text-sm"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white py-1 pl-2 pr-1 text-sm"
             >
               <span className="font-mono text-slate-700">{c.tag_id}</span>
               <SourceBadge source={c.tag_source} />
@@ -309,7 +309,7 @@ function GroupComposer({ group, label, hint, options, selected, onAdd, onRemove,
                 onClick={() => onRemove(c.tag_id)}
                 disabled={busy}
                 aria-label={`Remove ${c.tag_id} from ${label}`}
-                className="ml-0.5 rounded px-1 text-slate-400 hover:bg-cream-100 hover:text-red-600 disabled:opacity-40"
+                className="ml-0.5 rounded px-1 text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-40"
               >
                 &times;
               </button>
@@ -327,7 +327,7 @@ function GroupComposer({ group, label, hint, options, selected, onAdd, onRemove,
           defaultValue=""
           onChange={handleChange}
           disabled={busy || available.length === 0}
-          className="w-full rounded-md border border-sage-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
         >
           <option value="" disabled>
             {available.length === 0 ? 'All tags added' : `Add a ${label.toLowerCase()} tag...`}
@@ -358,7 +358,7 @@ function GroupComposer({ group, label, hint, options, selected, onAdd, onRemove,
 
 function SourceBadge({ source }) {
   const label = TAG_SOURCE_LABELS[source] || source;
-  const cls = TAG_SOURCE_BADGE_CLASS[source] || 'bg-cream-100 text-slate-600 border border-sage-200';
+  const cls = TAG_SOURCE_BADGE_CLASS[source] || 'bg-slate-100 text-slate-600 border border-slate-200';
   return (
     <span className={`rounded px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide ${cls}`}>
       {label}

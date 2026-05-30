@@ -44,7 +44,7 @@ export default async function PatternsListPage() {
   })).filter((group) => group.rows.length > 0);
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 px-6 py-12">
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
@@ -66,7 +66,7 @@ export default async function PatternsListPage() {
         {unavailable && (
           <div
             role="status"
-            className="mb-6 rounded-md border border-sage-200 bg-sage-50 text-sage-700 text-sm px-4 py-3"
+            className="mb-6 rounded-md border border-slate-200 bg-slate-50 text-slate-700 text-sm px-4 py-3"
           >
             The pattern store is not reachable in this environment yet. Once the
             data layer is provisioned, your organization&apos;s patterns appear
@@ -91,7 +91,7 @@ export default async function PatternsListPage() {
                     <li key={p.id}>
                       <Link
                         href={`/app/patterns/${p.id}`}
-                        className="block rounded-lg border border-sage-100 bg-white px-4 py-3 shadow-sm hover:border-sage-300"
+                        className="block rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm hover:border-slate-300"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-sm font-medium text-slate-900">
@@ -102,7 +102,7 @@ export default async function PatternsListPage() {
                           </span>
                         </div>
                         <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-500">
-                          <span className="rounded-md border border-sage-200 bg-cream-100 px-1.5 py-0.5">
+                          <span className="rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5">
                             {MATCH_MODE_LABELS[p.match_mode] || p.match_mode}
                           </span>
                           <span>
@@ -119,7 +119,7 @@ export default async function PatternsListPage() {
           </div>
         )}
 
-        <div className="mt-10 border-t border-sage-100 pt-6">
+        <div className="mt-10 border-t border-slate-200 pt-6">
           <Link
             href="/app/dashboard"
             className="text-sm text-slate-600 hover:text-slate-900 hover:underline"
@@ -134,7 +134,7 @@ export default async function PatternsListPage() {
 
 function EmptyState() {
   return (
-    <div className="rounded-lg border border-dashed border-sage-300 bg-white px-6 py-12 text-center">
+    <div className="rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
       <h2 className="text-lg font-semibold text-slate-900">No patterns yet</h2>
       <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
         A pattern is a named combination of L3 tags -- built-in ones plus your

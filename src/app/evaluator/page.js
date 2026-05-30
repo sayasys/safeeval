@@ -1316,7 +1316,7 @@ export default function Home() {
                 Try a sample below or paste your own.{' '}
                 <a
                   href="https://github.com/sayasys/safeeval/tree/main/docs"
-                  className="text-sage-700 underline underline-offset-2 hover:text-sage-800 transition-colors"
+                  className="text-brand-blue underline underline-offset-2 hover:text-blue-700 transition-colors"
                 >
                   Read the full policy framework -&gt;
                 </a>
@@ -1325,7 +1325,7 @@ export default function Home() {
           )}
         </div>
 
-        <div className="bg-white rounded-2xl border border-sage-100 shadow-soft p-6 space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-6 space-y-4">
           {/* Mode-switch segmented control (display spec section 19). */}
           <ModeSwitch mode={mode} onRequestSwitch={requestModeSwitch} />
 
@@ -1421,8 +1421,8 @@ export default function Home() {
 
         {/* section 2.8 Loading state -- replaces result-card region while loading. */}
         {!isMediaMode && loading && (
-          <div className="rounded-2xl border border-sage-100 shadow-soft bg-white p-6">
-            <div className="text-xs font-semibold uppercase tracking-wider text-sage-700 mb-4">
+          <div className="rounded-2xl border border-slate-200 shadow-soft bg-white p-6">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-700 mb-4">
               Evaluating
             </div>
             <div className="grid grid-cols-4 gap-3">
@@ -1439,7 +1439,7 @@ export default function Home() {
         {/* Media (image / audio) result region. Loading -> result card ->
             empty state, fully separate from the v5 fraud-disposition card. */}
         {isMediaMode && mediaLoading && (
-          <div className="rounded-2xl border border-sage-100 shadow-soft bg-white p-6 flex items-center gap-3" aria-live="polite">
+          <div className="rounded-2xl border border-slate-200 shadow-soft bg-white p-6 flex items-center gap-3" aria-live="polite">
             <svg className="w-5 h-5 text-slate-500 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" d="M12 3v3M12 18v3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M3 12h3M18 12h3M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
             </svg>
@@ -1454,7 +1454,7 @@ export default function Home() {
         )}
 
         {isMediaMode && !mediaLoading && !mediaResult && (
-          <div className="rounded-2xl border border-dashed border-sage-200 bg-cream-50 px-6 py-10 text-center">
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
             <p className="text-sm text-slate-400">
               Your detection result will appear here.
             </p>
@@ -1548,7 +1548,7 @@ export default function Home() {
 
             {/* section 2.2 Reasoning + narrative summary */}
             {(v5.disposition.reasoning_summary || v5.disposition.narrative_summary) && (
-              <div className="bg-white border border-sage-200 rounded-xl px-4 py-3 space-y-3">
+              <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 space-y-3">
                 {v5.disposition.reasoning_summary && (
                   <p className="text-sm text-gray-700 leading-relaxed">
                     {v5.disposition.reasoning_summary}
@@ -1601,10 +1601,10 @@ export default function Home() {
             {/* section 2.3 Classification envelope (L1 / L2 / L3) */}
             {v5.classification && (
               <div>
-                <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-3">
+                <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">
                   Classification
                 </h3>
-                <div className="space-y-3 bg-white border border-sage-200 rounded-xl px-4 py-4">
+                <div className="space-y-3 bg-white border border-slate-200 rounded-xl px-4 py-4">
                   {v5.classification.l1 && (
                     <div className="flex items-baseline gap-3">
                       <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-12 shrink-0">L1</span>
@@ -1717,10 +1717,10 @@ export default function Home() {
             {/* section 2.4 Triggered-by block (includes policy_note + rule descriptions) */}
             {v5.disposition.triggered_by && (
               <div>
-                <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">
+                <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
                   Triggered by
                 </h3>
-                <div className="bg-white border border-sage-200 rounded-xl px-4 py-3 space-y-2">
+                <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 space-y-2">
                   <TriggerRow
                     label="Bright lines"
                     items={v5.disposition.triggered_by.bright_lines || []}
@@ -1759,10 +1759,10 @@ export default function Home() {
                 See docs/ux/design-system/v5-result-card.md sections 10-11. */}
             {v5.prompt_summary && (
               <div>
-                <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">
+                <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
                   Prompt summary
                 </h3>
-                <div className="bg-white border border-sage-200 rounded-xl px-4 py-3 space-y-2">
+                <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 space-y-2">
                   {PROMPT_SUMMARY_ROWS.map(row => (
                     <PromptSummaryRow
                       key={row.key}
@@ -1783,7 +1783,7 @@ export default function Home() {
             {v5.evidence && (
               <div>
                 <button
-                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-sage-200 rounded-xl hover:bg-cream-50 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-left"
                   onClick={() => toggle('v5-evidence')}
                 >
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex-1">
@@ -1802,7 +1802,7 @@ export default function Home() {
                   </svg>
                 </button>
                 {evidenceOpen && (
-                  <div className="mt-3 bg-white border border-sage-200 rounded-xl p-4 space-y-4">
+                  <div className="mt-3 bg-white border border-slate-200 rounded-xl p-4 space-y-4">
 
                     {/* Component scores: 5-row numeric TABLE per Update B.
                         section 36.5.2 inline descriptors + section 36.5.4 ordinal severity
@@ -1952,7 +1952,7 @@ export default function Home() {
             {v5.disposition.confidence_path && (
               <div>
                 <button
-                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-sage-200 rounded-xl hover:bg-cream-50 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-left"
                   onClick={() => toggle('v5-stage-trace')}
                 >
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex-1">
@@ -1969,7 +1969,7 @@ export default function Home() {
                   </svg>
                 </button>
                 {stageTraceOpen && (
-                  <div className="mt-3 grid grid-cols-4 gap-3 bg-white border border-sage-200 rounded-xl p-4">
+                  <div className="mt-3 grid grid-cols-4 gap-3 bg-white border border-slate-200 rounded-xl p-4">
                     {STAGE_LABELS.map(s => {
                       const ran = Object.prototype.hasOwnProperty.call(stageConfidences, s.key);
                       return (
@@ -1990,7 +1990,7 @@ export default function Home() {
             {v5.pipeline_trace && (
               <div>
                 <button
-                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-sage-200 rounded-xl hover:bg-cream-50 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-left"
                   onClick={() => toggle('v5-trace')}
                 >
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex-1">
@@ -2025,7 +2025,7 @@ export default function Home() {
         {/* Empty state -- before the first evaluation, a subtle placeholder so
             the region below the tool card does not read as broken or cut off. */}
         {!isMediaMode && !loading && !v5 && (
-          <div className="rounded-2xl border border-dashed border-sage-200 bg-cream-50 px-6 py-10 text-center">
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
             <p className="text-sm text-slate-400">
               Your evaluation will appear here.
             </p>
@@ -2747,7 +2747,7 @@ function PromptInput({ prompt, setPrompt, loading, onEvaluate, error }) {
         <span className="text-xs text-slate-400">{prompt.length}/5000</span>
       </div>
       <textarea
-        className="w-full h-36 border border-sage-200 bg-cream-50 rounded-xl px-3.5 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sage-300 focus:border-sage-300 resize-none"
+        className="w-full h-36 border border-slate-200 bg-slate-50 rounded-xl px-3.5 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue resize-none"
         placeholder="Enter a prompt to evaluate for fraud and scam policy compliance..."
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
@@ -2763,7 +2763,7 @@ function PromptInput({ prompt, setPrompt, loading, onEvaluate, error }) {
               key={ex.label}
               type="button"
               onClick={() => setPrompt(ex.text)}
-              className="text-xs bg-cream-100 hover:bg-sage-50 text-slate-700 border border-sage-200 px-3 py-1.5 rounded-full transition-colors"
+              className="text-xs bg-slate-100 hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-full transition-colors"
             >
               {ex.label}
             </button>
@@ -2774,7 +2774,7 @@ function PromptInput({ prompt, setPrompt, loading, onEvaluate, error }) {
         <button
           onClick={onEvaluate}
           disabled={loading || !prompt.trim()}
-          className="shrink-0 bg-coral-500 hover:bg-coral-600 disabled:bg-sage-200 disabled:text-slate-400 text-white text-sm font-medium px-6 py-2.5 rounded-full transition-colors"
+          className="shrink-0 bg-brand-blue hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-medium px-6 py-2.5 rounded-full transition-colors"
         >
           {loading ? 'Running...' : 'Run evaluation'}
         </button>
@@ -2888,7 +2888,7 @@ function ConversationInput(props) {
                     key={pill.label}
                     type="button"
                     onClick={() => loadExamplePill && loadExamplePill(pill)}
-                    className="text-xs bg-cream-100 hover:bg-sage-50 text-slate-700 border border-sage-200 px-3 py-1.5 rounded-full transition-colors"
+                    className="text-xs bg-slate-100 hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-full transition-colors"
                   >
                     {pill.label}
                   </button>
@@ -3077,7 +3077,7 @@ function TextUploadZone({
           type="button"
           onClick={parseFromText}
           disabled={parsing || convText.trim().length === 0}
-          className="shrink-0 bg-coral-500 hover:bg-coral-600 disabled:bg-sage-200 disabled:text-slate-400 text-white text-sm font-medium px-4 py-1.5 rounded-full transition-colors"
+          className="shrink-0 bg-brand-blue hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-medium px-4 py-1.5 rounded-full transition-colors"
         >
           {parsing ? 'Parsing...' : 'Parse turns'}
         </button>
@@ -3185,7 +3185,7 @@ function PreviewConfirm({
           type="button"
           onClick={onConfirm}
           disabled={loading || previewTurns.length < 1}
-          className="bg-coral-500 hover:bg-coral-600 disabled:bg-sage-200 disabled:text-slate-400 text-white text-sm font-medium px-6 py-2.5 rounded-full transition-colors"
+          className="bg-brand-blue hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-medium px-6 py-2.5 rounded-full transition-colors"
         >
           {loading ? 'Running...' : `Run evaluation (${n} turn${n === 1 ? '' : 's'})`}
         </button>
@@ -3367,12 +3367,12 @@ function ArcTimeline({ arcSignals, perTurn, turns, modalityHint, activeTurnIndex
 
   return (
     <div>
-      <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">Arc timeline</h3>
+      <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Arc timeline</h3>
       <div className="relative">
         <ol
           role="list"
           aria-label={`Conversation arc timeline, ${segments.length} turns`}
-          className="flex gap-1 overflow-x-auto bg-white border border-sage-200 rounded-xl p-3"
+          className="flex gap-1 overflow-x-auto bg-white border border-slate-200 rounded-xl p-3"
           style={{ scrollSnapType: 'x mandatory' }}
         >
           {segments.map((seg, i) => {
@@ -3492,7 +3492,7 @@ function SenderAttribution({ arcSignals, perTurn, classification, modalityHint }
 
   return (
     <div>
-      <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">Sender attribution</h3>
+      <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">Sender attribution</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {senderOrder.map((s, idx) => {
           const friendly = (s === '__user__') ? mapSelfLabel(modalityHint) : s;
@@ -3632,7 +3632,7 @@ function MediaInput({
             <img
               src={mediaPreviewUrl}
               alt={'Selected image preview: ' + (mediaName || 'image')}
-              className="max-h-64 rounded-md border border-sage-200 mx-auto"
+              className="max-h-64 rounded-md border border-slate-200 mx-auto"
             />
           )}
           {mode === 'audio' && mediaPreviewUrl && (
@@ -3663,7 +3663,7 @@ function MediaInput({
                 key={s.id}
                 type="button"
                 onClick={() => onLoadSample(s)}
-                className="text-xs border border-sage-200 bg-cream-50 hover:bg-sage-50 text-slate-700 rounded-full px-3 py-1.5 transition-colors"
+                className="text-xs border border-slate-200 bg-slate-50 hover:bg-slate-50 text-slate-700 rounded-full px-3 py-1.5 transition-colors"
               >
                 {s.label}
               </button>
@@ -3681,7 +3681,7 @@ function MediaInput({
           type="button"
           onClick={onEvaluate}
           disabled={!hasFile || loading}
-          className="shrink-0 bg-coral-500 hover:bg-coral-600 disabled:bg-sage-200 disabled:text-slate-400 text-white text-sm font-medium px-6 py-2.5 rounded-full transition-colors"
+          className="shrink-0 bg-brand-blue hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-medium px-6 py-2.5 rounded-full transition-colors"
         >
           {loading ? 'Running...' : 'Run evaluation'}
         </button>
@@ -3694,7 +3694,7 @@ function MediaInput({
 const MEDIA_VERDICT_STYLE = {
   likely_human: { border: 'border-green-300', bg: 'bg-green-50', badge: 'bg-green-100 text-green-900', Icon: UserRound },
   likely_synthetic: { border: 'border-red-300', bg: 'bg-red-50', badge: 'bg-red-100 text-red-900', Icon: Sparkles },
-  uncertain: { border: 'border-sage-300', bg: 'bg-sage-50', badge: 'bg-sage-100 text-sage-900', Icon: HelpCircle },
+  uncertain: { border: 'border-slate-300', bg: 'bg-slate-50', badge: 'bg-slate-100 text-slate-700', Icon: HelpCircle },
   error: { border: 'border-slate-300', bg: 'bg-slate-50', badge: 'bg-slate-200 text-slate-700', Icon: TriangleAlert },
 };
 
@@ -3721,7 +3721,7 @@ function MediaResult({ result, mediaType }) {
           {mediaType === 'audio' ? 'audio' : 'image'} detection
         </span>
         {view.reasoningUsed && (
-          <span className="text-xs bg-white border border-sage-200 text-sage-700 px-3 py-1.5 rounded-full">
+          <span className="text-xs bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-full">
             reasoning fallback used
           </span>
         )}
@@ -3735,7 +3735,7 @@ function MediaResult({ result, mediaType }) {
           </div>
           <div className="h-2.5 w-full rounded-full bg-white border border-gray-200 overflow-hidden">
             <div
-              className={`h-full ${view.verdict === 'likely_synthetic' ? 'bg-red-400' : view.verdict === 'likely_human' ? 'bg-green-400' : 'bg-sage-400'}`}
+              className={`h-full ${view.verdict === 'likely_synthetic' ? 'bg-red-400' : view.verdict === 'likely_human' ? 'bg-green-400' : 'bg-slate-400'}`}
               style={{ width: view.syntheticPct + '%' }}
               role="progressbar"
               aria-valuenow={view.syntheticPct}
@@ -3748,7 +3748,7 @@ function MediaResult({ result, mediaType }) {
       )}
 
       {(view.reasoning || isError) && (
-        <div className="bg-white border border-sage-200 rounded-xl px-4 py-3">
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3">
           <p className="text-sm text-gray-700 leading-relaxed">
             {isError
               ? 'The detector could not complete this evaluation. ' + (view.error || '') + ' This usually means the detection service is not configured for this deployment. The upload, preview, and result flow still work; configure HF_API_TOKEN to enable live scoring.'

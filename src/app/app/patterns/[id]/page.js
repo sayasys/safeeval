@@ -57,7 +57,7 @@ export default async function PatternDetailPage({ params }) {
   })).filter((g) => g.components.length > 0);
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 px-6 py-12">
       <div className="mx-auto w-full max-w-2xl">
         <nav className="mb-6 text-sm">
           <Link
@@ -84,7 +84,7 @@ export default async function PatternDetailPage({ params }) {
         </div>
 
         {/* Lifecycle */}
-        <div className="mt-6 rounded-lg border border-sage-100 bg-white p-5 shadow-sm">
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <p className="mb-4 text-sm text-slate-600">{meta ? meta.description : null}</p>
           <LifecycleActions id={pattern.id} status={pattern.status} />
         </div>
@@ -104,7 +104,7 @@ export default async function PatternDetailPage({ params }) {
                     {components.map((c) => (
                       <li
                         key={`${c.group_name}-${c.tag_id}`}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-sage-200 bg-white px-2.5 py-1 text-sm"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-sm"
                       >
                         <span className="font-mono text-slate-700">{c.tag_id}</span>
                         <SourceBadge source={c.tag_source} />
@@ -159,7 +159,7 @@ function Section({ title, children }) {
 function SourceBadge({ source }) {
   const label = TAG_SOURCE_LABELS[source] || source;
   const cls =
-    TAG_SOURCE_BADGE_CLASS[source] || 'bg-cream-100 text-slate-600 border border-sage-200';
+    TAG_SOURCE_BADGE_CLASS[source] || 'bg-slate-100 text-slate-600 border border-slate-200';
   return (
     <span
       className={`rounded px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide ${cls}`}
@@ -180,7 +180,7 @@ function Meta({ label, value }) {
 
 function NotFound({ unavailable }) {
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 flex items-center justify-center px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md text-center">
         <h1 className="text-xl font-semibold text-slate-900">Pattern not found</h1>
         <p className="mt-2 text-sm text-slate-600">

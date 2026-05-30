@@ -113,7 +113,7 @@ function ShadowPromotion({ readiness, busy, riskAccepted, onToggleRisk, onPromot
         disabled
         aria-disabled="true"
         title="Calibration progress is unavailable in this environment."
-        className="rounded-md border border-sage-200 text-sm font-medium px-4 py-2 text-slate-400 cursor-not-allowed"
+        className="rounded-md border border-slate-200 text-sm font-medium px-4 py-2 text-slate-400 cursor-not-allowed"
       >
         Awaiting calibration
       </button>
@@ -131,7 +131,7 @@ function ShadowPromotion({ readiness, busy, riskAccepted, onToggleRisk, onPromot
 
   return (
     <div>
-      <p className="text-sm font-medium text-sage-700">Ready to promote</p>
+      <p className="text-sm font-medium text-slate-700">Ready to promote</p>
       <p className="mt-1 text-xs text-slate-500">{formatProgress(readiness)}</p>
       <label className="mt-3 flex items-start gap-2 text-xs text-slate-600">
         <input

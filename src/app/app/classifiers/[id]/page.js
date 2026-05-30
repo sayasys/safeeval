@@ -56,7 +56,7 @@ export default async function ClassifierDetailPage({ params }) {
   const readiness = await loadReadiness(org.id, classifier);
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 px-6 py-12">
       <div className="mx-auto w-full max-w-2xl">
         <nav className="mb-6 text-sm">
           <Link
@@ -83,7 +83,7 @@ export default async function ClassifierDetailPage({ params }) {
         </div>
 
         {/* Lifecycle */}
-        <div className="mt-6 rounded-lg border border-sage-100 bg-white p-5 shadow-sm">
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <p className="mb-4 text-sm text-slate-600">
             {meta ? meta.description : null}
           </p>
@@ -163,7 +163,7 @@ function ChipList({ items, mono }) {
       {items.map((value, i) => (
         <li
           key={`${value}-${i}`}
-          className={`rounded-md border border-sage-200 bg-white px-2.5 py-1 text-sm text-slate-700${
+          className={`rounded-md border border-slate-200 bg-white px-2.5 py-1 text-sm text-slate-700${
             mono ? ' font-mono' : ''
           }`}
         >
@@ -183,7 +183,7 @@ function ExampleRows({ rows, empty }) {
       {rows.map((e) => (
         <li
           key={e.id}
-          className="rounded-md border border-sage-100 bg-white px-3 py-2 text-sm text-slate-700"
+          className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
         >
           {e.text}
         </li>
@@ -203,7 +203,7 @@ function Meta({ label, value }) {
 
 function NotFound({ unavailable }) {
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 flex items-center justify-center px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md text-center">
         <h1 className="text-xl font-semibold text-slate-900">
           Classifier not found

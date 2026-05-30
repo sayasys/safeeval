@@ -98,7 +98,7 @@ export default function ClassifierForm({ existing = [] }) {
       : defLen >= DEFINITION_MAX_LENGTH * 0.9
         ? 'text-red-500'
         : defLen >= DEFINITION_MAX_LENGTH * 0.75
-          ? 'text-sage-600'
+          ? 'text-amber-600'
           : 'text-slate-400';
 
   function updateRow(setter, list, index, value) {
@@ -157,7 +157,7 @@ export default function ClassifierForm({ existing = [] }) {
           onChange={(e) => setGroupName(e.target.value)}
           onBlur={() => markTouched('group_name')}
           disabled={busy}
-          className="w-full rounded-md border border-sage-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
         >
           <option value="">Select a group...</option>
           {GROUP_OPTIONS.map((g) => (
@@ -190,7 +190,7 @@ export default function ClassifierForm({ existing = [] }) {
           spellCheck={false}
           autoComplete="off"
           placeholder="synthetic_celebrity_endorsement"
-          className="w-full rounded-md border border-sage-200 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+          className="w-full rounded-md border border-slate-200 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
         />
         {collision && !tagError && (
           <p className="mt-1 text-xs text-red-600">
@@ -215,7 +215,7 @@ export default function ClassifierForm({ existing = [] }) {
           onChange={(e) => setDefinition(e.target.value)}
           onBlur={() => markTouched('definition')}
           disabled={busy}
-          className="w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
         />
         <div className="mt-1 flex justify-between text-xs">
           <span className="text-slate-400">
@@ -364,14 +364,14 @@ function ExampleList({
                   onBlur={onBlur}
                   disabled={busy}
                   aria-label={`${legend} ${i + 1}`}
-                  className="w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={() => onRemove(i)}
                   disabled={busy || rows.length <= MIN_EXAMPLES_PER_KIND}
                   aria-label={`Remove ${legend} ${i + 1}`}
-                  className="mt-1 shrink-0 rounded-md border border-sage-200 px-2 py-1 text-xs text-slate-600 hover:bg-cream-100 disabled:opacity-40"
+                  className="mt-1 shrink-0 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-40"
                 >
                   Remove
                 </button>
@@ -387,7 +387,7 @@ function ExampleList({
         type="button"
         onClick={onAdd}
         disabled={busy}
-        className="mt-2 rounded-md border border-sage-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-cream-100 disabled:opacity-50"
+        className="mt-2 rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50"
       >
         Add example
       </button>
@@ -421,7 +421,7 @@ function OptionalList({
   namePrefix,
 }) {
   return (
-    <details className="rounded-md border border-sage-100 bg-cream-50/40 px-4 py-3">
+    <details className="rounded-md border border-slate-200 bg-slate-50/40 px-4 py-3">
       <summary className="cursor-pointer select-none text-sm font-medium text-slate-800">
         {legend} <span className="font-normal text-slate-400">(optional)</span>
       </summary>
@@ -443,7 +443,7 @@ function OptionalList({
                   autoComplete="off"
                   placeholder={placeholder}
                   aria-label={`${legend} ${i + 1}`}
-                  className={`w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50${
+                  className={`w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50${
                     mono ? ' font-mono' : ''
                   }`}
                 />
@@ -452,7 +452,7 @@ function OptionalList({
                   onClick={() => onRemove(i)}
                   disabled={busy}
                   aria-label={`Remove ${legend} ${i + 1}`}
-                  className="mt-1 shrink-0 rounded-md border border-sage-200 px-2 py-1 text-xs text-slate-600 hover:bg-cream-100 disabled:opacity-40"
+                  className="mt-1 shrink-0 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-40"
                 >
                   Remove
                 </button>
@@ -466,7 +466,7 @@ function OptionalList({
         type="button"
         onClick={onAdd}
         disabled={busy}
-        className="mt-2 rounded-md border border-sage-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-cream-100 disabled:opacity-50"
+        className="mt-2 rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50"
       >
         {addLabel}
       </button>

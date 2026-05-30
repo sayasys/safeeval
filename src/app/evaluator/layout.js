@@ -20,7 +20,7 @@ export default async function EvaluatorLayout({ children }) {
   const user = await getCurrentUser();
 
   return (
-    <div className="flex min-h-screen flex-col bg-cream-50">
+    <div className="flex min-h-screen flex-col bg-tool">
       {user ? <AppNav email={user.email} /> : <Nav current="/evaluator" />}
       <div className="flex-1">{children}</div>
       <Footer />

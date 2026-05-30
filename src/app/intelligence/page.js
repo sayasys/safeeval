@@ -33,21 +33,22 @@ function formatDate(iso) {
   return `${MONTHS[month - 1]} ${day}, ${year}`;
 }
 
-// Classifier-verdict pill styling. known_ttp is the quiet sage default;
-// new_ttp_proposed gets a coral accent (it routes to architect review);
-// low_signal_dismissed is muted slate (the classifier filtered it out).
+// Classifier-verdict pill styling (cool-institutional palette). known_ttp is
+// the quiet slate default; new_ttp_proposed gets a brand-blue accent (it routes
+// to architect review and is the actionable verdict); low_signal_dismissed is
+// the most muted slate (the classifier filtered it out).
 const CLASSIFICATION_CONFIG = {
   known_ttp: {
     label: 'Known TTP',
-    className: 'bg-sage-100 text-sage-700',
+    className: 'bg-slate-100 text-slate-700',
   },
   new_ttp_proposed: {
     label: 'New TTP proposed',
-    className: 'bg-coral-400/15 text-coral-600',
+    className: 'bg-blue-50 text-brand-blue',
   },
   low_signal_dismissed: {
     label: 'Low signal',
-    className: 'bg-slate-100 text-slate-500',
+    className: 'bg-slate-50 text-slate-500',
   },
 };
 
@@ -93,7 +94,7 @@ export default function IntelligencePage() {
       <section aria-labelledby="pipeline-heading" className="space-y-5">
         <h2
           id="pipeline-heading"
-          className="text-xs font-semibold text-sage-700 uppercase tracking-wider"
+          className="text-xs font-semibold text-slate-700 uppercase tracking-wider"
         >
           What the pipeline does
         </h2>
@@ -103,9 +104,9 @@ export default function IntelligencePage() {
             return (
               <div
                 key={step.title}
-                className="bg-white border border-sage-200 rounded-xl p-5 shadow-soft"
+                className="bg-white border border-slate-200 rounded-xl p-5 shadow-soft"
               >
-                <div className="flex items-center gap-2 text-sage-700">
+                <div className="flex items-center gap-2 text-slate-700">
                   <Icon className="h-5 w-5" aria-hidden="true" />
                   <span className="text-xs font-medium text-slate-400">
                     Step {i + 1}
@@ -128,7 +129,7 @@ export default function IntelligencePage() {
         <div className="flex items-baseline justify-between gap-4">
           <h2
             id="feed-heading"
-            className="text-xs font-semibold text-sage-700 uppercase tracking-wider"
+            className="text-xs font-semibold text-slate-700 uppercase tracking-wider"
           >
             Recent signals
           </h2>
@@ -137,7 +138,7 @@ export default function IntelligencePage() {
           </span>
         </div>
 
-        <div className="bg-white border border-sage-200 rounded-xl shadow-soft divide-y divide-sage-100">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-soft divide-y divide-slate-200">
           {SAMPLE_SIGNALS.map((signal, i) => {
             const verdict =
               CLASSIFICATION_CONFIG[signal.classification] ||
@@ -146,7 +147,7 @@ export default function IntelligencePage() {
               <article key={i} className="p-5 space-y-3">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold text-sage-700 uppercase tracking-wider">
+                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
                       {signal.source}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-400">
@@ -166,7 +167,7 @@ export default function IntelligencePage() {
 
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-slate-400">TTP</span>
-                  <code className="rounded bg-sage-50 px-2 py-0.5 text-xs font-mono text-sage-700">
+                  <code className="rounded bg-slate-50 px-2 py-0.5 text-xs font-mono text-slate-700">
                     {signal.ttp_type}
                   </code>
                 </div>

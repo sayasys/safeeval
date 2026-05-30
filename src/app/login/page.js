@@ -28,7 +28,7 @@ export default function LoginPage() {
 
 function LoginFallback() {
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 flex items-center justify-center px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md text-center text-sm text-slate-500">
         Loading...
       </div>
@@ -70,7 +70,7 @@ function LoginForm() {
   }
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 flex items-center justify-center px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <Link href="/" className="text-2xl font-semibold tracking-tight text-slate-900">
@@ -79,7 +79,7 @@ function LoginForm() {
           <p className="mt-2 text-sm text-slate-600">Welcome back.</p>
         </div>
 
-        <div className="bg-white border border-sage-100 rounded-lg p-6 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-slate-900 mb-6">Log in</h1>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -94,7 +94,7 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={busy}
-                className="w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
                 autoComplete="email"
               />
             </div>
@@ -110,7 +110,7 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={busy}
-                className="w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
                 autoComplete="current-password"
               />
             </div>
@@ -134,9 +134,9 @@ function LoginForm() {
           </form>
 
           <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-            <div className="flex-1 h-px bg-sage-100" />
+            <div className="flex-1 h-px bg-slate-100" />
             <span>or</span>
-            <div className="flex-1 h-px bg-sage-100" />
+            <div className="flex-1 h-px bg-slate-100" />
           </div>
 
           <div className="space-y-2">
@@ -144,7 +144,7 @@ function LoginForm() {
               type="button"
               onClick={() => handleOAuth('google')}
               disabled={busy}
-              className="w-full rounded-md border border-sage-200 text-sm py-2 hover:bg-cream-100 disabled:opacity-50"
+              className="w-full rounded-md border border-slate-200 text-sm py-2 hover:bg-slate-100 disabled:opacity-50"
             >
               Continue with Google
             </button>
@@ -152,7 +152,7 @@ function LoginForm() {
               type="button"
               onClick={() => handleOAuth('github')}
               disabled={busy}
-              className="w-full rounded-md border border-sage-200 text-sm py-2 hover:bg-cream-100 disabled:opacity-50"
+              className="w-full rounded-md border border-slate-200 text-sm py-2 hover:bg-slate-100 disabled:opacity-50"
             >
               Continue with GitHub
             </button>

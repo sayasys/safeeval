@@ -80,9 +80,9 @@ describe('intelligence page: hero + pipeline + feed copy', () => {
     expect(PAGE_SRC).toContain('captured during integration testing');
   });
 
-  it('uses the cream/sage design language', () => {
-    expect(PAGE_SRC).toContain('bg-white border border-sage-200 rounded-xl');
-    expect(PAGE_SRC).toContain('text-xs font-semibold text-sage-700 uppercase tracking-wider');
+  it('uses the cool-institutional design language', () => {
+    expect(PAGE_SRC).toContain('bg-white border border-slate-200 rounded-xl');
+    expect(PAGE_SRC).toContain('text-xs font-semibold text-slate-700 uppercase tracking-wider');
   });
 
   it('keeps internal build vocabulary out of the served page', () => {

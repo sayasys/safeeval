@@ -46,11 +46,11 @@ export default async function AppDashboardPage() {
   const unavailable = classifierResult.unavailable || patternResult.unavailable;
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 px-6 py-12">
       <div className="mx-auto w-full max-w-4xl">
         <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
 
-        <section className="mt-6 rounded-lg border border-sage-100 bg-white p-5 shadow-sm">
+        <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-xs font-medium uppercase tracking-wide text-slate-500">
             Your organization
           </h2>
@@ -64,7 +64,7 @@ export default async function AppDashboardPage() {
         {unavailable && (
           <div
             role="status"
-            className="mt-6 rounded-md border border-sage-200 bg-sage-50 px-4 py-3 text-sm text-sage-700"
+            className="mt-6 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
           >
             Your saved work is not reachable in this environment yet. Once the
             data layer is provisioned, your classifiers and patterns appear
@@ -90,7 +90,7 @@ export default async function AppDashboardPage() {
                   <li key={c.id}>
                     <Link
                       href={`/app/classifiers/${c.id}`}
-                      className="flex items-center justify-between gap-3 rounded-md border border-sage-100 bg-white px-3 py-2 hover:border-sage-300"
+                      className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 hover:border-slate-300"
                     >
                       <span className="truncate font-mono text-sm text-slate-900">
                         {c.tag_name}
@@ -120,7 +120,7 @@ export default async function AppDashboardPage() {
                   <li key={p.id}>
                     <Link
                       href={`/app/patterns/${p.id}`}
-                      className="flex items-center justify-between gap-3 rounded-md border border-sage-100 bg-white px-3 py-2 hover:border-sage-300"
+                      className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 hover:border-slate-300"
                     >
                       <span className="truncate text-sm font-medium text-slate-900">
                         {p.name}
@@ -134,7 +134,7 @@ export default async function AppDashboardPage() {
           </DashboardCard>
         </div>
 
-        <section className="mt-6 flex flex-col gap-3 rounded-lg border border-sage-100 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <section className="mt-6 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">
               Try the evaluator
@@ -146,7 +146,7 @@ export default async function AppDashboardPage() {
           </div>
           <Link
             href="/evaluator"
-            className="inline-flex w-fit shrink-0 rounded-md border border-sage-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-cream-100"
+            className="inline-flex w-fit shrink-0 rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
           >
             Open the evaluator
           </Link>
@@ -167,7 +167,7 @@ function SummaryField({ label, value }) {
 
 function DashboardCard({ title, count, seeAllHref, children }) {
   return (
-    <section className="rounded-lg border border-sage-100 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>
@@ -187,7 +187,7 @@ function DashboardCard({ title, count, seeAllHref, children }) {
 
 function EmptyState({ description, cta, href }) {
   return (
-    <div className="rounded-md border border-dashed border-sage-300 bg-cream-50 px-4 py-6 text-center">
+    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center">
       <p className="mx-auto max-w-sm text-sm text-slate-600">{description}</p>
       <Link
         href={href}

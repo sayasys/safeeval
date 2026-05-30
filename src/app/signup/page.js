@@ -68,7 +68,7 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 flex items-center justify-center px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <Link href="/" className="text-2xl font-semibold tracking-tight text-slate-900">
@@ -79,13 +79,13 @@ export default function SignupPage() {
           </p>
         </div>
 
-        <div className="bg-white border border-sage-100 rounded-lg p-6 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-slate-900 mb-6">Sign up</h1>
 
           {feedback.status === 'success-pending-confirmation' && (
             <div
               role="status"
-              className="mb-6 rounded-md bg-sage-50 border border-sage-200 text-sage-700 text-sm px-3 py-2 flex items-start gap-2"
+              className="mb-6 rounded-md bg-slate-50 border border-slate-200 text-slate-700 text-sm px-3 py-2 flex items-start gap-2"
             >
               <svg
                 viewBox="0 0 20 20"
@@ -115,7 +115,7 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={busy}
-                className="w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
                 autoComplete="email"
               />
             </div>
@@ -132,7 +132,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={busy}
-                className="w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:opacity-50"
                 autoComplete="new-password"
               />
               <p className="mt-1 text-xs text-slate-500">At least 8 characters.</p>
@@ -166,9 +166,9 @@ export default function SignupPage() {
           </form>
 
           <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-            <div className="flex-1 h-px bg-sage-100" />
+            <div className="flex-1 h-px bg-slate-100" />
             <span>or</span>
-            <div className="flex-1 h-px bg-sage-100" />
+            <div className="flex-1 h-px bg-slate-100" />
           </div>
 
           <div className="space-y-2">
@@ -176,7 +176,7 @@ export default function SignupPage() {
               type="button"
               onClick={() => handleOAuth('google')}
               disabled={busy}
-              className="w-full rounded-md border border-sage-200 text-sm py-2 hover:bg-cream-100 disabled:opacity-50"
+              className="w-full rounded-md border border-slate-200 text-sm py-2 hover:bg-slate-100 disabled:opacity-50"
             >
               Continue with Google
             </button>
@@ -184,7 +184,7 @@ export default function SignupPage() {
               type="button"
               onClick={() => handleOAuth('github')}
               disabled={busy}
-              className="w-full rounded-md border border-sage-200 text-sm py-2 hover:bg-cream-100 disabled:opacity-50"
+              className="w-full rounded-md border border-slate-200 text-sm py-2 hover:bg-slate-100 disabled:opacity-50"
             >
               Continue with GitHub
             </button>

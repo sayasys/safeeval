@@ -46,8 +46,9 @@ export const GROUP_ORDER: readonly L3GroupName[] = L3_GROUP_NAMES;
 
 export interface StatusMeta {
   label: string;
-  // Tailwind classes for the status badge. Restricted to the cream / sage /
-  // slate palette; coral is reserved for destructive actions.
+  // Tailwind classes for the status badge. Cool-institutional palette: slate
+  // for the terminal/neutral state, brand-blue for the active state; red is
+  // reserved for destructive actions.
   badgeClass: string;
   // One-line description shown on the detail view next to the lifecycle action.
   description: string;
@@ -60,7 +61,7 @@ export interface StatusMeta {
 export const STATUS_META: Record<PatternStatus, StatusMeta> = {
   active: {
     label: 'Active',
-    badgeClass: 'bg-sage-100 text-sage-700 border border-sage-400',
+    badgeClass: 'bg-blue-100 text-blue-800 border border-blue-300',
     description:
       'Live. This pattern is matched against every evaluation in your organization once the pattern-match pass ships.',
   },
@@ -93,6 +94,6 @@ export const TAG_SOURCE_LABELS: Record<TagSource, string> = {
 };
 
 export const TAG_SOURCE_BADGE_CLASS: Record<TagSource, string> = {
-  closed_set: 'bg-cream-100 text-slate-600 border border-sage-200',
-  org_custom: 'bg-sage-50 text-sage-700 border border-sage-300',
+  closed_set: 'bg-slate-100 text-slate-600 border border-slate-200',
+  org_custom: 'bg-blue-50 text-brand-blue border border-blue-200',
 };

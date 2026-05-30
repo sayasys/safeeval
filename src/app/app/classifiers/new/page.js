@@ -32,7 +32,7 @@ export default async function NewClassifierPage() {
   const existing = await loadExisting(org.id);
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 px-6 py-12">
+    <main className="min-h-screen bg-tool text-slate-800 px-6 py-12">
       <div className="mx-auto w-full max-w-2xl">
         <nav className="mb-6 text-sm">
           <Link
@@ -54,7 +54,7 @@ export default async function NewClassifierPage() {
           L1 / L2 / L3 envelope is always present regardless of what you add.
         </p>
 
-        <div className="rounded-lg border border-sage-100 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <ClassifierForm existing={existing} />
         </div>
       </div>
