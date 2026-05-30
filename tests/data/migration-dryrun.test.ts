@@ -22,11 +22,14 @@ describe('M12 migration: discovery + apply order', () => {
   it('discovers M12 and orders it after M11 (numeric prefix sort)', () => {
     const files = runner.listMigrationFiles();
     expect(files).toContain(M12);
-    // M12 must sort last, after the existing M1..M11 chain -- the whole point
-    // of the M6->M12 renumber.
-    expect(files[files.length - 1]).toBe(M12);
+    // M12 must sort after the existing M1..M11 chain -- the point of the
+    // M6->M12 renumber. (The M13 custom-patterns migration now sorts after M12
+    // as the numeric tail, so the tail check moved to M13 below.)
     const m11Index = files.findIndex((f) => f.startsWith('M11_'));
     expect(files.indexOf(M12)).toBeGreaterThan(m11Index);
+    const m13Index = files.findIndex((f) => f.startsWith('M13_'));
+    expect(m13Index).toBeGreaterThan(files.indexOf(M12));
+    expect(files[files.length - 1]).toBe('M13_custom_patterns_and_classifiers.sql');
   });
 });
 
