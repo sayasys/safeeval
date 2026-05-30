@@ -32,7 +32,8 @@
 // streaming, end_user audience.
 
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, getOrganization } from '@/lib/auth';
+import { getClient } from '@/lib/data/db-client';
 import {
   generateReport,
   IMPLEMENTED_AUDIENCES,
@@ -157,6 +158,32 @@ async function handle(
       { error: 'Force-regeneration requires the admin role.', code: 'forbidden' },
       { status: 403 },
     );
+  }
+
+  // Org-scoped access (M12 multi-tenancy): verify the evaluation belongs to the
+  // requesting user's organization. A mismatch returns 404 (not 403) so the
+  // route never leaks the existence of another organization's evaluation.
+  //
+  // Enforced only when the caller has a REAL (DB-backed) organization. In the
+  // single-tenant portfolio, getOrganization() returns a synthesized fallback
+  // personal org (id prefixed 'personal-') with no membership to scope against,
+  // so we preserve the existing single-tenant behavior rather than 404-ing
+  // every report. This is a real improvement for genuine multi-tenant users.
+  const notFound = NextResponse.json(
+    { error: `Evaluation not found: ${evaluation_id}`, code: 'evaluation_not_found', evaluation_id },
+    { status: 404 },
+  );
+  let evalRow;
+  try {
+    const callerOrg = await getOrganization();
+    evalRow = await getClient().getEvaluation(evaluation_id);
+    if (!evalRow) return notFound;
+    const callerOrgIsReal = !!callerOrg && !callerOrg.id.startsWith('personal-');
+    if (callerOrgIsReal && evalRow.organization_id !== callerOrg.id) {
+      return notFound;
+    }
+  } catch (err) {
+    return mapError(err, evaluation_id, audience);
   }
 
   try {

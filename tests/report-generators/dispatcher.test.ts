@@ -63,6 +63,7 @@ const NO_ROLE_USER = { auth_user_id: 'u-x', role: null };
 function makeEvaluation(over: Partial<EvaluationRow> = {}): EvaluationRow {
   return {
     id: 'eval_1',
+    organization_id: '00000000-0000-0000-0000-000000000010',
     envelope: {
       schema_version: '5.1',
       ontology_version: '5.1',
@@ -96,7 +97,8 @@ function makeReportRow(over: Partial<ReportRow> = {}): ReportRow {
 function makeClient(overrides: Partial<DispatcherMockClient> = {}): DispatcherMockClient {
   return {
     insertEvaluation: vi.fn(),
-    withCustomerContext: vi.fn(),
+    withOrganizationContext: vi.fn(),
+    getEvaluationsByOrganization: vi.fn(async () => []),
     ping: vi.fn(),
     getRawClient: vi.fn(),
     getEvaluation: vi.fn(),

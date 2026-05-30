@@ -210,8 +210,15 @@ export class PersistError extends Error {
   }
 }
 
+// Default owning organization for an evaluation persisted without an explicit
+// org context. This is the shared "Portfolio self" organization the M12
+// migration created and backfilled every legacy customer_id='self' row to --
+// the single-tenant portfolio's home org. Multi-tenant callers pass an
+// explicit organization_id.
+export const DEFAULT_ORGANIZATION_ID = '00000000-0000-0000-0000-000000000010';
+
 export interface PersistOptions {
-  customer_id?: string;
+  organization_id?: string;
   // Test seam: allow tests to inject a mock db-client without poking the
   // module-level singleton. Production callers do not pass this.
   dbClient?: DbClientSurface;
@@ -230,7 +237,7 @@ export async function persistEvaluation(
   rawInput: string,
   options: PersistOptions = {},
 ): Promise<PersistResult> {
-  const customer_id = options.customer_id ?? 'self';
+  const organization_id = options.organization_id ?? DEFAULT_ORGANIZATION_ID;
 
   // ---------------------------------------------------------------
   // Step 0: validate the envelope's required hoist fields.
@@ -297,7 +304,7 @@ export async function persistEvaluation(
   // Step 2: INSERT via db-client. Fail-stop on DB errors.
   // ---------------------------------------------------------------
   const row: InsertEvaluationRow = {
-    customer_id,
+    organization_id,
     envelope: sanitized_envelope,
     cache_key,
     ontology_version,
@@ -313,7 +320,7 @@ export async function persistEvaluation(
 
   const client = options.dbClient ?? getClient();
   try {
-    const { evaluation_id } = await client.withCustomerContext(customer_id, () =>
+    const { evaluation_id } = await client.withOrganizationContext(organization_id, () =>
       client.insertEvaluation(row),
     );
     // Post-write hook: pre-generate reports for block / human_review when

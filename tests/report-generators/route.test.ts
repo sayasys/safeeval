@@ -29,8 +29,41 @@ vi.mock('@/lib/report-generators', () => ({
   IMPLEMENTED_AUDIENCES: ['reviewer', 'trust_safety_lead', 'legal', 'exec_summary'],
 }));
 
-const { getCurrentUser } = vi.hoisted(() => ({ getCurrentUser: vi.fn() }));
-vi.mock('@/lib/auth', () => ({ getCurrentUser }));
+const { getCurrentUser, getOrganization } = vi.hoisted(() => ({
+  getCurrentUser: vi.fn(),
+  getOrganization: vi.fn(),
+}));
+vi.mock('@/lib/auth', () => ({ getCurrentUser, getOrganization }));
+
+// The route org-scopes access: it fetches the evaluation via the data client
+// and 404s when the row's organization_id does not match the caller's real
+// organization. Mocked at the module boundary.
+const { getEvaluation } = vi.hoisted(() => ({ getEvaluation: vi.fn() }));
+vi.mock('@/lib/data/db-client', () => ({ getClient: () => ({ getEvaluation }) }));
+
+// A synthesized fallback personal org (id prefixed 'personal-') means the
+// caller has no real membership, so the route skips org-scope enforcement --
+// the single-tenant default for every test that is not specifically about
+// cross-org denial.
+const FALLBACK_ORG = {
+  id: 'personal-u-1',
+  name: 'Personal',
+  slug: 'personal',
+  plan_tier: 'free',
+  created_at: '2026-05-29T00:00:00Z',
+};
+function evalRow(over: Record<string, unknown> = {}) {
+  return {
+    id: 'eval_1',
+    organization_id: 'org-default',
+    envelope: {},
+    disposition: 'block',
+    cache_key: 'k',
+    ontology_version: '5.1',
+    schema_version: '5.1',
+    ...over,
+  };
+}
 
 import {
   GET,
@@ -66,7 +99,13 @@ function okResult(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   generateReport.mockReset();
   getCurrentUser.mockReset();
+  getOrganization.mockReset();
+  getEvaluation.mockReset();
   isAdmin.mockClear();
+  // Defaults: a synthesized fallback caller (org-scope not enforced) and a
+  // found evaluation row. Tests that exercise cross-org denial override these.
+  getOrganization.mockResolvedValue(FALLBACK_ORG);
+  getEvaluation.mockResolvedValue(evalRow());
 });
 
 describe('GET 200', () => {
@@ -170,6 +209,55 @@ describe('GET 503 feature flag disabled', () => {
     expect(res.status).toBe(503);
     const body = (await res.json()) as { code: string };
     expect(body.code).toBe('report_gen_disabled');
+  });
+});
+
+describe('org-scoped access (M12 multi-tenancy)', () => {
+  const ORG_A = '11111111-1111-1111-1111-111111111111';
+  const ORG_B = '22222222-2222-2222-2222-222222222222';
+
+  it('404s when the evaluation belongs to another organization (user A cannot read user B)', async () => {
+    getCurrentUser.mockResolvedValue(REVIEWER_USER);
+    // Caller is in a REAL org A; the evaluation belongs to org B.
+    getOrganization.mockResolvedValue({ ...FALLBACK_ORG, id: ORG_A, slug: 'org-a' });
+    getEvaluation.mockResolvedValue(evalRow({ organization_id: ORG_B }));
+    const res = await GET(REQ, ctx('eval_1', 'reviewer'));
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe('evaluation_not_found');
+    // Never reaches generation -- the existence of org B's eval is not leaked.
+    expect(generateReport).not.toHaveBeenCalled();
+  });
+
+  it('proceeds when the evaluation belongs to the caller real organization', async () => {
+    getCurrentUser.mockResolvedValue(REVIEWER_USER);
+    getOrganization.mockResolvedValue({ ...FALLBACK_ORG, id: ORG_A, slug: 'org-a' });
+    getEvaluation.mockResolvedValue(evalRow({ organization_id: ORG_A }));
+    generateReport.mockResolvedValue(okResult());
+    const res = await GET(REQ, ctx('eval_1', 'reviewer'));
+    expect(res.status).toBe(200);
+    expect(generateReport).toHaveBeenCalledTimes(1);
+  });
+
+  it('404s when the evaluation does not exist', async () => {
+    getCurrentUser.mockResolvedValue(REVIEWER_USER);
+    getEvaluation.mockResolvedValue(null);
+    const res = await GET(REQ, ctx('missing', 'reviewer'));
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe('evaluation_not_found');
+    expect(generateReport).not.toHaveBeenCalled();
+  });
+
+  it('does not enforce for a synthesized fallback caller (single-tenant path)', async () => {
+    getCurrentUser.mockResolvedValue(REVIEWER_USER);
+    // Fallback personal org + an eval owned by the Portfolio self org: allowed.
+    getOrganization.mockResolvedValue(FALLBACK_ORG);
+    getEvaluation.mockResolvedValue(evalRow({ organization_id: 'org-anything' }));
+    generateReport.mockResolvedValue(okResult());
+    const res = await GET(REQ, ctx('eval_1', 'reviewer'));
+    expect(res.status).toBe(200);
+    expect(generateReport).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -38,7 +38,8 @@ function makeMockClient(insertId = 'eval_42'): DbClientSurface {
     insertEvaluation: vi.fn(async (_row: InsertEvaluationRow): Promise<InsertEvaluationResult> => ({
       evaluation_id: insertId,
     })),
-    withCustomerContext: async <T,>(_customer_id: string, fn: () => Promise<T>): Promise<T> => fn(),
+    withOrganizationContext: async <T,>(_organization_id: string, fn: () => Promise<T>): Promise<T> => fn(),
+    getEvaluationsByOrganization: vi.fn(async () => []),
     ping: vi.fn(async (): Promise<PingResult> => ({ ok: true, latency_ms: 1 })),
     getRawClient: vi.fn(),
     getEvaluation: vi.fn(),

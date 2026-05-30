@@ -46,7 +46,8 @@ function rowFixture(over: Partial<ReportRow> = {}): ReportRow {
 function makeClient(overrides: Partial<CacheMockClient> = {}): CacheMockClient {
   const surface: CacheMockClient = {
     insertEvaluation: vi.fn(),
-    withCustomerContext: vi.fn(),
+    withOrganizationContext: vi.fn(),
+    getEvaluationsByOrganization: vi.fn(async () => []),
     ping: vi.fn(),
     getRawClient: vi.fn(),
     getEvaluation: vi.fn(),

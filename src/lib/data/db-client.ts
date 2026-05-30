@@ -12,17 +12,21 @@
 // reuse is delegated to the platform.
 //
 // Transactional caveat. PostgREST-over-HTTP does not expose client-driven
-// BEGIN/COMMIT. The withCustomerContext() helper below issues an RPC that
-// calls set_config('app.current_customer_id', $1, false) for the current
+// BEGIN/COMMIT. The withOrganizationContext() helper below issues an RPC that
+// calls set_config('app.current_organization_id', $1, false) for the current
 // session. Under PgBouncer transaction-mode pooling, a follow-up INSERT may
 // land on a different backend session and lose the GUC. The production-grade
-// fix is a single stored procedure that takes customer_id as an argument and
-// performs set_config + INSERT atomically inside one server-side transaction.
-// Phase 4 (engine wire-up) introduces that stored procedure as part of a
-// follow-on migration; until then this wrapper is sufficient for the
-// single-tenant portfolio deployment (customer_id is hardcoded 'self', so RLS
-// is structurally a no-op and the loss of GUC across pooled sessions has no
-// observable effect).
+// fix is a single stored procedure that takes organization_id as an argument
+// and performs set_config + INSERT atomically inside one server-side
+// transaction. Phase 4 (engine wire-up) introduces that stored procedure as
+// part of a follow-on migration; until then this wrapper is sufficient for the
+// single-tenant portfolio deployment (every legacy row belongs to the shared
+// "Portfolio self" organization, so RLS is structurally a no-op and the loss
+// of GUC across pooled sessions has no observable effect).
+//
+// Multi-tenancy rename (M12): the column and GUC are organization_id /
+// app.current_organization_id. The prior customer_id naming was renamed in the
+// M12 migration; no customer_id alias survives.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -42,12 +46,14 @@ export class DbClientError extends Error {
   }
 }
 
-// Row shape for the evaluations table. Mirrors M1 schema. Field names are the
-// JSON-Schema top-level names hoisted into columns (cache_key, ontology_version,
-// schema_version, stage[1-4]_prompt_hash). The aggregate_score is NUMERIC(4,3)
-// in the DDL; JS passes a number and lets Postgres coerce.
+// Row shape for the evaluations table. Mirrors M1 schema + the M12 rename
+// (customer_id -> organization_id). Field names are the JSON-Schema top-level
+// names hoisted into columns (cache_key, ontology_version, schema_version,
+// stage[1-4]_prompt_hash). The aggregate_score is NUMERIC(4,3) in the DDL; JS
+// passes a number and lets Postgres coerce. organization_id is a UUID FK to
+// organizations(id).
 export interface InsertEvaluationRow {
-  customer_id: string;
+  organization_id: string;
   envelope: unknown;                                       // sanitized JSONB
   cache_key: string;
   ontology_version: string;
@@ -101,11 +107,24 @@ export interface ReportRow {
 
 export interface EvaluationRow {
   id: string;
+  // Owning organization (UUID FK). Surfaced so callers can org-scope access --
+  // notably the on-demand report route, which 404s an evaluation that does not
+  // belong to the requesting user's organization.
+  organization_id: string;
   envelope: unknown;
   disposition: 'allow' | 'safe_completion' | 'human_review' | 'block';
   cache_key: string;
   ontology_version: string;
   schema_version: string;
+}
+
+// Minimal evaluations list row for org-scoped history queries.
+export interface EvaluationListRow {
+  id: string;
+  organization_id: string;
+  disposition: 'allow' | 'safe_completion' | 'human_review' | 'block';
+  aggregate_score: number | null;
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -142,12 +161,17 @@ export interface InsertLegalAccessLogRow {
 // interface so tests can pass a mock without depending on the real SDK shape.
 export interface DbClientSurface {
   insertEvaluation(row: InsertEvaluationRow): Promise<InsertEvaluationResult>;
-  withCustomerContext<T>(customer_id: string, fn: () => Promise<T>): Promise<T>;
+  withOrganizationContext<T>(organization_id: string, fn: () => Promise<T>): Promise<T>;
   ping(): Promise<PingResult>;
   getRawClient(): SupabaseClient;
 
   // Report-generator surface (Phase 2 of report-gen track).
   getEvaluation(evaluation_id: string): Promise<EvaluationRow | null>;
+  // Org-scoped evaluation history (M12 multi-tenancy). Newest first.
+  getEvaluationsByOrganization(
+    organization_id: string,
+    limit?: number,
+  ): Promise<EvaluationListRow[]>;
   getReportRecord(
     evaluation_id: string,
     audience: ReportAudienceColumn,
@@ -222,26 +246,26 @@ export function makeClient(raw: SupabaseClient): DbClientSurface {
       return { evaluation_id: String(data.id) };
     },
 
-    async withCustomerContext<T>(customer_id: string, fn: () => Promise<T>): Promise<T> {
+    async withOrganizationContext<T>(organization_id: string, fn: () => Promise<T>): Promise<T> {
       // RPC name and signature per the Phase 4 follow-on migration (deferred):
-      //   create function app_set_customer_context(p_customer_id text)
+      //   create function app_set_organization_context(p_organization_id uuid)
       //     returns void language sql security definer as
-      //   $$ select set_config('app.current_customer_id', p_customer_id, false) $$;
+      //   $$ select set_config('app.current_organization_id', p_organization_id::text, false) $$;
       // If the RPC is not yet defined (Phase 2 / portfolio), the call fails
-      // open. We swallow the error path here so withCustomerContext does not
-      // block the surrounding work in a single-tenant deployment, but log it
-      // for the integration phase.
-      const { error } = await raw.rpc('app_set_customer_context', {
-        p_customer_id: customer_id,
+      // open. We swallow the error path here so withOrganizationContext does
+      // not block the surrounding work in a single-tenant deployment, but log
+      // it for the integration phase.
+      const { error } = await raw.rpc('app_set_organization_context', {
+        p_organization_id: organization_id,
       });
       if (error) {
         // Single-tenant portfolio path: the RPC may not exist yet. Surface
         // the failure as a structured log but let fn() proceed; tenant
-        // isolation is structurally a no-op while customer_id is hardcoded
-        // 'self'. Phase 4 hardens this by introducing the stored proc.
+        // isolation is structurally a no-op while every row belongs to the
+        // shared Portfolio self org. Phase 4 hardens this with the stored proc.
         if (!isRpcMissingError(error)) {
           throw new DbClientError(
-            `withCustomerContext: app_set_customer_context RPC failed: ${error.message}`,
+            `withOrganizationContext: app_set_organization_context RPC failed: ${error.message}`,
             { cause: error },
           );
         }
@@ -252,7 +276,7 @@ export function makeClient(raw: SupabaseClient): DbClientSurface {
     async getEvaluation(evaluation_id: string): Promise<EvaluationRow | null> {
       const { data, error } = await raw
         .from('evaluations')
-        .select('id, envelope, disposition, cache_key, ontology_version, schema_version')
+        .select('id, organization_id, envelope, disposition, cache_key, ontology_version, schema_version')
         .eq('id', evaluation_id)
         .maybeSingle();
       if (error) {
@@ -261,12 +285,40 @@ export function makeClient(raw: SupabaseClient): DbClientSurface {
       if (!data) return null;
       return {
         id: String(data.id),
+        organization_id: String(data.organization_id),
         envelope: data.envelope,
         disposition: data.disposition as EvaluationRow['disposition'],
         cache_key: data.cache_key,
         ontology_version: data.ontology_version,
         schema_version: data.schema_version,
       };
+    },
+
+    async getEvaluationsByOrganization(
+      organization_id: string,
+      limit = 100,
+    ): Promise<EvaluationListRow[]> {
+      const { data, error } = await raw
+        .from('evaluations')
+        .select('id, organization_id, disposition, aggregate_score, created_at')
+        .eq('organization_id', organization_id)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (error) {
+        throw new DbClientError(
+          `getEvaluationsByOrganization failed: ${error.message}`,
+          { cause: error },
+        );
+      }
+      if (!Array.isArray(data)) return [];
+      return data.map((row) => ({
+        id: String(row.id),
+        organization_id: String(row.organization_id),
+        disposition: row.disposition as EvaluationListRow['disposition'],
+        aggregate_score:
+          typeof row.aggregate_score === 'number' ? row.aggregate_score : null,
+        created_at: row.created_at,
+      }));
     },
 
     async getReportRecord(

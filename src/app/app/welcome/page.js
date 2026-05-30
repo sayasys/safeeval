@@ -1,12 +1,27 @@
-// SaaS auth Phase 1 -- gated stub. Middleware guarantees a signed-in user
-// reaches this page; unauthenticated requests redirect to /signup before
-// rendering ever fires. Phase 3 of the scoping memo replaces this with the
-// real onboarding flow (org creation prompt, plan tier selection, first-
-// evaluation walkthrough).
+// SaaS gated landing. Middleware guarantees a signed-in user reaches this
+// page; unauthenticated requests redirect to /signup before rendering ever
+// fires. Phase 2 wires the post-signup org backfill here (default auto-create
+// per scoping memo section 5); Phase 3 replaces it with the full onboarding
+// flow (org-name customization, plan tier selection, first-evaluation
+// walkthrough).
 
 import Link from 'next/link';
+import { getCurrentUser, ensurePersonalOrganization } from '@/lib/auth';
 
-export default function AppWelcomePage() {
+// Reads the session cookie -> must be dynamic.
+export const dynamic = 'force-dynamic';
+
+export default async function AppWelcomePage() {
+  // Idempotent personal-organization backfill on first authenticated landing
+  // (scoping memo section 5, default auto-create). Fail-open: ensurePersonal-
+  // Organization returns null if the data tables are unreachable (e.g. the
+  // portfolio deployment before M12 is applied), and we never block render on
+  // it. Safe to run on every visit -- the org is resolved by its unique slug.
+  const user = await getCurrentUser();
+  if (user) {
+    await ensurePersonalOrganization(user);
+  }
+
   return (
     <main className="min-h-screen bg-cream-50 text-slate-800 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-2xl">
@@ -15,10 +30,10 @@ export default function AppWelcomePage() {
             You are signed in.
           </h1>
           <p className="text-slate-700 mb-2">
-            Phase 1 of the gated SaaS surface is live. The middleware gate is
-            enforced; the auth abstraction is provider-agnostic; the
-            organization model is stubbed pending the Phase 2 multi-tenancy
-            migration.
+            The gated SaaS surface is live. The middleware gate is enforced, the
+            auth abstraction is provider-agnostic, and your personal
+            organization has been provisioned by the Phase 2 multi-tenancy
+            layer.
           </p>
           <p className="text-slate-700 mb-6">
             Real product surfaces -- per-organization evaluation history,

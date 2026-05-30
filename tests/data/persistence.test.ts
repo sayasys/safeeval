@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   persistEvaluation,
   PersistError,
+  DEFAULT_ORGANIZATION_ID,
 } from '../../src/lib/data/persistence';
 import type {
   DbClientSurface,
@@ -17,10 +18,10 @@ import type { V5Envelope } from '../../src/lib/data/types';
 
 interface MockClient extends DbClientSurface {
   insertEvaluation: ReturnType<typeof vi.fn>;
-  withCustomerContext: ReturnType<typeof vi.fn>;
+  withOrganizationContext: ReturnType<typeof vi.fn>;
   ping: ReturnType<typeof vi.fn>;
   capturedRows: InsertEvaluationRow[];
-  capturedCustomerIds: string[];
+  capturedOrganizationIds: string[];
 }
 
 function makeMockClient(overrides: Partial<{
@@ -29,7 +30,7 @@ function makeMockClient(overrides: Partial<{
   withContextError: Error;
 }> = {}): MockClient {
   const capturedRows: InsertEvaluationRow[] = [];
-  const capturedCustomerIds: string[] = [];
+  const capturedOrganizationIds: string[] = [];
 
   const insertEvaluation = vi.fn(async (row: InsertEvaluationRow): Promise<InsertEvaluationResult> => {
     capturedRows.push(row);
@@ -37,8 +38,8 @@ function makeMockClient(overrides: Partial<{
     return overrides.insertResult ?? { evaluation_id: 'evalrow_1' };
   });
 
-  const withCustomerContext = vi.fn(async <T,>(customer_id: string, fn: () => Promise<T>): Promise<T> => {
-    capturedCustomerIds.push(customer_id);
+  const withOrganizationContext = vi.fn(async <T,>(organization_id: string, fn: () => Promise<T>): Promise<T> => {
+    capturedOrganizationIds.push(organization_id);
     if (overrides.withContextError) throw overrides.withContextError;
     return fn();
   });
@@ -47,12 +48,13 @@ function makeMockClient(overrides: Partial<{
 
   return {
     insertEvaluation,
-    withCustomerContext,
+    withOrganizationContext,
     ping,
     getRawClient: () => ({} as never),
     // Report-generator surface methods are not exercised by the persistence
     // tests; the mock provides no-op stubs so the type contract is satisfied.
     getEvaluation: vi.fn(async () => null),
+    getEvaluationsByOrganization: vi.fn(async () => []),
     getReportRecord: vi.fn(async () => null),
     insertReportRecord: vi.fn(async () => {
       throw new Error('insertReportRecord not implemented in this mock');
@@ -60,7 +62,7 @@ function makeMockClient(overrides: Partial<{
     incrementReportCacheHit: vi.fn(async () => {}),
     insertLegalAccessLog: vi.fn(async () => {}),
     capturedRows,
-    capturedCustomerIds,
+    capturedOrganizationIds,
   };
 }
 
@@ -109,28 +111,28 @@ describe('persistEvaluation: happy path', () => {
     expect(result.evaluation_id).toBe('evalrow_1');
   });
 
-  it('calls withCustomerContext before insertEvaluation', async () => {
+  it('calls withOrganizationContext before insertEvaluation', async () => {
     await persistEvaluation(makeEnvelope(), 'raw input', { dbClient: client });
-    expect(client.withCustomerContext).toHaveBeenCalledTimes(1);
+    expect(client.withOrganizationContext).toHaveBeenCalledTimes(1);
     expect(client.insertEvaluation).toHaveBeenCalledTimes(1);
-    const withCtxOrder = client.withCustomerContext.mock.invocationCallOrder[0]!;
+    const withCtxOrder = client.withOrganizationContext.mock.invocationCallOrder[0]!;
     const insertOrder = client.insertEvaluation.mock.invocationCallOrder[0]!;
     expect(withCtxOrder).toBeLessThan(insertOrder);
   });
 
-  it('defaults customer_id to "self" when not provided', async () => {
+  it('defaults organization_id to the Portfolio self org when not provided', async () => {
     await persistEvaluation(makeEnvelope(), 'raw input', { dbClient: client });
-    expect(client.capturedCustomerIds).toEqual(['self']);
-    expect(client.capturedRows[0]?.customer_id).toBe('self');
+    expect(client.capturedOrganizationIds).toEqual([DEFAULT_ORGANIZATION_ID]);
+    expect(client.capturedRows[0]?.organization_id).toBe(DEFAULT_ORGANIZATION_ID);
   });
 
-  it('honors an explicit customer_id', async () => {
+  it('honors an explicit organization_id', async () => {
     await persistEvaluation(makeEnvelope(), 'raw input', {
       dbClient: client,
-      customer_id: 'tenant-123',
+      organization_id: 'tenant-123',
     });
-    expect(client.capturedCustomerIds).toEqual(['tenant-123']);
-    expect(client.capturedRows[0]?.customer_id).toBe('tenant-123');
+    expect(client.capturedOrganizationIds).toEqual(['tenant-123']);
+    expect(client.capturedRows[0]?.organization_id).toBe('tenant-123');
   });
 });
 
@@ -301,11 +303,11 @@ describe('persistEvaluation: fail-stop', () => {
     }
   });
 
-  it('does not call withCustomerContext when validation fails first', async () => {
+  it('does not call withOrganizationContext when validation fails first', async () => {
     const client = makeMockClient();
     const env = makeEnvelope({ cache_key: undefined });
     await expect(persistEvaluation(env, 'raw', { dbClient: client })).rejects.toBeInstanceOf(PersistError);
-    expect(client.withCustomerContext).not.toHaveBeenCalled();
+    expect(client.withOrganizationContext).not.toHaveBeenCalled();
     expect(client.insertEvaluation).not.toHaveBeenCalled();
   });
 });
