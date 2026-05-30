@@ -31,7 +31,65 @@ describe('M12 migration: discovery + apply order', () => {
     expect(m13Index).toBeGreaterThan(files.indexOf(M12));
     const m14Index = files.findIndex((f) => f.startsWith('M14_'));
     expect(m14Index).toBeGreaterThan(m13Index);
-    expect(files[files.length - 1]).toBe('M14_classifier_bright_line_and_conflicts.sql');
+    // M15 (promotion-lifecycle persistence) is the new numeric tail.
+    const m15Index = files.findIndex((f) => f.startsWith('M15_'));
+    expect(m15Index).toBeGreaterThan(m14Index);
+    expect(files[files.length - 1]).toBe('M15_promotion_lifecycle_persistence.sql');
+  });
+});
+
+const M15 = 'M15_promotion_lifecycle_persistence.sql';
+
+describe('M15 migration: UP block', () => {
+  const { up } = runner.splitUpDown(runner.readFile(M15));
+
+  it('creates the two promotion-lifecycle tables', () => {
+    expect(up).toContain('CREATE TABLE custom_l3_match_log');
+    expect(up).toContain('CREATE TABLE custom_l3_match_feedback');
+  });
+
+  it('enforces the closed via + verdict vocabularies via CHECK', () => {
+    expect(up).toMatch(/CHECK\s*\(via\s+IN\s*\(\s*'inference',\s*'bright_line'\s*\)\)/);
+    expect(up).toMatch(/CHECK\s*\(verdict\s+IN\s*\(\s*'confirm',\s*'correct'\s*\)\)/);
+  });
+
+  it('scopes both tables to an organization with RLS', () => {
+    expect(up).toContain('organization_id        UUID NOT NULL REFERENCES organizations(id)');
+    expect(up).toContain('ALTER TABLE custom_l3_match_log ENABLE ROW LEVEL SECURITY');
+    expect(up).toContain('ALTER TABLE custom_l3_match_feedback ENABLE ROW LEVEL SECURITY');
+    expect(up).toContain('custom_l3_match_log_tenant_isolation');
+    expect(up).toContain('custom_l3_match_feedback_tenant_isolation');
+  });
+
+  it('keeps the volume count durable across the evaluations TTL reap', () => {
+    // evaluation_id is nullable + ON DELETE SET NULL so a log row survives the
+    // underlying evaluation aging out -- the volume count must not decay.
+    expect(up).toContain('evaluation_id          BIGINT REFERENCES evaluations(id) ON DELETE SET NULL');
+  });
+
+  it('does not leak any DOWN reversal statement into the UP block', () => {
+    expect(up).not.toContain('DROP TABLE IF EXISTS custom_l3_match_feedback');
+  });
+});
+
+describe('M15 migration: DOWN block (reversible)', () => {
+  const { down } = runner.splitUpDown(runner.readFile(M15));
+
+  it('drops the tables child-before-parent (feedback references log)', () => {
+    expect(down.length).toBeGreaterThan(0);
+    const fIdx = down.indexOf('DROP TABLE IF EXISTS custom_l3_match_feedback');
+    const lIdx = down.indexOf('DROP TABLE IF EXISTS custom_l3_match_log');
+    expect(fIdx).toBeGreaterThanOrEqual(0);
+    expect(lIdx).toBeGreaterThan(fIdx); // feedback dropped before log
+  });
+
+  it('un-comments to valid SQL or SQL comments only (no bare prose lines)', () => {
+    for (const raw of down.split('\n')) {
+      const line = raw.trim();
+      if (line === '') continue;
+      const looksLikeProse = /^[a-z]/.test(line) && !line.startsWith('--');
+      expect(looksLikeProse, `bare prose leaked into DOWN: "${line}"`).toBe(false);
+    }
   });
 });
 

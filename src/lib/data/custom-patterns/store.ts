@@ -22,6 +22,10 @@ import type {
   CustomL3Classifier,
   CustomL3Example,
   ClassifierStatus,
+  CustomL3MatchLog,
+  CustomL3MatchFeedback,
+  MatchVia,
+  FeedbackVerdict,
 } from './types';
 
 export interface InsertPatternRow {
@@ -64,6 +68,24 @@ export interface ClassifierStatusPatch {
   retired_at?: string | null;
 }
 
+// M15 insert shapes (promotion-lifecycle persistence).
+export interface InsertMatchLogRow {
+  organization_id: string;
+  classifier_id: string;
+  evaluation_id: number | null;
+  matched: boolean;
+  confidence: number;
+  via: MatchVia;
+}
+
+export interface InsertMatchFeedbackRow {
+  organization_id: string;
+  classifier_id: string;
+  match_log_id: number | null;
+  reviewer_id: string;
+  verdict: FeedbackVerdict;
+}
+
 export interface CustomPatternsStore {
   // --- patterns ---------------------------------------------------------
   insertPattern(row: InsertPatternRow): Promise<Pattern>;
@@ -97,6 +119,15 @@ export interface CustomPatternsStore {
     patch: ClassifierStatusPatch,
   ): Promise<CustomL3Classifier | null>;
   deleteClassifier(organization_id: string, classifier_id: string): Promise<void>;
+
+  // --- promotion-lifecycle persistence (M15) ----------------------------
+  insertMatchLog(row: InsertMatchLogRow): Promise<CustomL3MatchLog>;
+  countMatchLog(organization_id: string, classifier_id: string): Promise<number>;
+  insertMatchFeedback(row: InsertMatchFeedbackRow): Promise<CustomL3MatchFeedback>;
+  listMatchFeedback(
+    organization_id: string,
+    classifier_id: string,
+  ): Promise<CustomL3MatchFeedback[]>;
 }
 
 export class CustomPatternsStoreError extends Error {
@@ -172,11 +203,38 @@ function toExample(row: Record<string, unknown>): CustomL3Example {
   };
 }
 
+function toMatchLog(row: Record<string, unknown>): CustomL3MatchLog {
+  return {
+    id: Number(row.id),
+    organization_id: String(row.organization_id),
+    classifier_id: String(row.classifier_id),
+    evaluation_id: row.evaluation_id === null || row.evaluation_id === undefined ? null : Number(row.evaluation_id),
+    matched: Boolean(row.matched),
+    confidence: typeof row.confidence === 'number' ? row.confidence : Number(row.confidence),
+    via: row.via as MatchVia,
+    created_at: String(row.created_at),
+  };
+}
+
+function toMatchFeedback(row: Record<string, unknown>): CustomL3MatchFeedback {
+  return {
+    id: Number(row.id),
+    organization_id: String(row.organization_id),
+    classifier_id: String(row.classifier_id),
+    match_log_id: row.match_log_id === null || row.match_log_id === undefined ? null : Number(row.match_log_id),
+    reviewer_id: String(row.reviewer_id),
+    verdict: row.verdict as FeedbackVerdict,
+    created_at: String(row.created_at),
+  };
+}
+
 const PATTERN_COLS = 'id, organization_id, name, typology, match_mode, status, created_at';
 const COMPONENT_COLS = 'id, pattern_id, group_name, tag_id, tag_source, weight, created_at';
 const CLASSIFIER_COLS =
   'id, organization_id, group_name, tag_name, definition, status, bright_line_indicators, conflicts_with, shadow_started_at, promoted_at, retired_at, created_by_user_id, created_at';
 const EXAMPLE_COLS = 'id, classifier_id, kind, text, created_at';
+const MATCH_LOG_COLS = 'id, organization_id, classifier_id, evaluation_id, matched, confidence, via, created_at';
+const MATCH_FEEDBACK_COLS = 'id, organization_id, classifier_id, match_log_id, reviewer_id, verdict, created_at';
 
 export function makeSupabaseCustomPatternsStore(raw: SupabaseClient): CustomPatternsStore {
   return {
@@ -350,6 +408,52 @@ export function makeSupabaseCustomPatternsStore(raw: SupabaseClient): CustomPatt
         .eq('id', classifier_id);
       if (error) throw new CustomPatternsStoreError(`deleteClassifier failed: ${error.message}`, { cause: error });
     },
+
+    async insertMatchLog(row: InsertMatchLogRow): Promise<CustomL3MatchLog> {
+      const { data, error } = await raw
+        .from('custom_l3_match_log')
+        .insert(row)
+        .select(MATCH_LOG_COLS)
+        .single();
+      if (error) throw new CustomPatternsStoreError(`insertMatchLog failed: ${error.message}`, { cause: error });
+      if (!data) throw new CustomPatternsStoreError('insertMatchLog returned no row');
+      return toMatchLog(data);
+    },
+
+    async countMatchLog(organization_id: string, classifier_id: string): Promise<number> {
+      const { count, error } = await raw
+        .from('custom_l3_match_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', organization_id)
+        .eq('classifier_id', classifier_id);
+      if (error) throw new CustomPatternsStoreError(`countMatchLog failed: ${error.message}`, { cause: error });
+      return count ?? 0;
+    },
+
+    async insertMatchFeedback(row: InsertMatchFeedbackRow): Promise<CustomL3MatchFeedback> {
+      const { data, error } = await raw
+        .from('custom_l3_match_feedback')
+        .insert(row)
+        .select(MATCH_FEEDBACK_COLS)
+        .single();
+      if (error) throw new CustomPatternsStoreError(`insertMatchFeedback failed: ${error.message}`, { cause: error });
+      if (!data) throw new CustomPatternsStoreError('insertMatchFeedback returned no row');
+      return toMatchFeedback(data);
+    },
+
+    async listMatchFeedback(
+      organization_id: string,
+      classifier_id: string,
+    ): Promise<CustomL3MatchFeedback[]> {
+      const { data, error } = await raw
+        .from('custom_l3_match_feedback')
+        .select(MATCH_FEEDBACK_COLS)
+        .eq('organization_id', organization_id)
+        .eq('classifier_id', classifier_id)
+        .order('id', { ascending: true });
+      if (error) throw new CustomPatternsStoreError(`listMatchFeedback failed: ${error.message}`, { cause: error });
+      return (data ?? []).map(toMatchFeedback);
+    },
   };
 }
 
@@ -366,6 +470,8 @@ export function makeInMemoryCustomPatternsStore(): CustomPatternsStore {
   const components: PatternComponent[] = [];
   const classifiers: CustomL3Classifier[] = [];
   const examples: CustomL3Example[] = [];
+  const matchLog: CustomL3MatchLog[] = [];
+  const matchFeedback: CustomL3MatchFeedback[] = [];
 
   let uuidSeq = 0;
   let serialSeq = 0;
@@ -548,6 +654,51 @@ export function makeInMemoryCustomPatternsStore(): CustomPatternsStore {
         const e = examples[i];
         if (e && e.classifier_id === classifier_id) examples.splice(i, 1);
       }
+    },
+
+    async insertMatchLog(row: InsertMatchLogRow): Promise<CustomL3MatchLog> {
+      const created: CustomL3MatchLog = {
+        id: nextSerial(),
+        organization_id: row.organization_id,
+        classifier_id: row.classifier_id,
+        evaluation_id: row.evaluation_id,
+        matched: row.matched,
+        confidence: row.confidence,
+        via: row.via,
+        created_at: nextTimestamp(),
+      };
+      matchLog.push(created);
+      return { ...created };
+    },
+
+    async countMatchLog(organization_id: string, classifier_id: string): Promise<number> {
+      return matchLog.filter(
+        (m) => m.organization_id === organization_id && m.classifier_id === classifier_id,
+      ).length;
+    },
+
+    async insertMatchFeedback(row: InsertMatchFeedbackRow): Promise<CustomL3MatchFeedback> {
+      const created: CustomL3MatchFeedback = {
+        id: nextSerial(),
+        organization_id: row.organization_id,
+        classifier_id: row.classifier_id,
+        match_log_id: row.match_log_id,
+        reviewer_id: row.reviewer_id,
+        verdict: row.verdict,
+        created_at: nextTimestamp(),
+      };
+      matchFeedback.push(created);
+      return { ...created };
+    },
+
+    async listMatchFeedback(
+      organization_id: string,
+      classifier_id: string,
+    ): Promise<CustomL3MatchFeedback[]> {
+      return matchFeedback
+        .filter((m) => m.organization_id === organization_id && m.classifier_id === classifier_id)
+        .sort((a, b) => a.id - b.id)
+        .map((m) => ({ ...m }));
     },
   };
 }

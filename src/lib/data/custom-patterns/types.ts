@@ -44,6 +44,23 @@ export type ClassifierStatus = (typeof CLASSIFIER_STATUSES)[number];
 export const EXAMPLE_KINDS = ['positive', 'negative'] as const;
 export type ExampleKind = (typeof EXAMPLE_KINDS)[number];
 
+// M15 promotion-lifecycle persistence closed sets. Mirror the M15 SQL CHECK
+// constraints; checkPromotionFeedbackVocabularyLockstep (scripts/check-lockstep.js)
+// asserts set equality between these constants and the M15 CHECK clauses so they
+// can never silently drift.
+
+// custom_l3_match_log.via -- how a classifier verdict was produced: the LLM
+// inference pass, or the deterministic bright-line substring shortcut (memo 5.5,
+// Phase 4 reconciliation).
+export const MATCH_VIA = ['inference', 'bright_line'] as const;
+export type MatchVia = (typeof MATCH_VIA)[number];
+
+// custom_l3_match_feedback.verdict -- a reviewer either left the matched verdict
+// in place ('confirm') or marked it a false positive ('correct'). The precision
+// proxy is confirm / (confirm + correct) (memo 6.3).
+export const FEEDBACK_VERDICTS = ['confirm', 'correct'] as const;
+export type FeedbackVerdict = (typeof FEEDBACK_VERDICTS)[number];
+
 // ---------------------------------------------------------------------------
 // Row shapes (persisted records).
 // ---------------------------------------------------------------------------
@@ -101,6 +118,32 @@ export interface CustomL3Example {
 
 export interface CustomL3ClassifierWithExamples extends CustomL3Classifier {
   examples: CustomL3Example[];
+}
+
+// M15: one row per (classifier, incoming evaluation) check. The COUNT of rows
+// for a classifier is the promotion gate's volume condition N (memo 6.3).
+export interface CustomL3MatchLog {
+  id: number;
+  organization_id: string;
+  classifier_id: string;
+  evaluation_id: number | null;
+  matched: boolean;
+  confidence: number;
+  via: MatchVia;
+  created_at: string;
+}
+
+// M15: one row per reviewer feedback event on a classifier verdict. COUNT is the
+// feedback condition M; DISTINCT reviewer_id is the R5 floor; confirm/(confirm +
+// correct) is the precision proxy (memo 6.3 + 11 R5).
+export interface CustomL3MatchFeedback {
+  id: number;
+  organization_id: string;
+  classifier_id: string;
+  match_log_id: number | null;
+  reviewer_id: string;
+  verdict: FeedbackVerdict;
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------

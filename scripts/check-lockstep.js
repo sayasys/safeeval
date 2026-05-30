@@ -1855,6 +1855,81 @@ function checkCustomPatternGroupsLockstep(rootDir) {
   return true;
 }
 
+// Generic single-column CHECK ( <col> IN ( 'a', 'b', ... ) ) extractor. Returns
+// the literal tokens (or null if the column's CHECK is not found in the SQL).
+function extractSqlSingleColumnCheck(sqlSrc, column) {
+  const re = new RegExp(column + "\\s+IN\\s*\\(([^)]*)\\)");
+  const m = sqlSrc.match(re);
+  if (!m) return null;
+  const tokens = [];
+  const reLit = /'([a-z0-9_]+)'/g;
+  let lm;
+  while ((lm = reLit.exec(m[1])) !== null) tokens.push(lm[1]);
+  return tokens.length > 0 ? tokens : null;
+}
+
+// M15 promotion-lifecycle closed sets: keep the TypeScript MATCH_VIA /
+// FEEDBACK_VERDICTS constants (custom-patterns/types.ts) in lockstep with the
+// M15 custom_l3_match_log.via / custom_l3_match_feedback.verdict CHECK clauses.
+function checkPromotionFeedbackVocabularyLockstep(rootDir) {
+  const root = rootDir || ROOT;
+  const typesPath = path.join(root, 'src', 'lib', 'data', 'custom-patterns', 'types.ts');
+  const migrationPath = path.join(
+    root, 'src', 'lib', 'data', 'schema', 'M15_promotion_lifecycle_persistence.sql',
+  );
+
+  if (!fs.existsSync(typesPath)) {
+    console.error('FAIL promotion-feedback vocabulary lockstep: types.ts missing at ' + typesPath);
+    return false;
+  }
+  if (!fs.existsSync(migrationPath)) {
+    console.error('FAIL promotion-feedback vocabulary lockstep: M15 migration missing at ' + migrationPath);
+    return false;
+  }
+
+  const typesSrc = fs.readFileSync(typesPath, 'utf-8');
+  const sqlSrc = fs.readFileSync(migrationPath, 'utf-8');
+
+  const pairs = [
+    { constName: 'MATCH_VIA', column: 'via', label: 'custom_l3_match_log.via' },
+    { constName: 'FEEDBACK_VERDICTS', column: 'verdict', label: 'custom_l3_match_feedback.verdict' },
+  ];
+
+  let ok = true;
+  for (const { constName, column, label } of pairs) {
+    let codeSet, sqlSet;
+    try {
+      codeSet = extractTypesArrayConstant(typesSrc, constName);
+    } catch (e) {
+      console.error('FAIL promotion-feedback vocabulary lockstep (' + constName + ' extraction): ' + e.message);
+      ok = false;
+      continue;
+    }
+    sqlSet = extractSqlSingleColumnCheck(sqlSrc, column);
+    if (!sqlSet) {
+      console.error('FAIL promotion-feedback vocabulary lockstep: M15 ' + label + ' CHECK not found');
+      ok = false;
+      continue;
+    }
+    if (!setsEqual(codeSet, sqlSet)) {
+      ok = false;
+      const extraCode = setDiff(codeSet, sqlSet);
+      const extraSql = setDiff(sqlSet, codeSet);
+      console.error('LOCKSTEP FAIL ' + label + ' (' + constName + ' vs M15 CHECK):');
+      if (extraCode.length) console.error('  in ' + constName + ' but not in the SQL CHECK: ' + extraCode.join(', '));
+      if (extraSql.length) console.error('  in the SQL CHECK but not in ' + constName + ': ' + extraSql.join(', '));
+    }
+  }
+
+  if (!ok) {
+    console.error('Keep MATCH_VIA / FEEDBACK_VERDICTS (custom-patterns/types.ts) in sync with the M15 via / verdict CHECK clauses.');
+    return false;
+  }
+
+  console.log('OK promotion-feedback vocabulary (MATCH_VIA = M15 via CHECK; FEEDBACK_VERDICTS = M15 verdict CHECK)');
+  return true;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -1881,7 +1956,9 @@ function main() {
   const orgRoleOk = checkOrgRoleLockstep();
   console.log('');
   const customPatternGroupsOk = checkCustomPatternGroupsLockstep();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk || !orgRoleOk || !customPatternGroupsOk) {
+  console.log('');
+  const promotionFeedbackVocabOk = checkPromotionFeedbackVocabularyLockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk || !orgRoleOk || !customPatternGroupsOk || !promotionFeedbackVocabOk) {
     process.exit(1);
   }
   console.log('');
@@ -1903,6 +1980,7 @@ if (typeof module !== 'undefined' && module.exports) {
     checkEditorRoleLockstep: checkEditorRoleLockstep,
     checkOrgRoleLockstep: checkOrgRoleLockstep,
     checkCustomPatternGroupsLockstep: checkCustomPatternGroupsLockstep,
+    checkPromotionFeedbackVocabularyLockstep: checkPromotionFeedbackVocabularyLockstep,
   };
 }
 
