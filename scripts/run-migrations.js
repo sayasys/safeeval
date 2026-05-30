@@ -395,4 +395,16 @@ async function main() {
   }
 }
 
-main();
+// Export the pure file-discovery + UP/DOWN parsing helpers so the migration
+// dry-run test can assert a migration parses correctly without opening a DB.
+// The CLI entry (main) only fires when run directly, never on require().
+module.exports = {
+  listMigrationFiles,
+  readFile,
+  splitUpDown,
+  SCHEMA_DIR,
+};
+
+if (require.main === module) {
+  main();
+}
