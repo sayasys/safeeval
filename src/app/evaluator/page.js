@@ -1286,8 +1286,8 @@ export default function Home() {
 
         {/* section 2.8 Loading state -- replaces result-card region while loading. */}
         {loading && (
-          <div className="rounded-lg border-2 border-gray-200 bg-white p-6">
-            <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
+          <div className="rounded-2xl border border-sage-100 shadow-soft bg-white p-6">
+            <div className="text-xs font-semibold uppercase tracking-wider text-sage-700 mb-4">
               Evaluating
             </div>
             <div className="grid grid-cols-4 gap-3">
@@ -1295,7 +1295,7 @@ export default function Home() {
                 <StageStep key={s.key} label={s.long} subhead={STAGE_SUBHEADS[s.key]} stage="active" />
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-4">
+            <p className="text-xs text-slate-500 mt-4">
               Non-streaming pipeline; total wait roughly 18-30 seconds depending on prompt complexity.
             </p>
           </div>
@@ -2580,12 +2580,11 @@ function PromptInput({ prompt, setPrompt, loading, onEvaluate, error }) {
       aria-labelledby="mode-tab-prompt"
       className="space-y-4"
     >
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900">Evaluate a prompt</h2>
-        <span className="text-xs text-gray-400">{prompt.length}/5000</span>
+      <div className="flex items-center justify-end">
+        <span className="text-xs text-slate-400">{prompt.length}/5000</span>
       </div>
       <textarea
-        className="w-full h-36 border border-gray-300 rounded-md px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none"
+        className="w-full h-36 border border-sage-200 bg-cream-50 rounded-xl px-3.5 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sage-300 focus:border-sage-300 resize-none"
         placeholder="Enter a prompt to evaluate for fraud and scam policy compliance..."
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
