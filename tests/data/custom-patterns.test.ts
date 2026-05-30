@@ -38,7 +38,12 @@ import {
   ClassifierRetirementForbiddenError,
   InvalidStatusTransitionError,
 } from '../../src/lib/data/custom-patterns/errors';
-import { LIVE_CLASSIFIER_CAP } from '../../src/lib/data/custom-patterns/constants';
+import {
+  LIVE_CLASSIFIER_CAP,
+  BRIGHT_LINE_MAX_LENGTH,
+  BRIGHT_LINE_INDICATORS_MAX,
+  CONFLICTS_WITH_MAX,
+} from '../../src/lib/data/custom-patterns/constants';
 import type { NewPattern, NewCustomL3Classifier, NewCustomL3Example } from '../../src/lib/data/custom-patterns/types';
 
 const ORG_A = '00000000-0000-0000-0000-00000000000a';
@@ -176,6 +181,92 @@ describe('custom L3 classifiers persistence + lifecycle', () => {
     expect(list.map((c) => c.id)).toContain(created.id);
     const proposedOnly = await listCustomClassifiers(ORG_A, 'proposed', opts);
     expect(proposedOnly.map((c) => c.id)).toContain(created.id);
+  });
+
+  it('defaults bright_line_indicators / conflicts_with to [] when omitted', async () => {
+    const opts = freshStore();
+    const created = await createCustomClassifier(ORG_A, sampleClassifier(), sampleExamples(), opts);
+    expect(created.bright_line_indicators).toEqual([]);
+    expect(created.conflicts_with).toEqual([]);
+
+    const fetched = await getCustomClassifier(ORG_A, created.id, opts);
+    expect(fetched!.bright_line_indicators).toEqual([]);
+    expect(fetched!.conflicts_with).toEqual([]);
+  });
+
+  it('persists and reads back bright_line_indicators + conflicts_with (memo 5.5 / 5.6)', async () => {
+    const opts = freshStore();
+    const created = await createCustomClassifier(
+      ORG_A,
+      sampleClassifier({
+        bright_line_indicators: ['trust me bro', 'guaranteed 10x'],
+        conflicts_with: ['pig_butchering', 'our_other_tag'],
+      }),
+      sampleExamples(),
+      opts,
+    );
+    expect(created.bright_line_indicators).toEqual(['trust me bro', 'guaranteed 10x']);
+    expect(created.conflicts_with).toEqual(['pig_butchering', 'our_other_tag']);
+
+    const fetched = await getCustomClassifier(ORG_A, created.id, opts);
+    expect(fetched!.bright_line_indicators).toEqual(['trust me bro', 'guaranteed 10x']);
+    expect(fetched!.conflicts_with).toEqual(['pig_butchering', 'our_other_tag']);
+  });
+
+  it('rejects oversized optional arrays', async () => {
+    const opts = freshStore();
+    await expect(
+      createCustomClassifier(
+        ORG_A,
+        sampleClassifier({
+          bright_line_indicators: Array.from({ length: BRIGHT_LINE_INDICATORS_MAX + 1 }, (_, i) => `b${i}`),
+        }),
+        sampleExamples(),
+        opts,
+      ),
+    ).rejects.toBeInstanceOf(CustomPatternsValidationError);
+    await expect(
+      createCustomClassifier(
+        ORG_A,
+        sampleClassifier({
+          conflicts_with: Array.from({ length: CONFLICTS_WITH_MAX + 1 }, (_, i) => `t_${i}`),
+        }),
+        sampleExamples(),
+        opts,
+      ),
+    ).rejects.toBeInstanceOf(CustomPatternsValidationError);
+  });
+
+  it('rejects invalid optional entries (over-length, non-ASCII, non-tag-shape)', async () => {
+    const opts = freshStore();
+    // Over-length bright-line indicator.
+    await expect(
+      createCustomClassifier(
+        ORG_A,
+        sampleClassifier({ bright_line_indicators: ['x'.repeat(BRIGHT_LINE_MAX_LENGTH + 1)] }),
+        sampleExamples(),
+        opts,
+      ),
+    ).rejects.toBeInstanceOf(CustomPatternsValidationError);
+    // Non-ASCII bright-line indicator (em dash built from a char code).
+    const emDash = String.fromCharCode(0x2014);
+    await expect(
+      createCustomClassifier(
+        ORG_A,
+        sampleClassifier({ bright_line_indicators: [`urgent${emDash}now`] }),
+        sampleExamples(),
+        opts,
+      ),
+    ).rejects.toBeInstanceOf(CustomPatternsValidationError);
+    // conflicts_with entry that is not a snake_case tag name.
+    await expect(
+      createCustomClassifier(
+        ORG_A,
+        sampleClassifier({ conflicts_with: ['Not-A-Tag'] }),
+        sampleExamples(),
+        opts,
+      ),
+    ).rejects.toBeInstanceOf(CustomPatternsValidationError);
   });
 
   it('rejects invalid classifier and example input', async () => {
@@ -357,5 +448,32 @@ describe('M13 migration dry-run', () => {
     expect(sql).toContain('DROP TABLE IF EXISTS org_custom_l3_examples');
     expect(sql).toMatch(/NUMBERING CORRECTION/);
     expect(sql).toContain('M13');
+  });
+});
+
+describe('M14 migration dry-run (bright_line + conflicts_with backfill)', () => {
+  const sql = readFileSync(
+    join(process.cwd(), 'src', 'lib', 'data', 'schema', 'M14_classifier_bright_line_and_conflicts.sql'),
+    'utf-8',
+  );
+
+  it('adds both columns to org_custom_l3_classifiers as NOT NULL DEFAULT empty arrays', () => {
+    expect(sql).toContain('ALTER TABLE org_custom_l3_classifiers');
+    expect(sql).toContain("ADD COLUMN bright_line_indicators TEXT[] NOT NULL DEFAULT '{}'");
+    expect(sql).toContain("ADD COLUMN conflicts_with TEXT[] NOT NULL DEFAULT '{}'");
+  });
+
+  it('documents the Phase 1 schema-gap backfill and the memo sections', () => {
+    expect(sql).toMatch(/BACKFILL, NOT A FEATURE ADDITION/);
+    expect(sql).toContain('section 5.5');
+    expect(sql).toContain('section 5.6');
+    // Defaults leave existing rows unaffected -- stated in the header.
+    expect(sql).toMatch(/DEFAULTS ARE EMPTY ARRAYS/);
+  });
+
+  it('carries a reversible DOWN block dropping both columns', () => {
+    expect(sql).toContain('-- DOWN');
+    expect(sql).toContain('ALTER TABLE org_custom_l3_classifiers DROP COLUMN bright_line_indicators;');
+    expect(sql).toContain('ALTER TABLE org_custom_l3_classifiers DROP COLUMN conflicts_with;');
   });
 });

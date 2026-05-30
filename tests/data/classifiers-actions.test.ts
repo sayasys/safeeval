@@ -55,6 +55,63 @@ describe('runCreateClassifier', () => {
     expect(result.data.examples.filter((e) => e.kind === 'positive')).toHaveLength(2);
   });
 
+  it('threads bright_line_indicators + conflicts_with through to the persisted row', async () => {
+    const opts = freshOpts();
+    const result = await runCreateClassifier(
+      ORG_A,
+      USER,
+      validInput({
+        bright_line_indicators: ['trust me bro', 'guaranteed 10x'],
+        conflicts_with: ['pig_butchering'],
+      }),
+      opts,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.bright_line_indicators).toEqual(['trust me bro', 'guaranteed 10x']);
+    expect(result.data.conflicts_with).toEqual(['pig_butchering']);
+  });
+
+  it('trims and drops blank optional rows before persisting', async () => {
+    const opts = freshOpts();
+    const result = await runCreateClassifier(
+      ORG_A,
+      USER,
+      validInput({
+        bright_line_indicators: ['  spaced phrase  ', '', '   '],
+        conflicts_with: ['pig_butchering', ''],
+      }),
+      opts,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.bright_line_indicators).toEqual(['spaced phrase']);
+    expect(result.data.conflicts_with).toEqual(['pig_butchering']);
+  });
+
+  it('defaults the optional arrays to [] when the input omits them', async () => {
+    const opts = freshOpts();
+    const result = await runCreateClassifier(ORG_A, USER, validInput(), opts);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.bright_line_indicators).toEqual([]);
+    expect(result.data.conflicts_with).toEqual([]);
+  });
+
+  it('maps an invalid optional entry to a VALIDATION failure', async () => {
+    const opts = freshOpts();
+    const result = await runCreateClassifier(
+      ORG_A,
+      USER,
+      validInput({ conflicts_with: ['Not-A-Tag'] }),
+      opts,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe('VALIDATION');
+    expect(result.field).toBe('conflicts_with[0]');
+  });
+
   it('drops blank example rows before persisting', async () => {
     const opts = freshOpts();
     const result = await runCreateClassifier(
@@ -219,7 +276,12 @@ describe('toFailure', () => {
 describe('integration: create -> detail -> shadow', () => {
   it('round-trips the definition and reflects the lifecycle transition', async () => {
     const opts = freshOpts();
-    const created = await runCreateClassifier(ORG_A, USER, validInput(), opts);
+    const created = await runCreateClassifier(
+      ORG_A,
+      USER,
+      validInput({ bright_line_indicators: ['trust me bro'], conflicts_with: ['pig_butchering'] }),
+      opts,
+    );
     expect(created.ok).toBe(true);
     if (!created.ok) return;
 
@@ -231,6 +293,9 @@ describe('integration: create -> detail -> shadow', () => {
     expect(loaded?.definition).toBe('d'.repeat(60));
     expect(loaded?.examples).toHaveLength(4);
     expect(loaded?.status).toBe('proposed');
+    // The detail view renders these two sections off the persisted arrays.
+    expect(loaded?.bright_line_indicators).toEqual(['trust me bro']);
+    expect(loaded?.conflicts_with).toEqual(['pig_butchering']);
 
     await runPromoteToShadow(ORG_A, created.data.id, opts);
     const afterShadow = await getCustomClassifier(ORG_A, created.data.id, opts);

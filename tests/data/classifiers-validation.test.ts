@@ -12,11 +12,17 @@ import {
   validateDefinition,
   validateExampleText,
   validateExampleList,
+  validateBrightLineIndicator,
+  validateConflictTag,
+  validateOptionalList,
   validateClassifierForm,
   isFormValid,
   DEFINITION_MIN_LENGTH,
   DEFINITION_MAX_LENGTH,
   EXAMPLE_MAX_LENGTH,
+  BRIGHT_LINE_MAX_LENGTH,
+  BRIGHT_LINE_INDICATORS_MAX,
+  CONFLICTS_WITH_MAX,
   type ClassifierFormValues,
 } from '../../src/app/app/classifiers/validation';
 
@@ -97,10 +103,75 @@ describe('validateExampleList', () => {
   });
 });
 
+// --- Optional fields (memo 5.5 / 5.6), backfilled in M14 -------------------
+
+describe('validateBrightLineIndicator', () => {
+  it('accepts a normal phrase and treats empty as not-an-error (optional)', () => {
+    expect(validateBrightLineIndicator('trust me bro')).toBeNull();
+    expect(validateBrightLineIndicator('')).toBeNull();
+  });
+  it('accepts a phrase at the length bound and rejects one over it', () => {
+    expect(validateBrightLineIndicator('x'.repeat(BRIGHT_LINE_MAX_LENGTH))).toBeNull();
+    expect(validateBrightLineIndicator('x'.repeat(BRIGHT_LINE_MAX_LENGTH + 1))).toBeTruthy();
+  });
+  it('rejects non-ASCII characters', () => {
+    // U+2014 (em dash) is non-ASCII; built from a char code so the source file
+    // itself stays ASCII-safe.
+    const emDash = String.fromCharCode(0x2014);
+    expect(validateBrightLineIndicator(`urgent${emDash}now`)).toBeTruthy();
+  });
+});
+
+describe('validateConflictTag', () => {
+  it('accepts a snake_case tag and treats empty as not-an-error (optional)', () => {
+    expect(validateConflictTag('pig_butchering')).toBeNull();
+    expect(validateConflictTag('')).toBeNull();
+  });
+  it('rejects uppercase, hyphens, and over-length names', () => {
+    expect(validateConflictTag('Pig_Butchering')).toBeTruthy();
+    expect(validateConflictTag('pig-butchering')).toBeTruthy();
+    expect(validateConflictTag('a'.repeat(41))).toBeTruthy();
+  });
+});
+
+describe('validateOptionalList', () => {
+  it('accepts an empty list and ignores blank rows', () => {
+    expect(validateOptionalList([], 5, 'items', validateConflictTag)).toBeNull();
+    expect(validateOptionalList(['', '   '], 5, 'items', validateConflictTag)).toBeNull();
+  });
+  it('rejects more than the cap of non-empty rows', () => {
+    const tooMany = Array.from({ length: CONFLICTS_WITH_MAX + 1 }, (_, i) => `tag_${i}`);
+    expect(validateOptionalList(tooMany, CONFLICTS_WITH_MAX, 'tags', validateConflictTag)).toBeTruthy();
+  });
+  it('reports the first invalid non-empty entry', () => {
+    expect(
+      validateOptionalList(['ok_tag', 'Bad-Tag'], CONFLICTS_WITH_MAX, 'tags', validateConflictTag),
+    ).toBeTruthy();
+  });
+});
+
 describe('validateClassifierForm / isFormValid', () => {
   it('returns no errors for a fully valid form', () => {
     expect(validateClassifierForm(validValues())).toEqual({});
     expect(isFormValid(validValues())).toBe(true);
+  });
+  it('treats the optional fields as valid when absent or empty', () => {
+    expect(validateClassifierForm(validValues({ bright_line_indicators: [], conflicts_with: [] }))).toEqual({});
+    expect(
+      validateClassifierForm(
+        validValues({ bright_line_indicators: ['trust me bro'], conflicts_with: ['pig_butchering'] }),
+      ),
+    ).toEqual({});
+  });
+  it('surfaces an invalid optional entry as a field error', () => {
+    const errors = validateClassifierForm(
+      validValues({
+        bright_line_indicators: [`urgent${String.fromCharCode(0x2014)}now`],
+        conflicts_with: ['Bad-Tag'],
+      }),
+    );
+    expect(Object.keys(errors).sort()).toEqual(['bright_line_indicators', 'conflicts_with'].sort());
+    expect(isFormValid(validValues({ conflicts_with: ['Bad-Tag'] }))).toBe(false);
   });
   it('collects every offending field', () => {
     const errors = validateClassifierForm(
