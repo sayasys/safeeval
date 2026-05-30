@@ -1304,7 +1304,7 @@ export default function Home() {
         {/* Stale-result hint -- shows under the input area, visible while result is stale. */}
         {resultIsStale && !loading && (
           <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-            Result below is for the previous prompt. Re-run Evaluate to update.
+            Result below is for the previous input. Run the evaluation again to update.
           </p>
         )}
 
@@ -2590,25 +2590,30 @@ function PromptInput({ prompt, setPrompt, loading, onEvaluate, error }) {
         onChange={e => setPrompt(e.target.value)}
         maxLength={5000}
       />
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          Try one of these
+        </p>
         <div className="flex flex-wrap gap-2">
           {EXAMPLE_PROMPTS.map(ex => (
             <button
               key={ex.label}
               type="button"
               onClick={() => setPrompt(ex.text)}
-              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors"
+              className="text-xs bg-cream-100 hover:bg-sage-50 text-slate-700 border border-sage-200 px-3 py-1.5 rounded-full transition-colors"
             >
               {ex.label}
             </button>
           ))}
         </div>
+      </div>
+      <div className="flex justify-end">
         <button
           onClick={onEvaluate}
           disabled={loading || !prompt.trim()}
-          className="shrink-0 bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium px-5 py-2 rounded-md transition-colors"
+          className="shrink-0 bg-coral-500 hover:bg-coral-600 disabled:bg-sage-200 disabled:text-slate-400 text-white text-sm font-medium px-6 py-2.5 rounded-full transition-colors"
         >
-          {loading ? 'Evaluating...' : 'Evaluate'}
+          {loading ? 'Running...' : 'Run evaluation'}
         </button>
       </div>
       {error && (
@@ -2710,17 +2715,22 @@ function ConversationInput(props) {
               real set in parallel. Visual style mirrors prompt-mode pills
               per CURRENT.md until UX spec section 27 lands. */}
           {Array.isArray(EXAMPLE_PILLS) && EXAMPLE_PILLS.length > 0 && (
-            <div className="flex flex-wrap gap-2" data-testid="conversation-example-pills">
-              {EXAMPLE_PILLS.map(pill => (
-                <button
-                  key={pill.label}
-                  type="button"
-                  onClick={() => loadExamplePill && loadExamplePill(pill)}
-                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors"
-                >
-                  {pill.label}
-                </button>
-              ))}
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                Try one of these
+              </p>
+              <div className="flex flex-wrap gap-2" data-testid="conversation-example-pills">
+                {EXAMPLE_PILLS.map(pill => (
+                  <button
+                    key={pill.label}
+                    type="button"
+                    onClick={() => loadExamplePill && loadExamplePill(pill)}
+                    className="text-xs bg-cream-100 hover:bg-sage-50 text-slate-700 border border-sage-200 px-3 py-1.5 rounded-full transition-colors"
+                  >
+                    {pill.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </>
@@ -2904,7 +2914,7 @@ function TextUploadZone({
           type="button"
           onClick={parseFromText}
           disabled={parsing || convText.trim().length === 0}
-          className="shrink-0 bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium px-4 py-1.5 rounded-md transition-colors"
+          className="shrink-0 bg-coral-500 hover:bg-coral-600 disabled:bg-sage-200 disabled:text-slate-400 text-white text-sm font-medium px-4 py-1.5 rounded-full transition-colors"
         >
           {parsing ? 'Parsing...' : 'Parse turns'}
         </button>
@@ -3012,9 +3022,9 @@ function PreviewConfirm({
           type="button"
           onClick={onConfirm}
           disabled={loading || previewTurns.length < 1}
-          className="bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium px-5 py-2 rounded-md transition-colors"
+          className="bg-coral-500 hover:bg-coral-600 disabled:bg-sage-200 disabled:text-slate-400 text-white text-sm font-medium px-6 py-2.5 rounded-full transition-colors"
         >
-          {loading ? 'Evaluating...' : `Evaluate ${n} turn${n === 1 ? '' : 's'}`}
+          {loading ? 'Running...' : `Run evaluation (${n} turn${n === 1 ? '' : 's'})`}
         </button>
       </div>
     </div>
