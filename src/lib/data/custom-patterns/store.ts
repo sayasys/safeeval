@@ -46,6 +46,8 @@ export interface InsertClassifierRow {
   tag_name: string;
   definition: string;
   status: ClassifierStatus;
+  bright_line_indicators: string[];
+  conflicts_with: string[];
   created_by_user_id: string;
 }
 
@@ -134,6 +136,14 @@ function toPatternComponent(row: Record<string, unknown>): PatternComponent {
   };
 }
 
+// Coerce a Postgres TEXT[] (or the in-memory fake's array) to string[]. A null /
+// undefined column (e.g. a row read before the M14 backfill applied) degrades to
+// an empty array rather than throwing -- the DEFAULT '{}' makes this defensive,
+// not load-bearing.
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((v) => String(v)) : [];
+}
+
 function toClassifier(row: Record<string, unknown>): CustomL3Classifier {
   return {
     id: String(row.id),
@@ -142,6 +152,8 @@ function toClassifier(row: Record<string, unknown>): CustomL3Classifier {
     tag_name: String(row.tag_name),
     definition: String(row.definition),
     status: row.status as ClassifierStatus,
+    bright_line_indicators: toStringArray(row.bright_line_indicators),
+    conflicts_with: toStringArray(row.conflicts_with),
     shadow_started_at: row.shadow_started_at ? String(row.shadow_started_at) : null,
     promoted_at: row.promoted_at ? String(row.promoted_at) : null,
     retired_at: row.retired_at ? String(row.retired_at) : null,
@@ -163,7 +175,7 @@ function toExample(row: Record<string, unknown>): CustomL3Example {
 const PATTERN_COLS = 'id, organization_id, name, typology, match_mode, status, created_at';
 const COMPONENT_COLS = 'id, pattern_id, group_name, tag_id, tag_source, weight, created_at';
 const CLASSIFIER_COLS =
-  'id, organization_id, group_name, tag_name, definition, status, shadow_started_at, promoted_at, retired_at, created_by_user_id, created_at';
+  'id, organization_id, group_name, tag_name, definition, status, bright_line_indicators, conflicts_with, shadow_started_at, promoted_at, retired_at, created_by_user_id, created_at';
 const EXAMPLE_COLS = 'id, classifier_id, kind, text, created_at';
 
 export function makeSupabaseCustomPatternsStore(raw: SupabaseClient): CustomPatternsStore {
@@ -450,6 +462,8 @@ export function makeInMemoryCustomPatternsStore(): CustomPatternsStore {
         tag_name: row.tag_name,
         definition: row.definition,
         status: row.status,
+        bright_line_indicators: [...row.bright_line_indicators],
+        conflicts_with: [...row.conflicts_with],
         shadow_started_at: null,
         promoted_at: null,
         retired_at: null,

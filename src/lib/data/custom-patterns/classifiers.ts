@@ -38,6 +38,11 @@ import {
   MIN_EXAMPLES_PER_KIND,
   MIN_DISTINCT_REVIEWERS,
   LIVE_CLASSIFIER_CAP,
+  ASCII_PRINTABLE_PATTERN,
+  BRIGHT_LINE_MIN_LENGTH,
+  BRIGHT_LINE_MAX_LENGTH,
+  BRIGHT_LINE_INDICATORS_MAX,
+  CONFLICTS_WITH_MAX,
 } from './constants';
 import {
   CustomPatternsValidationError,
@@ -69,6 +74,59 @@ function validateExample(e: NewCustomL3Example, label: string): void {
   }
 }
 
+// bright_line_indicators[] (memo 5.5): printable ASCII, 1--200 chars, capped
+// entry count. Optional -- an omitted / empty array is valid.
+function validateBrightLineIndicators(values: string[] | undefined): void {
+  if (values === undefined) return;
+  if (!Array.isArray(values)) {
+    throw new CustomPatternsValidationError('bright_line_indicators', 'must be an array');
+  }
+  if (values.length > BRIGHT_LINE_INDICATORS_MAX) {
+    throw new CustomPatternsValidationError(
+      'bright_line_indicators',
+      `must have at most ${BRIGHT_LINE_INDICATORS_MAX} entries`,
+    );
+  }
+  values.forEach((v, i) => {
+    if (typeof v !== 'string' || v.length < BRIGHT_LINE_MIN_LENGTH || v.length > BRIGHT_LINE_MAX_LENGTH) {
+      throw new CustomPatternsValidationError(
+        `bright_line_indicators[${i}]`,
+        `must be ${BRIGHT_LINE_MIN_LENGTH}-${BRIGHT_LINE_MAX_LENGTH} chars`,
+      );
+    }
+    if (!ASCII_PRINTABLE_PATTERN.test(v)) {
+      throw new CustomPatternsValidationError(
+        `bright_line_indicators[${i}]`,
+        'must be printable ASCII only',
+      );
+    }
+  });
+}
+
+// conflicts_with[] (memo 5.6): tag-name references (closed-set or org-custom),
+// each validated against the snake_case ASCII 1--40 tag-name shape. Not FKs;
+// existence is not checked. Optional -- an omitted / empty array is valid.
+function validateConflictsWith(values: string[] | undefined): void {
+  if (values === undefined) return;
+  if (!Array.isArray(values)) {
+    throw new CustomPatternsValidationError('conflicts_with', 'must be an array');
+  }
+  if (values.length > CONFLICTS_WITH_MAX) {
+    throw new CustomPatternsValidationError(
+      'conflicts_with',
+      `must have at most ${CONFLICTS_WITH_MAX} entries`,
+    );
+  }
+  values.forEach((v, i) => {
+    if (typeof v !== 'string' || !TAG_NAME_PATTERN.test(v)) {
+      throw new CustomPatternsValidationError(
+        `conflicts_with[${i}]`,
+        'must be a snake_case ASCII tag name, 1-40 chars',
+      );
+    }
+  });
+}
+
 function validateNewClassifier(classifier: NewCustomL3Classifier, examples: NewCustomL3Example[]): void {
   if (!L3_GROUP_NAMES.includes(classifier.group_name)) {
     throw new CustomPatternsValidationError('group_name', `must be one of ${L3_GROUP_NAMES.join(', ')}`);
@@ -96,6 +154,8 @@ function validateNewClassifier(classifier: NewCustomL3Classifier, examples: NewC
     throw new CustomPatternsValidationError('examples', 'must be an array');
   }
   examples.forEach((e, i) => validateExample(e, `examples[${i}]`));
+  validateBrightLineIndicators(classifier.bright_line_indicators);
+  validateConflictsWith(classifier.conflicts_with);
 }
 
 // Create a Custom L3 Classifier in 'proposed' status plus any supplied examples.
@@ -118,6 +178,10 @@ export async function createCustomClassifier(
     tag_name: classifier.tag_name,
     definition: classifier.definition,
     status: 'proposed',
+    // Default to [] when omitted (defensive; the M14 column DEFAULT '{}' also
+    // covers this). Validation above has already bounded any supplied entries.
+    bright_line_indicators: classifier.bright_line_indicators ?? [],
+    conflicts_with: classifier.conflicts_with ?? [],
     created_by_user_id: classifier.created_by_user_id,
   });
 

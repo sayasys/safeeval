@@ -71,6 +71,43 @@ export const DEFINITION_MAX_LENGTH = 600;
 export const EXAMPLE_MIN_LENGTH = 1;
 export const EXAMPLE_MAX_LENGTH = 2000;
 
+// ---------------------------------------------------------------------------
+// M14 optional definition-flow fields (memo sections 5.5 + 5.6). These have no
+// column-level CHECK (TEXT[] elements cannot be bounded cleanly by a CHECK); the
+// per-entry shape is enforced at the application layer, mirroring the M13
+// validate-before-write pattern.
+// ---------------------------------------------------------------------------
+
+// bright_line_indicators[] -- a phrase that deterministically triggers the tag
+// when present in the input (memo 5.5). Bounded 1--200 chars, printable ASCII.
+//
+// RECONCILIATION NOTE (architect follow-up). Memo 5.5 describes the validation
+// shape as "lowercase, regex-safe characters, length cap 100." This
+// implementation follows the Phase-3 backfill dispatch brief instead -- printable
+// ASCII, length cap 200, no lowercase / regex-metacharacter restriction -- and
+// stores the strings as inert data. The stricter lowercase + regex-safety
+// discipline is potentially load-bearing for the Phase 4 deterministic-match
+// path (if it compiles these to regexes); that is the right place to add it,
+// since adding it here would reject phrases the brief intends to allow and Phase
+// 4 matching is not yet built. Flagged for architect reconciliation of memo 5.5.
+export const BRIGHT_LINE_MIN_LENGTH = 1;
+export const BRIGHT_LINE_MAX_LENGTH = 200;
+
+// Printable ASCII (0x20--0x7E): the data must round-trip through ASCII-safe .js
+// surfaces and carry no control characters / newlines (a bright-line phrase is a
+// single line).
+export const ASCII_PRINTABLE_PATTERN = /^[\x20-\x7E]+$/;
+
+// conflicts_with[] -- a tag NAME this classifier is mutually exclusive with (memo
+// 5.6). Validated with the same snake_case ASCII 1--40 shape as a tag name
+// (TAG_NAME_PATTERN above): an entry may name a closed-set L3 tag or an org-custom
+// classifier tag. These are name references, not foreign keys, so existence is
+// not checked here (memo 5.6 same-group semantics are a Phase 4 concern).
+
+// Per-array entry caps (a reasonable abuse bound; the memo is silent on a cap).
+export const BRIGHT_LINE_INDICATORS_MAX = 20;
+export const CONFLICTS_WITH_MAX = 20;
+
 // pattern_components.weight CHECK (0.0--1.0).
 export const WEIGHT_MIN = 0.0;
 export const WEIGHT_MAX = 1.0;

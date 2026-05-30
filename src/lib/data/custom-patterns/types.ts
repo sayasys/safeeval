@@ -79,6 +79,11 @@ export interface CustomL3Classifier {
   tag_name: string;
   definition: string;
   status: ClassifierStatus;
+  // Optional definition-flow fields (memo 5.5 / 5.6), backfilled in M14. On a
+  // read these are always present (the column DEFAULT '{}' guarantees an empty
+  // array for rows created before the backfill or without the fields supplied).
+  bright_line_indicators: string[];
+  conflicts_with: string[];
   shadow_started_at: string | null;
   promoted_at: string | null;
   retired_at: string | null;
@@ -129,4 +134,8 @@ export interface NewCustomL3Classifier {
   tag_name: string;
   definition: string;
   created_by_user_id: string;
+  // Optional (memo 5.5 / 5.6). Omitted -> the persistence layer defaults each to
+  // [] before the write (the M14 column DEFAULT '{}' is the structural backstop).
+  bright_line_indicators?: string[];
+  conflicts_with?: string[];
 }
