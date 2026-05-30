@@ -1753,6 +1753,108 @@ function checkOrgRoleLockstep(rootDir) {
   return true;
 }
 
+// Custom-pattern group-name lockstep (custom patterns + classifiers, M13).
+//
+// Verifies that the L3 group_name closed set is consistent across:
+//   (a) the L3_GROUP_NAMES constant in
+//       src/lib/data/custom-patterns/types.ts (the code-side canonical list),
+//   (b) every `CHECK (group_name IN (...))` clause in the M13 migration
+//       (pattern_components + org_custom_l3_classifiers).
+// The group vocabulary is the architect-owned L3 group set
+// (method/tactic/target/context_marker/overlap/risk_marker per
+// docs/08-v5-ontology.md section 3). A customer can ADD tags to these groups via
+// a Custom L3 Classifier but can never create a new group; this verifier is the
+// guard that the schema's group_name CHECK and the TypeScript constant can never
+// silently drift. (The scoping memo foregrounds five "primary" groups in prose;
+// its DDL group_name CHECK -- the canonical schema -- carries context_marker as
+// the sixth, so the canonical set checked here is six values.)
+function extractL3GroupNamesConstant(typesSrc) {
+  const m = typesSrc.match(/export\s+const\s+L3_GROUP_NAMES\s*=\s*\[([\s\S]*?)\]/);
+  if (!m) throw new Error('Could not locate L3_GROUP_NAMES array in custom-patterns/types.ts');
+  const list = m[1]
+    .split(',')
+    .map(s => s.trim().replace(/^["']|["']$/g, ''))
+    .filter(s => s.length > 0 && !s.startsWith('//'));
+  if (list.length === 0) throw new Error('L3_GROUP_NAMES matched but no string literals extracted');
+  return list;
+}
+
+function extractSqlGroupNameCheckSets(sqlSrc) {
+  const re = /group_name\s+TEXT\s+NOT\s+NULL\s*CHECK\s*\(group_name\s+IN\s*\(([^)]*)\)\)/g;
+  const sets = [];
+  let m;
+  while ((m = re.exec(sqlSrc)) !== null) {
+    const tokens = [];
+    const reLit = /'([a-z_]+)'/g;
+    let lm;
+    while ((lm = reLit.exec(m[1])) !== null) tokens.push(lm[1]);
+    if (tokens.length > 0) sets.push(tokens);
+  }
+  return sets;
+}
+
+function checkCustomPatternGroupsLockstep(rootDir) {
+  const root = rootDir || ROOT;
+  const typesPath = path.join(root, 'src', 'lib', 'data', 'custom-patterns', 'types.ts');
+  const migrationPath = path.join(
+    root, 'src', 'lib', 'data', 'schema', 'M13_custom_patterns_and_classifiers.sql',
+  );
+
+  if (!fs.existsSync(typesPath)) {
+    console.error('FAIL custom-pattern groups lockstep: types.ts missing at ' + typesPath);
+    return false;
+  }
+  if (!fs.existsSync(migrationPath)) {
+    console.error('FAIL custom-pattern groups lockstep: M13 migration missing at ' + migrationPath);
+    return false;
+  }
+
+  const typesSrc = fs.readFileSync(typesPath, 'utf-8');
+  const sqlSrc = fs.readFileSync(migrationPath, 'utf-8');
+
+  let codeGroups, sqlSets;
+  try {
+    codeGroups = extractL3GroupNamesConstant(typesSrc);
+  } catch (e) {
+    console.error('FAIL custom-pattern groups lockstep (L3_GROUP_NAMES extraction): ' + e.message);
+    return false;
+  }
+  try {
+    sqlSets = extractSqlGroupNameCheckSets(sqlSrc);
+  } catch (e) {
+    console.error('FAIL custom-pattern groups lockstep (M13 CHECK extraction): ' + e.message);
+    return false;
+  }
+
+  if (sqlSets.length < 2) {
+    console.error(
+      'FAIL custom-pattern groups lockstep: expected 2 group_name CHECK clauses in M13 ' +
+        '(pattern_components + org_custom_l3_classifiers); found ' + sqlSets.length,
+    );
+    return false;
+  }
+
+  let ok = true;
+  sqlSets.forEach((sqlGroups, i) => {
+    if (!setsEqual(codeGroups, sqlGroups)) {
+      ok = false;
+      const extraCode = setDiff(codeGroups, sqlGroups);
+      const extraSql = setDiff(sqlGroups, codeGroups);
+      console.error('LOCKSTEP FAIL custom-pattern group_name (L3_GROUP_NAMES vs M13 group_name CHECK #' + (i + 1) + '):');
+      if (extraCode.length) console.error('  in L3_GROUP_NAMES but not in the SQL CHECK: ' + extraCode.join(', '));
+      if (extraSql.length) console.error('  in the SQL CHECK but not in L3_GROUP_NAMES: ' + extraSql.join(', '));
+    }
+  });
+
+  if (!ok) {
+    console.error('Canonical is the architect-owned L3 group set (docs/08-v5-ontology.md section 3); keep L3_GROUP_NAMES and the M13 group_name CHECK clauses in sync.');
+    return false;
+  }
+
+  console.log('OK custom-pattern group_name (' + codeGroups.length + ' values; src/lib/data/custom-patterns/types.ts L3_GROUP_NAMES = M13 pattern_components + org_custom_l3_classifiers group_name CHECK)');
+  return true;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -1777,7 +1879,9 @@ function main() {
   const editorRoleOk = checkEditorRoleLockstep();
   console.log('');
   const orgRoleOk = checkOrgRoleLockstep();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk || !orgRoleOk) {
+  console.log('');
+  const customPatternGroupsOk = checkCustomPatternGroupsLockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk || !orgRoleOk || !customPatternGroupsOk) {
     process.exit(1);
   }
   console.log('');
@@ -1798,6 +1902,7 @@ if (typeof module !== 'undefined' && module.exports) {
     checkRationaleTagLockstep: checkRationaleTagLockstep,
     checkEditorRoleLockstep: checkEditorRoleLockstep,
     checkOrgRoleLockstep: checkOrgRoleLockstep,
+    checkCustomPatternGroupsLockstep: checkCustomPatternGroupsLockstep,
   };
 }
 
