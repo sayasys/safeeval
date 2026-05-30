@@ -1310,7 +1310,7 @@ export default function Home() {
 
         {/* v5 result card. Greyed out when stale. */}
         {!loading && v5 && v5Cfg && (
-          <div className={`rounded-lg border-2 ${v5Cfg.border} ${v5Cfg.bg} p-6 space-y-6 ${resultIsStale ? 'opacity-40 pointer-events-none' : ''}`}>
+          <div className={`rounded-2xl border-2 shadow-soft ${v5Cfg.border} ${v5Cfg.bg} p-6 space-y-6 ${resultIsStale ? 'opacity-40 pointer-events-none' : ''}`}>
 
             {/* section 2.1 Disposition banner */}
             <div>
@@ -1388,7 +1388,7 @@ export default function Home() {
 
             {/* section 2.2 Reasoning + narrative summary */}
             {(v5.disposition.reasoning_summary || v5.disposition.narrative_summary) && (
-              <div className="bg-white border border-gray-200 rounded-md px-4 py-3 space-y-3">
+              <div className="bg-white border border-sage-200 rounded-xl px-4 py-3 space-y-3">
                 {v5.disposition.reasoning_summary && (
                   <p className="text-sm text-gray-700 leading-relaxed">
                     {v5.disposition.reasoning_summary}
@@ -1441,10 +1441,10 @@ export default function Home() {
             {/* section 2.3 Classification envelope (L1 / L2 / L3) */}
             {v5.classification && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-3">
                   Classification
                 </h3>
-                <div className="space-y-3 bg-white border border-gray-200 rounded-md px-4 py-4">
+                <div className="space-y-3 bg-white border border-sage-200 rounded-xl px-4 py-4">
                   {v5.classification.l1 && (
                     <div className="flex items-baseline gap-3">
                       <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 w-12 shrink-0">L1</span>
@@ -1557,10 +1557,10 @@ export default function Home() {
             {/* section 2.4 Triggered-by block (includes policy_note + rule descriptions) */}
             {v5.disposition.triggered_by && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">
                   Triggered by
                 </h3>
-                <div className="bg-white border border-gray-200 rounded-md px-4 py-3 space-y-2">
+                <div className="bg-white border border-sage-200 rounded-xl px-4 py-3 space-y-2">
                   <TriggerRow
                     label="Bright lines"
                     items={v5.disposition.triggered_by.bright_lines || []}
@@ -1599,10 +1599,10 @@ export default function Home() {
                 See docs/ux/design-system/v5-result-card.md sections 10-11. */}
             {v5.prompt_summary && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">
                   Prompt summary
                 </h3>
-                <div className="bg-white border border-gray-200 rounded-md px-4 py-3 space-y-2">
+                <div className="bg-white border border-sage-200 rounded-xl px-4 py-3 space-y-2">
                   {PROMPT_SUMMARY_ROWS.map(row => (
                     <PromptSummaryRow
                       key={row.key}
@@ -1623,7 +1623,7 @@ export default function Home() {
             {v5.evidence && (
               <div>
                 <button
-                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-sage-200 rounded-xl hover:bg-cream-50 transition-colors text-left"
                   onClick={() => toggle('v5-evidence')}
                 >
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex-1">
@@ -1642,7 +1642,7 @@ export default function Home() {
                   </svg>
                 </button>
                 {evidenceOpen && (
-                  <div className="mt-3 bg-white border border-gray-200 rounded-md p-4 space-y-4">
+                  <div className="mt-3 bg-white border border-sage-200 rounded-xl p-4 space-y-4">
 
                     {/* Component scores: 5-row numeric TABLE per Update B.
                         section 36.5.2 inline descriptors + section 36.5.4 ordinal severity
@@ -1792,7 +1792,7 @@ export default function Home() {
             {v5.disposition.confidence_path && (
               <div>
                 <button
-                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-sage-200 rounded-xl hover:bg-cream-50 transition-colors text-left"
                   onClick={() => toggle('v5-stage-trace')}
                 >
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex-1">
@@ -1809,7 +1809,7 @@ export default function Home() {
                   </svg>
                 </button>
                 {stageTraceOpen && (
-                  <div className="mt-3 grid grid-cols-4 gap-3 bg-white border border-gray-200 rounded-md p-4">
+                  <div className="mt-3 grid grid-cols-4 gap-3 bg-white border border-sage-200 rounded-xl p-4">
                     {STAGE_LABELS.map(s => {
                       const ran = Object.prototype.hasOwnProperty.call(stageConfidences, s.key);
                       return (
@@ -1830,7 +1830,7 @@ export default function Home() {
             {v5.pipeline_trace && (
               <div>
                 <button
-                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-sage-200 rounded-xl hover:bg-cream-50 transition-colors text-left"
                   onClick={() => toggle('v5-trace')}
                 >
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex-1">
@@ -1859,6 +1859,16 @@ export default function Home() {
               {typeof v5.prompt_length === 'number' && <span>Prompt length: {v5.prompt_length}</span>}
               {v5.evaluated_at && <span>Evaluated at: {v5.evaluated_at}</span>}
             </div>
+          </div>
+        )}
+
+        {/* Empty state -- before the first evaluation, a subtle placeholder so
+            the region below the tool card does not read as broken or cut off. */}
+        {!loading && !v5 && (
+          <div className="rounded-2xl border border-dashed border-sage-200 bg-cream-50 px-6 py-10 text-center">
+            <p className="text-sm text-slate-400">
+              Your evaluation will appear here.
+            </p>
           </div>
         )}
 
@@ -3204,12 +3214,12 @@ function ArcTimeline({ arcSignals, perTurn, turns, modalityHint, activeTurnIndex
 
   return (
     <div>
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Arc timeline</h3>
+      <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">Arc timeline</h3>
       <div className="relative">
         <ol
           role="list"
           aria-label={`Conversation arc timeline, ${segments.length} turns`}
-          className="flex gap-1 overflow-x-auto bg-white border border-gray-200 rounded-md p-3"
+          className="flex gap-1 overflow-x-auto bg-white border border-sage-200 rounded-xl p-3"
           style={{ scrollSnapType: 'x mandatory' }}
         >
           {segments.map((seg, i) => {
@@ -3329,7 +3339,7 @@ function SenderAttribution({ arcSignals, perTurn, classification, modalityHint }
 
   return (
     <div>
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Sender attribution</h3>
+      <h3 className="text-xs font-semibold text-sage-700 uppercase tracking-wider mb-2">Sender attribution</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {senderOrder.map((s, idx) => {
           const friendly = (s === '__user__') ? mapSelfLabel(modalityHint) : s;
