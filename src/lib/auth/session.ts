@@ -1,15 +1,20 @@
 // Provider-agnostic session API. The rest of the codebase calls these
 // functions and never touches the Supabase SDK directly.
 //
-// Phase 1 contract (scoping memo 2026-05-28 section 11.1):
+// Contract (scoping memo 2026-05-28 sections 3.2 + 11.1):
 //   - getCurrentUser:    null if no session, User if signed in.
 //   - requireAuth:       throws UnauthorizedError if no session.
-//   - getOrganization:   Phase 1 stub returning the user's hardcoded
-//                        personal org. Phase 2 replaces with a real query
-//                        against the memberships + organizations tables.
+//   - getOrganization:   the user's primary org from the memberships +
+//                        organizations tables (M12), falling back to the
+//                        synthesized personal org when there is no membership
+//                        row or the data tables are unreachable. Argless.
+//   - getMemberships:    every org the user belongs to (multi-org switcher).
+// Role checks live in roles.ts (requireOrgRole); org writes (personal-org
+// auto-create on signup) live in org-store.ts (ensurePersonalOrganization).
 
 import { getSupabaseAuthClient } from './provider';
 import { UnauthorizedError, OrganizationNotFoundError } from './errors';
+import { orgStore } from './org-store';
 import type { User, Organization } from './types';
 
 // The cookie name is intentionally provider-neutral. Migration to Clerk
@@ -123,14 +128,30 @@ export async function requireAuth(): Promise<User> {
   return user;
 }
 
-// Phase 1 stub. Returns the user's personal organization, keyed to their
-// auth_user_id. Phase 2 (M6 migration) replaces with a real lookup against
-// the memberships table. The stub shape matches Organization exactly so
-// downstream consumers do not need to change when Phase 2 lands.
+// Returns the current user's primary organization: the membership with the
+// earliest created_at, queried against the memberships + organizations tables
+// (M12). If the user has no membership row, or the data tables are unreachable
+// (e.g. the portfolio deployment before M12 is applied), it falls back to the
+// synthesized personal organization -- so the Phase 1 stub contract is
+// preserved exactly for every existing caller. Argless by design (scoping memo
+// section 3.2): it reads the current session.
 export async function getOrganization(): Promise<Organization | null> {
   const user = await getCurrentUser();
   if (!user) return null;
-  return buildPersonalOrganization(user);
+  const org = await orgStore().getPrimaryOrganization(user.auth_user_id);
+  return org ?? buildPersonalOrganization(user);
+}
+
+// Every organization the current user belongs to (primary-first), for the
+// future multi-org switcher. Falls back to a single-element list holding the
+// synthesized personal org when there are no membership rows or the table is
+// unreachable, so a signed-in user always belongs to at least their own org.
+export async function getMemberships(): Promise<Organization[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const orgs = await orgStore().listOrganizations(user.auth_user_id);
+  if (orgs.length > 0) return orgs;
+  return [buildPersonalOrganization(user)];
 }
 
 // Exported for callers that already hold a User and want to avoid a second

@@ -1678,6 +1678,81 @@ function checkEditorRoleLockstep(rootDir) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// checkOrgRoleLockstep -- the per-organization membership role closed set
+// (owner|admin|member|reviewer) from the SaaS conversion scoping memo section
+// 6. Unlike the editor-role verifier, which keys off ontology section 3.17,
+// the org-role DOC surface (ontology section 3.18) is a Phase 4 addition per
+// the memo sections 6 and 11. Until that section lands this verifier keys
+// CODE-TO-CODE: the ORG_ROLES constant in src/lib/auth/types.ts must set-equal
+// the memberships.role CHECK constraint in the M12 migration. Canonical is the
+// memo section 6 role list, mirrored in both surfaces.
+// ---------------------------------------------------------------------------
+function extractSqlRoleCheckSet(sqlSrc) {
+  // Match the memberships.role constraint specifically: CHECK (role IN (...)).
+  // The organizations.plan_tier CHECK uses `plan_tier IN`, so `role IN` is
+  // unambiguous here.
+  const m = sqlSrc.match(/CHECK\s*\(\s*role\s+IN\s*\(([^)]*)\)/i);
+  if (!m) {
+    throw new Error('memberships role CHECK (role IN (...)) not found in M12 SQL');
+  }
+  const tokens = [];
+  const reLit = /'([a-z0-9_]+)'/g;
+  let lm;
+  while ((lm = reLit.exec(m[1])) !== null) tokens.push(lm[1]);
+  if (tokens.length === 0) {
+    throw new Error('role CHECK matched but no string literals extracted');
+  }
+  return tokens;
+}
+
+function checkOrgRoleLockstep(rootDir) {
+  const root = rootDir || ROOT;
+  const typesPath = path.join(root, 'src', 'lib', 'auth', 'types.ts');
+  const migrationPath = path.join(
+    root, 'src', 'lib', 'data', 'schema', 'M12_organizations_and_memberships.sql',
+  );
+
+  if (!fs.existsSync(typesPath)) {
+    console.error('FAIL org-role lockstep: auth types.ts missing at ' + typesPath);
+    return false;
+  }
+  if (!fs.existsSync(migrationPath)) {
+    console.error('FAIL org-role lockstep: M12 migration missing at ' + migrationPath);
+    return false;
+  }
+
+  const typesSrc = fs.readFileSync(typesPath, 'utf-8');
+  const sqlSrc = fs.readFileSync(migrationPath, 'utf-8');
+
+  let codeRoles, sqlRoles;
+  try {
+    codeRoles = extractTypesArrayConstant(typesSrc, 'ORG_ROLES');
+  } catch (e) {
+    console.error('FAIL org-role lockstep (ORG_ROLES extraction): ' + e.message);
+    return false;
+  }
+  try {
+    sqlRoles = extractSqlRoleCheckSet(sqlSrc);
+  } catch (e) {
+    console.error('FAIL org-role lockstep (M12 role CHECK extraction): ' + e.message);
+    return false;
+  }
+
+  if (!setsEqual(codeRoles, sqlRoles)) {
+    const extraCode = setDiff(codeRoles, sqlRoles);
+    const extraSql = setDiff(sqlRoles, codeRoles);
+    console.error('LOCKSTEP FAIL org-role vocabulary (src/lib/auth/types.ts ORG_ROLES vs M12 memberships.role CHECK):');
+    if (extraCode.length) console.error('  in ORG_ROLES but not in the SQL CHECK: ' + extraCode.join(', '));
+    if (extraSql.length) console.error('  in the SQL CHECK but not in ORG_ROLES: ' + extraSql.join(', '));
+    console.error('Canonical is the scoping memo section 6 role list; keep ORG_ROLES and the M12 CHECK in sync. (The doc-backed ontology section 3.18 lockstep is a Phase 4 addition.)');
+    return false;
+  }
+
+  console.log('OK org-role vocabulary (' + codeRoles.length + ' values; src/lib/auth/types.ts ORG_ROLES = M12 memberships.role CHECK; doc-backed ontology 3.18 lockstep deferred to Phase 4)');
+  return true;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -1700,7 +1775,9 @@ function main() {
   const rationaleTagOk = checkRationaleTagLockstep();
   console.log('');
   const editorRoleOk = checkEditorRoleLockstep();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk) {
+  console.log('');
+  const orgRoleOk = checkOrgRoleLockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk || !orgRoleOk) {
     process.exit(1);
   }
   console.log('');
@@ -1720,6 +1797,7 @@ if (typeof module !== 'undefined' && module.exports) {
     checkEditableFieldsLockstep: checkEditableFieldsLockstep,
     checkRationaleTagLockstep: checkRationaleTagLockstep,
     checkEditorRoleLockstep: checkEditorRoleLockstep,
+    checkOrgRoleLockstep: checkOrgRoleLockstep,
   };
 }
 

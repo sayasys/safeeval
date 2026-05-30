@@ -9,10 +9,25 @@ export {
   getCurrentUserFromRequest,
   requireAuth,
   getOrganization,
+  getMemberships,
   requireOrganization,
   buildPersonalOrganization,
   SESSION_COOKIE_NAME,
 } from './session';
+
+export { requireOrgRole, roleSatisfies } from './roles';
+
+// Organization writes. ensurePersonalOrganization is the idempotent onboarding
+// hook called after signup; the *ForTesting seams let unit tests inject a fake
+// store without touching Supabase.
+export {
+  ensurePersonalOrganization,
+} from './org-actions';
+export {
+  setOrgStoreForTesting,
+  resetOrgStoreForTesting,
+} from './org-store';
+export type { OrgDataStore } from './org-store';
 
 export {
   signUpWithEmailPassword,
@@ -21,6 +36,11 @@ export {
   signOut,
 } from './actions';
 
-export { UnauthorizedError, OrganizationNotFoundError } from './errors';
+export {
+  UnauthorizedError,
+  OrganizationNotFoundError,
+  ForbiddenError,
+} from './errors';
 
-export type { User, Organization, Membership, OAuthProvider } from './types';
+export { ORG_ROLES } from './types';
+export type { User, Organization, Membership, OAuthProvider, OrgRole } from './types';

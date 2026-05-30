@@ -40,12 +40,23 @@ export interface Organization {
   created_at: string;
 }
 
-// Phase 1 leaves this shape declared but unused (no membership rows yet).
-// Phase 2 populates it from the `memberships` table per scoping memo 4.3.
+// Per-organization role closed set (scoping memo section 6). This runtime
+// constant is the canonical code-side source for the checkOrgRoleLockstep
+// verifier in scripts/check-lockstep.js, which asserts it set-equals the
+// `role` CHECK constraint in the M12 migration. NOTE: `pii_reviewer` is NOT a
+// membership role -- it is an auth-provider app_metadata value the legal-
+// access-log gate reads (see User.role above); the two vocabularies are
+// deliberately separate. The doc-backed lockstep (ontology section 3.18) is a
+// Phase 4 addition per memo sections 6 and 11; until then the verifier keys
+// off this constant and the SQL CHECK only.
+export const ORG_ROLES = ['owner', 'admin', 'member', 'reviewer'] as const;
+export type OrgRole = (typeof ORG_ROLES)[number];
+
+// Phase 2 populates this from the `memberships` table per scoping memo 4.3.
 export interface Membership {
   user_id: string;
   organization_id: string;
-  role: 'owner' | 'admin' | 'member' | 'reviewer';
+  role: OrgRole;
   created_at: string;
 }
 
