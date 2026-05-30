@@ -110,7 +110,7 @@ describe('custom patterns persistence', () => {
     const fetched = await getPattern(ORG_A, created.id, opts);
     expect(fetched).not.toBeNull();
     expect(fetched!.components).toHaveLength(2);
-    expect(fetched!.components[0].tag_id).toBe('trust_love');
+    expect(fetched!.components[0]?.tag_id).toBe('trust_love');
 
     const list = await listPatterns(ORG_A, opts);
     expect(list.map((p) => p.id)).toContain(created.id);

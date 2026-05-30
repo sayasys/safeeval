@@ -431,12 +431,14 @@ export function makeInMemoryCustomPatternsStore(): CustomPatternsStore {
 
     async deletePattern(organization_id: string, pattern_id: string): Promise<void> {
       for (let i = patterns.length - 1; i >= 0; i--) {
-        if (patterns[i].id === pattern_id && patterns[i].organization_id === organization_id) {
+        const p = patterns[i];
+        if (p && p.id === pattern_id && p.organization_id === organization_id) {
           patterns.splice(i, 1);
         }
       }
       for (let i = components.length - 1; i >= 0; i--) {
-        if (components[i].pattern_id === pattern_id) components.splice(i, 1);
+        const c = components[i];
+        if (c && c.pattern_id === pattern_id) components.splice(i, 1);
       }
     },
 
@@ -523,15 +525,14 @@ export function makeInMemoryCustomPatternsStore(): CustomPatternsStore {
 
     async deleteClassifier(organization_id: string, classifier_id: string): Promise<void> {
       for (let i = classifiers.length - 1; i >= 0; i--) {
-        if (
-          classifiers[i].id === classifier_id &&
-          classifiers[i].organization_id === organization_id
-        ) {
+        const c = classifiers[i];
+        if (c && c.id === classifier_id && c.organization_id === organization_id) {
           classifiers.splice(i, 1);
         }
       }
       for (let i = examples.length - 1; i >= 0; i--) {
-        if (examples[i].classifier_id === classifier_id) examples.splice(i, 1);
+        const e = examples[i];
+        if (e && e.classifier_id === classifier_id) examples.splice(i, 1);
       }
     },
   };
