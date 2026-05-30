@@ -28,6 +28,12 @@ export default function AppDashboardPage() {
 
           <div className="flex flex-wrap gap-3">
             <Link
+              href="/app/classifiers"
+              className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-800"
+            >
+              Custom classifiers
+            </Link>
+            <Link
               href="/app/welcome"
               className="rounded-md border border-sage-200 text-sm px-4 py-2 hover:bg-cream-100"
             >
