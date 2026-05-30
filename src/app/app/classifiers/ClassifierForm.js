@@ -9,21 +9,27 @@
 // Submit calls the createClassifierAction server action; on success it redirects
 // to the detail view, on failure it renders the error and preserves form state.
 //
-// The optional bright-line-indicator and conflicts-with sections from the memo
-// prose are intentionally absent: the Phase 1 persistence schema has no columns
-// for them, so collecting them here would silently drop the input. See the
-// closure note / the data layer's NewCustomL3Classifier shape.
+// The two optional fields from the memo prose -- bright-line indicators (5.5) and
+// conflicts-with (5.6) -- are surfaced as collapsed sections below the required
+// fields. They were deferred in the original Phase 2 form because the schema had
+// no columns for them; the M14 backfill added the columns, so they live here now.
+// Both default to an empty array when the customer leaves the section untouched.
 
 import { useMemo, useState } from 'react';
 import {
   validateTagName,
   validateDefinition,
   validateExampleText,
+  validateBrightLineIndicator,
+  validateConflictTag,
   validateClassifierForm,
   TAG_NAME_HELP,
+  BRIGHT_LINE_HELP,
+  CONFLICTS_WITH_HELP,
   DEFINITION_MIN_LENGTH,
   DEFINITION_MAX_LENGTH,
   EXAMPLE_MAX_LENGTH,
+  BRIGHT_LINE_MAX_LENGTH,
   MIN_EXAMPLES_PER_KIND,
 } from './validation';
 import { GROUP_OPTIONS } from './labels';
@@ -39,19 +45,33 @@ export default function ClassifierForm({ existing = [] }) {
   const [definition, setDefinition] = useState('');
   const [positives, setPositives] = useState(emptyRows(MIN_EXAMPLES_PER_KIND));
   const [negatives, setNegatives] = useState(emptyRows(MIN_EXAMPLES_PER_KIND));
+  // Optional fields (memo 5.5 / 5.6). Start empty -- the customer opens the
+  // collapsed section and adds rows only if they want them.
+  const [brightLines, setBrightLines] = useState([]);
+  const [conflicts, setConflicts] = useState([]);
   // Per-field "touched" so errors appear after interaction, not on first paint.
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState(null);
 
-  const values = { group_name: groupName, tag_name: tagName, definition, positives, negatives };
+  const values = {
+    group_name: groupName,
+    tag_name: tagName,
+    definition,
+    positives,
+    negatives,
+    bright_line_indicators: brightLines,
+    conflicts_with: conflicts,
+  };
   const errors = useMemo(() => validateClassifierForm(values), [
     groupName,
     tagName,
     definition,
     positives,
     negatives,
+    brightLines,
+    conflicts,
   ]);
   const formValid = Object.keys(errors).length === 0;
 
@@ -93,6 +113,10 @@ export default function ClassifierForm({ existing = [] }) {
     if (list.length <= MIN_EXAMPLES_PER_KIND) return;
     setter(list.filter((_, i) => i !== index));
   }
+  // Optional-list remove has no floor -- the section may go back to zero rows.
+  function removeOptionalRow(setter, list, index) {
+    setter(list.filter((_, i) => i !== index));
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -107,6 +131,8 @@ export default function ClassifierForm({ existing = [] }) {
       definition,
       positives,
       negatives,
+      bright_line_indicators: brightLines,
+      conflicts_with: conflicts,
     });
     // A successful create redirects inside the action and never returns here.
     // Reaching this line means the action returned a failure.
@@ -228,6 +254,44 @@ export default function ClassifierForm({ existing = [] }) {
         namePrefix="negative"
       />
 
+      {/* Optional: bright-line indicators (memo 5.5) -- collapsed by default. */}
+      <OptionalList
+        legend="Bright-line indicators"
+        help={BRIGHT_LINE_HELP}
+        addLabel="+ Add bright-line indicator"
+        rows={brightLines}
+        onChange={(i, v) => updateRow(setBrightLines, brightLines, i, v)}
+        onAdd={() => addRow(setBrightLines, brightLines)}
+        onRemove={(i) => removeOptionalRow(setBrightLines, brightLines, i)}
+        validateEntry={validateBrightLineIndicator}
+        maxLength={BRIGHT_LINE_MAX_LENGTH}
+        placeholder="trust me bro"
+        mono={false}
+        listError={(submitted || touched.bright_line_indicators) ? errors.bright_line_indicators : null}
+        onBlur={() => markTouched('bright_line_indicators')}
+        busy={busy}
+        namePrefix="bright-line"
+      />
+
+      {/* Optional: conflicts-with (memo 5.6) -- collapsed by default. */}
+      <OptionalList
+        legend="Conflicts with"
+        help={CONFLICTS_WITH_HELP}
+        addLabel="+ Add conflicting tag"
+        rows={conflicts}
+        onChange={(i, v) => updateRow(setConflicts, conflicts, i, v)}
+        onAdd={() => addRow(setConflicts, conflicts)}
+        onRemove={(i) => removeOptionalRow(setConflicts, conflicts, i)}
+        validateEntry={validateConflictTag}
+        maxLength={40}
+        placeholder="pig_butchering"
+        mono
+        listError={(submitted || touched.conflicts_with) ? errors.conflicts_with : null}
+        onBlur={() => markTouched('conflicts_with')}
+        busy={busy}
+        namePrefix="conflict"
+      />
+
       {serverError && (
         <div
           role="alert"
@@ -333,5 +397,84 @@ function ExampleList({
         </p>
       )}
     </fieldset>
+  );
+}
+
+// A collapsed-by-default optional repeatable list (memo 5.5 / 5.6). Same dynamic
+// add/remove shape as ExampleList, but starts empty, can go back to zero rows,
+// and uses single-line text inputs with a per-entry validator passed in.
+function OptionalList({
+  legend,
+  help,
+  addLabel,
+  rows,
+  onChange,
+  onAdd,
+  onRemove,
+  validateEntry,
+  maxLength,
+  placeholder,
+  mono,
+  listError,
+  onBlur,
+  busy,
+  namePrefix,
+}) {
+  return (
+    <details className="rounded-md border border-sage-100 bg-cream-50/40 px-4 py-3">
+      <summary className="cursor-pointer select-none text-sm font-medium text-slate-800">
+        {legend} <span className="font-normal text-slate-400">(optional)</span>
+      </summary>
+      <p className="mt-2 mb-2 text-xs text-slate-500">{help}</p>
+      <div className="space-y-2">
+        {rows.map((value, i) => {
+          const rowError = value.trim().length > 0 ? validateEntry(value) : null;
+          return (
+            <div key={`${namePrefix}-${i}`}>
+              <div className="flex items-start gap-2">
+                <input
+                  type="text"
+                  value={value}
+                  maxLength={maxLength}
+                  onChange={(e) => onChange(i, e.target.value)}
+                  onBlur={onBlur}
+                  disabled={busy}
+                  spellCheck={false}
+                  autoComplete="off"
+                  placeholder={placeholder}
+                  aria-label={`${legend} ${i + 1}`}
+                  className={`w-full rounded-md border border-sage-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 disabled:opacity-50${
+                    mono ? ' font-mono' : ''
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => onRemove(i)}
+                  disabled={busy}
+                  aria-label={`Remove ${legend} ${i + 1}`}
+                  className="mt-1 shrink-0 rounded-md border border-sage-200 px-2 py-1 text-xs text-slate-600 hover:bg-cream-100 disabled:opacity-40"
+                >
+                  Remove
+                </button>
+              </div>
+              {rowError && <p className="mt-1 text-xs text-coral-600">{rowError}</p>}
+            </div>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        disabled={busy}
+        className="mt-2 rounded-md border border-sage-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-cream-100 disabled:opacity-50"
+      >
+        {addLabel}
+      </button>
+      {listError && (
+        <p role="alert" className="mt-1 text-xs text-coral-600">
+          {listError}
+        </p>
+      )}
+    </details>
   );
 }

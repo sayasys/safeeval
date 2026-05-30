@@ -74,6 +74,16 @@ export interface CreateClassifierInput {
   definition: string;
   positives: string[];
   negatives: string[];
+  // Optional (memo 5.5 / 5.6). Absent / empty when the customer leaves the
+  // collapsed sections untouched.
+  bright_line_indicators?: string[];
+  conflicts_with?: string[];
+}
+
+// Trim each row and drop blanks -- the form sends fixed-length row arrays that
+// may contain empty strings the customer never filled in (mirrors buildExamples).
+function cleanList(values: string[] | undefined): string[] {
+  return (values ?? []).map((v) => v.trim()).filter((v) => v.length > 0);
 }
 
 function buildExamples(input: CreateClassifierInput): NewCustomL3Example[] {
@@ -105,6 +115,8 @@ export async function runCreateClassifier(
         group_name: input.group_name as L3GroupName,
         tag_name: input.tag_name,
         definition: input.definition,
+        bright_line_indicators: cleanList(input.bright_line_indicators),
+        conflicts_with: cleanList(input.conflicts_with),
         created_by_user_id: userId,
       },
       buildExamples(input),
