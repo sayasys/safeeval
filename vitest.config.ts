@@ -10,6 +10,7 @@ export default defineConfig({
       'tests/data/**/*.test.ts',
       'tests/report-generators/**/*.test.ts',
       'tests/media-detection/**/*.test.ts',
+      'tests/media-evaluator/**/*.test.ts',
       'tests/osint/**/*.test.ts',
       'tests/feedback/**/*.test.ts',
     ],

@@ -43,6 +43,7 @@
     "src/lib/feedback/**/*.ts",
     "src/lib/report-generators/**/*.ts",
     "src/lib/media-detection/**/*.ts",
+    "src/lib/media-evaluator/**/*.ts",
     "src/lib/osint/**/*.ts",
     "src/middleware.ts",
     "tests/app/**/*.ts",
@@ -51,6 +52,7 @@
     "tests/feedback/**/*.ts",
     "tests/report-generators/**/*.ts",
     "tests/media-detection/**/*.ts",
+    "tests/media-evaluator/**/*.ts",
     "tests/osint/**/*.ts",
     "vitest.config.ts",
     ".next/types/**/*.ts"

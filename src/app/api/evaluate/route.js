@@ -72,6 +72,83 @@ import {
   parseConversationFromText,
 } from '@/lib/conversation-parser';
 import { maybePersistEvaluation } from '@/lib/data';
+import { detectMedia } from '@/lib/media-detection';
+import { maxBytesFor, maxLabelFor } from '@/lib/media-evaluator/upload';
+
+// Multipart media upload (Evaluator image / audio tabs). Builds the engine's
+// media_artifact envelope and routes through detectMedia() -- the same Stage 0
+// detector the v5 pipeline calls when a prompt/conversation envelope carries a
+// media_artifact. The synthetic-media tabs have no text to classify, so this
+// path deliberately returns the detector result alone rather than running the
+// fraud cascade (Stages 1-4): there is no prompt, and a placeholder prompt
+// would burn model calls and emit a meaningless disposition. The response
+// mirrors the detector's MediaDetectionResult under media_detection_result so
+// the page renders the same shape detectMedia produces inside the engine.
+async function handleMediaUpload(request) {
+  let form;
+  try {
+    form = await request.formData();
+  } catch (e) {
+    return badRequest('invalid_multipart', 'request body must be valid multipart/form-data');
+  }
+
+  const declared = form.get('media_type');
+  const mediaType = declared === 'audio' ? 'audio' : declared === 'image' ? 'image' : null;
+  if (!mediaType) {
+    return badRequest('invalid_media_type', "media_type must be 'image' or 'audio'");
+  }
+
+  const file = form.get('file');
+  // A Web File/Blob exposes arrayBuffer(); a stringified field does not.
+  if (!file || typeof file === 'string' || typeof file.arrayBuffer !== 'function') {
+    return badRequest('missing_file', 'a file field is required');
+  }
+
+  let bytes;
+  try {
+    bytes = Buffer.from(await file.arrayBuffer());
+  } catch (e) {
+    return badRequest('unreadable_file', 'uploaded file could not be read');
+  }
+  if (bytes.length === 0) {
+    return badRequest('empty_file', 'uploaded file is empty');
+  }
+  const cap = maxBytesFor(mediaType);
+  if (bytes.length > cap) {
+    return badRequest('file_too_large', mediaType + ' files must be ' + maxLabelFor(mediaType) + ' or smaller');
+  }
+
+  const mimeType = (typeof file.type === 'string' && file.type.length > 0)
+    ? file.type
+    : (mediaType === 'audio' ? 'audio/mpeg' : 'image/png');
+
+  const artifact = {
+    type: mediaType,
+    url_or_base64: bytes.toString('base64'),
+    mime_type: mimeType,
+  };
+
+  let detection;
+  try {
+    detection = await detectMedia(artifact);
+  } catch (err) {
+    detection = {
+      is_synthetic: 0,
+      confidence: 0,
+      model_id: 'media-detection-router',
+      latency_ms: 0,
+      error: 'detectMedia threw: ' + (err && err.message ? err.message : String(err)),
+    };
+  }
+
+  return NextResponse.json({
+    id: null,
+    input_kind: 'media',
+    media_type: mediaType,
+    mime_type: mimeType,
+    media_detection_result: detection,
+  });
+}
 
 function badRequest(code, detail) {
   const body = { error: code };
@@ -150,6 +227,13 @@ export async function POST(request) {
     return badRequest('invalid_request', 'malformed url');
   }
   const wantDebug = url.searchParams.get('debug') === '1';
+
+  // Multipart media uploads (image / audio tabs) branch before the JSON parse:
+  // the body is form-data, not JSON. Everything else stays JSON-in / JSON-out.
+  const contentType = request.headers.get('content-type') || '';
+  if (contentType.includes('multipart/form-data')) {
+    return handleMediaUpload(request);
+  }
 
   let body;
   try {
