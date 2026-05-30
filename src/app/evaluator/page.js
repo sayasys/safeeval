@@ -1187,23 +1187,27 @@ export default function Home() {
 
   return (
       <main className="max-w-4xl mx-auto px-6 py-16 space-y-8">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="font-semibold text-gray-900 mb-2">About this tool</h2>
-          <p className="text-sm text-gray-600 leading-relaxed">
-            SafeEval evaluates prompts against a fraud and scams policy framework, applied through the{' '}
-            <strong>Fraud Analysis Framework (FAF)</strong> -- a structured decomposition model that analyzes
-            prompts across five scored components. Enter a prompt below to see a full typology analysis,
-            escalation decision, and policy rationale.
+        <div className="max-w-3xl">
+          <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900 leading-[1.1]">
+            Evaluate a prompt
+          </h1>
+          <p className="mt-5 text-lg text-slate-700 leading-relaxed">
+            Paste a prompt to see how SafeEval classifies it. It reads the prompt,
+            walks it through the same fraud-and-scams policy a reviewer would apply,
+            and returns a structured classification plus the reasoning behind it.
           </p>
-          <p className="text-sm text-gray-500 mt-2">
-            A reference implementation of fraud policy design, enforcement architecture, and policy-to-technical translation.{' '}
-            <a href="https://github.com/sayasys/safeeval/tree/main/docs" className="underline hover:text-gray-800">
+          <p className="mt-4 text-sm text-slate-500 leading-relaxed">
+            Try a sample below or paste your own.{' '}
+            <a
+              href="https://github.com/sayasys/safeeval/tree/main/docs"
+              className="text-sage-700 underline underline-offset-2 hover:text-sage-800 transition-colors"
+            >
               Read the full policy framework -&gt;
             </a>
           </p>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <div className="bg-white rounded-2xl border border-sage-100 shadow-soft p-6 space-y-4">
           {/* Mode-switch segmented control (display spec section 19). */}
           <ModeSwitch mode={mode} onRequestSwitch={requestModeSwitch} />
 
