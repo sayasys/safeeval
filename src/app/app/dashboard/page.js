@@ -34,6 +34,12 @@ export default function AppDashboardPage() {
               Custom classifiers
             </Link>
             <Link
+              href="/app/patterns"
+              className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-800"
+            >
+              Patterns
+            </Link>
+            <Link
               href="/app/welcome"
               className="rounded-md border border-sage-200 text-sm px-4 py-2 hover:bg-cream-100"
             >
