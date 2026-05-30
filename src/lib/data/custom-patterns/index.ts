@@ -12,6 +12,7 @@ export {
   createPattern,
   getPattern,
   listPatterns,
+  listPatternsWithComponents,
   archivePattern,
   resolveStore,
   type CustomPatternsOptions,

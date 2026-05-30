@@ -157,6 +157,29 @@ export async function listPatterns(
   return store.listPatterns(orgId);
 }
 
+// List an org's patterns WITH their components hydrated (Phase 3 list view).
+// listPatterns returns the parent rows only; the list surface needs each
+// pattern's component count (and the detail-free composition shape is cheap for
+// the small per-org pattern set), so this helper fans the existing
+// getPatternComponents read across the listed parents. It is a read-only
+// composition over the store methods listPatterns + getPatternComponents -- no
+// new store interface method, no schema change. Added for Phase 3 (the brief
+// authorizes additions to this module when a Phase 3 need is missing); the list
+// view consumes it and the detail view continues to use getPattern.
+export async function listPatternsWithComponents(
+  orgId: string,
+  options?: CustomPatternsOptions,
+): Promise<PatternWithComponents[]> {
+  const store = resolveStore(options);
+  const patterns = await store.listPatterns(orgId);
+  return Promise.all(
+    patterns.map(async (pattern) => ({
+      ...pattern,
+      components: await store.getPatternComponents(pattern.id),
+    })),
+  );
+}
+
 // Soft-delete: flip status to 'archived' (memo section 3.1 -- patterns are
 // archived, not hard-deleted, so historical references stay resolvable).
 export async function archivePattern(
