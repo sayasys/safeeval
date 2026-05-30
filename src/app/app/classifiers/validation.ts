@@ -14,9 +14,9 @@ import {
   DEFINITION_MIN_LENGTH,
   DEFINITION_MAX_LENGTH,
   MIN_EXAMPLES_PER_KIND,
-} from '@/lib/data/custom-patterns';
-import type { L3GroupName } from '@/lib/data/custom-patterns';
-import { L3_GROUP_NAMES } from '@/lib/data/custom-patterns';
+  L3_GROUP_NAMES,
+} from '../../../lib/data/custom-patterns';
+import type { L3GroupName } from '../../../lib/data/custom-patterns';
 
 // Per-example client cap. The persistence layer accepts up to 2000 chars; the
 // form holds customers to a tighter 500 so examples stay representative rather

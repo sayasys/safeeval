@@ -20,8 +20,8 @@ import {
   type CustomL3Classifier,
   type NewCustomL3Example,
   type L3GroupName,
-} from '@/lib/data/custom-patterns';
-import type { OrgRole } from '@/lib/auth';
+} from '../../../lib/data/custom-patterns';
+import type { OrgRole } from '../../../lib/auth';
 
 // ---------------------------------------------------------------------------
 // Result shape returned across the server-action boundary. Plain data so it is
