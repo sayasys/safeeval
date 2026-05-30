@@ -27,6 +27,15 @@ module.exports = {
           500: '#F46E54',
           600: '#E25439',
         },
+        // Cool institutional palette -- tool surfaces only (evaluator, /app/*,
+        // /intelligence, signup, login). Marketing surfaces keep cream/sage/coral.
+        // The neutral-cool ramp maps directly onto Tailwind's built-in slate
+        // scale (slate-50 #F8FAFC, slate-200 #E2E8F0, slate-700 #334155), so
+        // only the brand accent and the tool page background need custom tokens.
+        brand: {
+          blue: '#2962E0', // primary brand, CTAs, links on tool surfaces
+        },
+        tool: '#F6F9FC', // tool-surface page background (Stripe-Radar gray)
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],

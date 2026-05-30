@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Palette reference tokens. Tool surfaces (evaluator, /app/*, /intelligence,
+   signup, login) use the cool-institutional set; marketing surfaces (landing,
+   /product, /case-study) keep the warm cream/sage/coral set defined in
+   tailwind.config.js. These custom properties document the canonical hex values
+   for both registers; Tailwind utility classes carry the actual styling. */
+:root {
+  --brand-blue: #2962E0;
+  --bg-tool: #F6F9FC;
+  --bg-marketing: #FFFFFF;
+  --severity-block: #DC2626;
+  --neutral-cool-50: #F8FAFC;
+  --neutral-cool-200: #E2E8F0;
+  --neutral-cool-700: #334155;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
