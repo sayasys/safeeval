@@ -46,6 +46,20 @@ export {
 } from './matcher';
 
 export {
+  runCustomL3InferencePass,
+  matchBrightLine,
+  parseVerdict,
+  detectInstructionLeakage,
+  SYSTEM_PROMPT_PREFIX as CUSTOM_L3_SYSTEM_PROMPT_PREFIX,
+  CUSTOM_L3_MODEL,
+  type CallModelFn,
+  type InferenceOptions,
+  type InferenceInput,
+  type InferencePassResult,
+  type ClassifierCheckResult,
+} from './inference';
+
+export {
   makeSupabaseCustomPatternsStore,
   makeInMemoryCustomPatternsStore,
   CustomPatternsStoreError,
