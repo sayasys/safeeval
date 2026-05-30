@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: [
+      'tests/app/**/*.test.ts',
       'tests/auth/**/*.test.ts',
       'tests/data/**/*.test.ts',
       'tests/report-generators/**/*.test.ts',

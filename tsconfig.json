@@ -45,6 +45,7 @@
     "src/lib/media-detection/**/*.ts",
     "src/lib/osint/**/*.ts",
     "src/middleware.ts",
+    "tests/app/**/*.ts",
     "tests/auth/**/*.ts",
     "tests/data/**/*.ts",
     "tests/feedback/**/*.ts",
