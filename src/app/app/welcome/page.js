@@ -1,62 +1,73 @@
-// SaaS gated landing. Middleware guarantees a signed-in user reaches this
-// page; unauthenticated requests redirect to /signup before rendering ever
-// fires. Phase 2 wires the post-signup org backfill here (default auto-create
-// per scoping memo section 5); Phase 3 replaces it with the full onboarding
-// flow (org-name customization, plan tier selection, first-evaluation
-// walkthrough).
+// First screen after signup: a short orientation, then two clear next steps.
+// The middleware has already confirmed a session before this renders, so the
+// page reads the current user only to run the one-time organization setup
+// below. Reading the session means this page is request-time, never static.
 
 import Link from 'next/link';
 import { getCurrentUser, ensurePersonalOrganization } from '@/lib/auth';
 
-// Reads the session cookie -> must be dynamic.
 export const dynamic = 'force-dynamic';
 
 export default async function AppWelcomePage() {
-  // Idempotent personal-organization backfill on first authenticated landing
-  // (scoping memo section 5, default auto-create). Fail-open: ensurePersonal-
-  // Organization returns null if the data tables are unreachable (e.g. the
-  // portfolio deployment before M12 is applied), and we never block render on
-  // it. Safe to run on every visit -- the org is resolved by its unique slug.
+  // Make sure the new account has an organization to work in. This is safe to
+  // run on every visit -- it creates the organization the first time and does
+  // nothing on later visits -- and it never blocks the page if the data layer
+  // is briefly unavailable.
   const user = await getCurrentUser();
   if (user) {
     await ensurePersonalOrganization(user);
   }
 
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800 flex items-center justify-center px-6 py-12">
-      <div className="w-full max-w-2xl">
-        <div className="bg-white border border-sage-100 rounded-lg p-8 shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-900 mb-3">
-            You are signed in.
-          </h1>
-          <p className="text-slate-700 mb-2">
-            The gated SaaS surface is live. The middleware gate is enforced, the
-            auth abstraction is provider-agnostic, and your personal
-            organization has been provisioned by the Phase 2 multi-tenancy
-            layer.
-          </p>
-          <p className="text-slate-700 mb-6">
-            Real product surfaces -- per-organization evaluation history,
-            audience-tailored reports, classifier-edit submission -- ship in
-            Phases 2 through 5 per the scoping memo dated 2026-05-28.
-          </p>
+    <main className="min-h-screen bg-cream-50 text-slate-800 px-6 py-16">
+      <div className="mx-auto w-full max-w-3xl">
+        <h1 className="text-3xl font-semibold text-slate-900">
+          Welcome to SafeEval.
+        </h1>
+        <p className="mt-3 text-lg text-slate-600">
+          You can define custom classifiers, compose patterns, and evaluate
+          inputs against your organization&apos;s policy.
+        </p>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/app/dashboard"
-              className="rounded-md bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-800"
-            >
-              Go to dashboard
-            </Link>
-            <Link
-              href="/"
-              className="rounded-md border border-sage-200 text-sm px-4 py-2 hover:bg-cream-100"
-            >
-              Public site
-            </Link>
-          </div>
+        <div className="mt-10 grid gap-5 sm:grid-cols-2">
+          <NextStepCard
+            title="Define a custom classifier"
+            description="A classifier is one of your own tags added to SafeEval's evaluation output, so a result can flag the specific behavior your team watches for."
+            cta="Create classifier"
+            href="/app/classifiers/new"
+          />
+          <NextStepCard
+            title="Compose a pattern"
+            description="A pattern is a named set of tags. SafeEval labels a result with the pattern whenever all of those tags show up together in one evaluation."
+            cta="Create pattern"
+            href="/app/patterns/new"
+          />
+        </div>
+
+        <div className="mt-10">
+          <Link
+            href="/app/dashboard"
+            className="text-sm text-slate-600 hover:text-slate-900 hover:underline"
+          >
+            Skip to dashboard &rarr;
+          </Link>
         </div>
       </div>
     </main>
+  );
+}
+
+function NextStepCard({ title, description, cta, href }) {
+  return (
+    <div className="flex flex-col rounded-lg border border-sage-100 bg-white p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+      <p className="mt-2 flex-1 text-sm text-slate-600">{description}</p>
+      <Link
+        href={href}
+        className="mt-5 inline-flex w-fit rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+      >
+        {cta}
+      </Link>
+    </div>
   );
 }
