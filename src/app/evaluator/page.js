@@ -2058,9 +2058,52 @@ export default function Home() {
         {/* Empty state -- before the first evaluation, a subtle placeholder so
             the region below the tool card does not read as broken or cut off. */}
         {!isMediaMode && !loading && !v5 && (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
-            <p className="text-sm text-slate-400">
-              Your evaluation will appear here.
+          <div>
+            {/* Sample output -- a dimmed preview of a real result card so a
+                first-time visitor sees the shape of the answer (disposition,
+                confidence, categories, model) before constructing a prompt. */}
+            <div className="relative" aria-hidden="true">
+              <span className="absolute right-4 top-4 z-10 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Sample output
+              </span>
+              <div className="rounded-2xl border-2 border-slate-200 bg-white p-6 space-y-5 opacity-60 select-none">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-full bg-red-100 text-red-700">
+                    Block
+                  </span>
+                  <span className="text-sm text-slate-400">Advance-fee fraud</span>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    <span>Confidence</span>
+                    <span className="font-mono text-slate-400">0.94</span>
+                  </div>
+                  <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+                    <div className="h-2 rounded-full bg-slate-300" style={{ width: '94%' }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Categories
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {['advance-fee', 'impersonation', 'urgency'].map(tag => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-400"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400">
+                  Models: <span className="font-mono">claude-sonnet-4-6</span>
+                </div>
+              </div>
+            </div>
+            <p className="mt-3 text-center text-sm text-slate-500">
+              Your evaluation will appear here. Run a prompt to see the live result.
             </p>
           </div>
         )}
