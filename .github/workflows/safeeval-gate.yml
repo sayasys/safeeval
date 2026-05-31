@@ -66,3 +66,29 @@ jobs:
         env:
           ANTHROPIC_API_KEY: dummy-build-only-key
         run: npm run build
+
+  vitest-check:
+    name: Vitest suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run the full vitest suite (the 908/908 claim that lands on the page)
+        run: npm test
+
+  tsc-check:
+    name: TypeScript typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Typecheck without emitting (tsc --noEmit)
+        run: npx tsc --noEmit
