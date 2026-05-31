@@ -17,21 +17,14 @@ const read = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8');
 // name don't trip the guard.
 const WARM_CLASS = /(?:bg|text|border|ring|divide|from|via|to)-(?:cream|sage|coral)-\d/;
 
+// Public-cut note: the signed-in product surfaces (src/app/app/*) live only in
+// the private safeeval-saas repo; their palette regression coverage travels
+// with them. This portfolio cut guards the public tool surfaces.
 const TOOL_SURFACES = [
   'src/app/evaluator/page.js',
   'src/app/evaluator/layout.js',
   'src/app/intelligence/page.js',
   'src/app/intelligence/layout.js',
-  'src/app/app/_components/AppNav.js',
-  'src/app/app/welcome/page.js',
-  'src/app/app/dashboard/page.js',
-  'src/app/app/classifiers/page.js',
-  'src/app/app/classifiers/ClassifierForm.js',
-  'src/app/app/classifiers/LifecycleActions.js',
-  'src/app/app/classifiers/labels.ts',
-  'src/app/app/patterns/page.js',
-  'src/app/app/patterns/PatternComposerForm.js',
-  'src/app/app/patterns/labels.ts',
   'src/app/signup/page.js',
   'src/app/login/page.js',
 ];
@@ -93,8 +86,8 @@ describe('palette: tool surfaces are cool-institutional', () => {
     expect(src).toContain('text-brand-blue');
   });
 
-  it('signed-in app pages sit on the cool tool background', () => {
-    for (const rel of ['src/app/app/dashboard/page.js', 'src/app/app/welcome/page.js', 'src/app/signup/page.js']) {
+  it('auth-entry pages sit on the cool tool background', () => {
+    for (const rel of ['src/app/signup/page.js', 'src/app/login/page.js']) {
       expect(read(rel)).toContain('min-h-screen bg-tool');
     }
   });
@@ -156,9 +149,7 @@ describe('severity color regression: block disposition is red, not coral', () =>
     expect(cfg).not.toContain('coral');
   });
 
-  it('tool-surface form errors render in red (text-red-600 == #DC2626)', () => {
+  it('tool-surface form errors render in red, not coral', () => {
     expect(read('src/app/signup/page.js')).toContain('text-red-900');
-    expect(read('src/app/app/classifiers/ClassifierForm.js')).toContain('text-red-600');
-    expect(read('src/app/app/patterns/PatternComposerForm.js')).toContain('text-red-600');
   });
 });

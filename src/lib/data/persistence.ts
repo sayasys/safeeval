@@ -23,147 +23,16 @@
 
 import { sanitize } from './sanitizer';
 import { getClient, type DbClientSurface, type InsertEvaluationRow } from './db-client';
-import { makeSupabaseFeedbackStore } from '../feedback/store';
-import { surfaceCoverageGapEdit } from '../feedback/aggregation';
 import type { V5Envelope, DispositionAction } from './types';
-import {
-  generateReport,
-  IMPLEMENTED_AUDIENCES,
-  type ImplementedAudience,
-  type GenerateReportOptions,
-} from '../report-generators';
 
-const PREGEN_FLAG = 'SAFEEVAL_PREGEN_REPORTS';
-
-export function pregenReportsEnabled(): boolean {
-  return process.env[PREGEN_FLAG] === 'true';
-}
-
-// Classifier-edits feedback module flag. Phase 1 default OFF.
-// Spec: docs/memos/2026-05-28-classifier-feedback-loop-scoping.md.
-// When 'true', persistEvaluation()'s post-write hook checks for any
-// classifier_edits row referencing the freshly-persisted evaluation_id
-// with rationale_tag='coverage_gap' and fires a fire-and-forget real
-// notification to the architect track. Phase 2 replaces the Phase 1
-// console.log stub: each coverage_gap edit is surfaced as a real-time
-// route-to-steven proposal (aggregated_proposals + architect_inbox_queue)
-// via surfaceCoverageGapEdit().
-const FEEDBACK_FLAG = 'SAFEEVAL_FEEDBACK_ENABLED';
-
-export function feedbackEnabled(): boolean {
-  return process.env[FEEDBACK_FLAG] === 'true';
-}
-
-// Audiences pre-generated on block/human_review. Legal is excluded by
-// design: the legal-audience auth-gate refuses any call without
-// unredacted_access=true, so firing it from the background hook would burn
-// API budget for guaranteed gate-refusal. Phase 3 wires the legal-audience
-// auth-gate on the READ path, at which point the legal report can be pre-
-// generated unconditionally if Steven wants the pay-once / amortize-reads
-// behavior described in the implementation spec section 4.3. Phase 2 keeps
-// the four non-legal audiences only.
-const PREGEN_AUDIENCES: readonly ImplementedAudience[] =
-  IMPLEMENTED_AUDIENCES.filter((a) => a !== 'legal');
-
-async function pregenOneReport(
-  evaluation_id: string,
-  audience: ImplementedAudience,
-  client: DbClientSurface,
-): Promise<void> {
-  try {
-    const opts: GenerateReportOptions = {
-      source: 'pre_gen',
-      dbClient: client,
-    };
-    await generateReport(evaluation_id, audience, opts);
-  } catch (err) {
-    // Fire-and-forget semantics per spec section 4.1. The data-track post-
-    // write hook surfaces failures on the observation channel; persistence
-    // itself never throws on a report-gen failure. console.error mirrors
-    // the wire-up.ts pattern.
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `pregen report failed (evaluation_id=${evaluation_id}, audience=${audience}):`,
-      message,
-    );
-  }
-}
-
-function triggerPregenReports(
-  evaluation_id: string,
-  disposition: DispositionAction,
-  client: DbClientSurface,
-): void {
-  if (!pregenReportsEnabled()) return;
-  if (disposition !== 'block' && disposition !== 'human_review') return;
-  // Fire-and-forget. Each per-audience call has its own try-catch so a
-  // single audience failure does not cancel the rest.
-  for (const audience of PREGEN_AUDIENCES) {
-    void pregenOneReport(evaluation_id, audience, client);
-  }
-}
-
-// Classifier-edits feedback hook (Phase 2).
-// Spec: docs/memos/2026-05-28-classifier-feedback-loop-scoping.md sections
-// 5 (rationale_tag closed set) and 14 Q3 (coverage_gap auto-notification
-// adjudication; Steven chose Option A: real-time notification rather than
-// batched aggregation).
-//
-// When SAFEEVAL_FEEDBACK_ENABLED=true and the freshly-persisted evaluation
-// has any associated classifier_edits row with rationale_tag='coverage_gap',
-// fire a fire-and-forget real notification: each coverage_gap edit is
-// surfaced immediately (bypassing the N>=5 daily-aggregation threshold) as a
-// route-to-steven proposal written to aggregated_proposals +
-// architect_inbox_queue via surfaceCoverageGapEdit(). This replaces the
-// Phase 1 console.log stub.
-//
-// The try-catch swallows errors so a failure in the feedback hook never
-// blocks evaluation persistence -- the hook is pure observability;
-// correctness of the persisted evaluation must not depend on it succeeding.
-//
-// Note on timing: at the moment persistEvaluation() runs for a fresh
-// evaluation there are usually no associated classifier_edits rows yet (the
-// edit row is created later when a reviewer overrides the output), so this
-// hook typically routes zero edits on the persist path. It is wired here so
-// a re-evaluation flow (which re-persists an evaluation that already has
-// edits) re-triggers routing without a separate surface. The feedback store
-// is built from the same Supabase client the persist used.
-async function triggerCoverageGapNotification(
-  evaluation_id: string,
-  client: DbClientSurface,
-): Promise<void> {
-  try {
-    const store = makeSupabaseFeedbackStore(client.getRawClient());
-    const edits = await store.queryCoverageGapEdits(evaluation_id);
-    for (const edit of edits) {
-      await surfaceCoverageGapEdit(edit, { store });
-    }
-    if (edits.length > 0) {
-      console.log(
-        `classifier-edits coverage_gap hook routed ${edits.length} edit(s) ` +
-          `for evaluation_id=${evaluation_id} to the architect inbox ` +
-          `(priority=route-to-steven).`,
-      );
-    }
-  } catch (err) {
-    // Fire-and-forget. The hook is observability; persistence-layer
-    // correctness must not depend on it. console.error mirrors the
-    // pregen-hook pattern.
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `classifier-edits feedback hook failed (evaluation_id=${evaluation_id}):`,
-      message,
-    );
-  }
-}
-
-function triggerFeedbackHook(evaluation_id: string, client: DbClientSurface): void {
-  if (!feedbackEnabled()) return;
-  // Fire-and-forget. The await is intentional inside the async function;
-  // here we discard the returned promise so the caller (persistEvaluation)
-  // never blocks on the hook.
-  void triggerCoverageGapNotification(evaluation_id, client);
-}
+// Disclosure note (public portfolio cut): the post-write report-generator and
+// classifier-feedback hooks that previously lived here (triggerPregenReports /
+// triggerFeedbackHook) are SaaS-side surfaces and ship only in the private
+// safeeval-saas repo. Both were flag-gated OFF by default everywhere, so this
+// public-cut persistence path is behaviourally identical on the public deploy
+// (SAFEEVAL_PERSIST_EVALUATIONS is OFF, so persistEvaluation never runs in
+// production here). The validate -> sanitize -> insert core below is the
+// portfolio-relevant write path.
 
 // FIELD_RECONCILIATION
 //   JSON-Schema envelope path                  -> DB column
@@ -323,19 +192,9 @@ export async function persistEvaluation(
     const { evaluation_id } = await client.withOrganizationContext(organization_id, () =>
       client.insertEvaluation(row),
     );
-    // Post-write hook: pre-generate reports for block / human_review when
-    // SAFEEVAL_PREGEN_REPORTS=true. Fire-and-forget; never blocks the
-    // caller and never converts a successful persist into a failure.
-    triggerPregenReports(evaluation_id, disposition_action, client);
-
-    // Post-write hook: classifier-edits feedback module coverage_gap
-    // notification when SAFEEVAL_FEEDBACK_ENABLED=true. Fire-and-forget;
-    // Phase 2 routes each coverage_gap edit as a real-time route-to-steven
-    // proposal (see triggerCoverageGapNotification() above). Freshly-
-    // persisted evaluations usually have no associated edits yet, so this
-    // routes zero edits on the persist path; it re-triggers on re-evaluation.
-    triggerFeedbackHook(evaluation_id, client);
-
+    // Post-write hooks (report pre-generation + classifier-feedback routing)
+    // are SaaS-side and live only in the private safeeval-saas repo. See the
+    // disclosure note in the module header.
     return { evaluation_id };
   } catch (err) {
     if (err instanceof PersistError) throw err;

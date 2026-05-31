@@ -13,7 +13,6 @@ import {
   maxLabelFor,
 } from '@/lib/media-evaluator/upload';
 import { samplesForMode, SAMPLE_MEDIA } from '@/lib/media-evaluator/samples';
-import GenerateReportPanel from '../app/reports/GenerateReportPanel';
 
 // Bright-line descriptions. MUST stay in sync with BRIGHT_LINE_FEATURES in
 // src/lib/safeeval-v5.js. Missing entries silently break tooltips. See
@@ -2045,13 +2044,9 @@ export default function Home() {
               {v5.evaluated_at && <span>Evaluated at: {v5.evaluated_at}</span>}
             </div>
 
-            {/* Generate report -- text + conversation results only. The panel
-                no-ops for any other input kind and explains itself when the
-                evaluation was not persisted (no evaluation_id to report on). */}
-            <GenerateReportPanel
-              evaluationId={v5.evaluation_id}
-              inputKind={isConversationResult ? 'conversation' : 'prompt'}
-            />
+            {/* Report generation is a SaaS-side surface and ships only in the
+                private safeeval-saas repo; the public portfolio cut renders the
+                classification result without the report-generation panel. */}
           </div>
         )}
 

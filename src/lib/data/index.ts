@@ -10,7 +10,6 @@ export { sanitize, SANITIZER_VERSION } from './sanitizer';
 export {
   persistEvaluation,
   PersistError,
-  pregenReportsEnabled,
 } from './persistence';
 export type {
   PersistOptions,
@@ -44,12 +43,9 @@ export type {
   ReportAudienceColumn,
 } from './db-client';
 
-export {
-  listReports,
-  getReport,
-  scopeForOrg,
-} from './reports';
-export type { ReportScope } from './reports';
+// listReports / getReport / scopeForOrg (./reports) are SaaS-side report
+// surfaces and ship only in the private safeeval-saas repo; not re-exported
+// from the public portfolio cut.
 
 export type {
   V5Envelope,

@@ -36,18 +36,14 @@ function readMethodClosedSet(): Set<string> {
 }
 const METHOD_VALUES = readMethodClosedSet();
 
-describe('intelligence layout: auth-aware chrome', () => {
-  it('resolves the session server-side at request time', () => {
-    expect(LAYOUT_SRC).toContain("import { getCurrentUser } from '@/lib/auth'");
-    expect(LAYOUT_SRC).toContain('await getCurrentUser()');
-    expect(LAYOUT_SRC).toContain("export const dynamic = 'force-dynamic'");
-  });
-
-  it('renders the AppNav for signed-in users and the landing Nav for visitors', () => {
-    expect(LAYOUT_SRC).toContain('AppNav');
-    expect(LAYOUT_SRC).toContain('email={user.email}');
+describe('intelligence layout: portfolio-cut chrome', () => {
+  // Public portfolio cut: the signed-in product nav (AppNav) is a SaaS-side
+  // surface that ships only in the private safeeval-saas repo. This layout
+  // renders the landing Nav for everyone -- no auth-state branch.
+  it('renders the landing Nav and carries no signed-in product nav', () => {
     expect(LAYOUT_SRC).toContain('<Nav current="/intelligence" />');
-    expect(LAYOUT_SRC).toContain('user ?');
+    expect(LAYOUT_SRC).not.toContain('AppNav');
+    expect(LAYOUT_SRC).not.toContain('getCurrentUser');
   });
 
   it('frames the page with the shared Footer', () => {

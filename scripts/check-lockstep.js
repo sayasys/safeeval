@@ -1187,8 +1187,8 @@ function checkAudienceLockstep(rootDir) {
     return false;
   }
   if (!fs.existsSync(typesPath)) {
-    console.error('FAIL audience lockstep: types.ts missing at ' + typesPath);
-    return false;
+    console.log('SKIP audience lockstep: report-generators surface not in this repo (public portfolio cut; lives in safeeval-saas).');
+    return true;
   }
 
   let audiences;
@@ -1338,8 +1338,8 @@ function checkEditableFieldsLockstep(rootDir) {
     return false;
   }
   if (!fs.existsSync(typesPath)) {
-    console.error('FAIL editable-fields lockstep: types.ts missing at ' + typesPath);
-    return false;
+    console.log('SKIP editable-fields lockstep: feedback surface not in this repo (public portfolio cut; lives in safeeval-saas).');
+    return true;
   }
 
   let docNames;
@@ -1388,8 +1388,8 @@ function checkRationaleTagLockstep(rootDir) {
     return false;
   }
   if (!fs.existsSync(typesPath)) {
-    console.error('FAIL rationale-tag lockstep: types.ts missing at ' + typesPath);
-    return false;
+    console.log('SKIP rationale-tag lockstep: feedback surface not in this repo (public portfolio cut; lives in safeeval-saas).');
+    return true;
   }
 
   let docNames;
@@ -1577,8 +1577,8 @@ function checkEditorRoleLockstep(rootDir) {
     return false;
   }
   if (!fs.existsSync(typesPath)) {
-    console.error('FAIL editor-role lockstep: types.ts missing at ' + typesPath);
-    return false;
+    console.log('SKIP editor-role lockstep: feedback surface not in this repo (public portfolio cut; lives in safeeval-saas).');
+    return true;
   }
   if (!fs.existsSync(permissionsPath)) {
     console.error('FAIL editor-role lockstep: permissions.ts missing at ' + permissionsPath);
@@ -1801,8 +1801,8 @@ function checkCustomPatternGroupsLockstep(rootDir) {
   );
 
   if (!fs.existsSync(typesPath)) {
-    console.error('FAIL custom-pattern groups lockstep: types.ts missing at ' + typesPath);
-    return false;
+    console.log('SKIP custom-pattern groups lockstep: custom-patterns surface not in this repo (public portfolio cut; lives in safeeval-saas).');
+    return true;
   }
   if (!fs.existsSync(migrationPath)) {
     console.error('FAIL custom-pattern groups lockstep: M13 migration missing at ' + migrationPath);
@@ -1879,8 +1879,8 @@ function checkPromotionFeedbackVocabularyLockstep(rootDir) {
   );
 
   if (!fs.existsSync(typesPath)) {
-    console.error('FAIL promotion-feedback vocabulary lockstep: types.ts missing at ' + typesPath);
-    return false;
+    console.log('SKIP promotion-feedback vocabulary lockstep: custom-patterns surface not in this repo (public portfolio cut; lives in safeeval-saas).');
+    return true;
   }
   if (!fs.existsSync(migrationPath)) {
     console.error('FAIL promotion-feedback vocabulary lockstep: M15 migration missing at ' + migrationPath);
