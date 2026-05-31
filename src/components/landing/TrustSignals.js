@@ -3,7 +3,7 @@
 // as one confident proof line, not four chips. Cool palette only.
 const SIGNALS = [
   {
-    value: '177',
+    value: '908',
     sub: 'Tests passing in CI',
   },
   {

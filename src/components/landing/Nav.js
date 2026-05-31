@@ -40,15 +40,13 @@ export default function Nav({ current }) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Sign up CTA placeholder per landing scoping memo section 3.1 --
-              visible but unwired; signup stub deferred until SaaS Phase 1+2 ships. */}
-          <span
-            className="hidden md:inline-block bg-slate-100 text-slate-400 rounded-full px-5 py-2 text-sm cursor-not-allowed select-none"
-            aria-disabled="true"
-            title="Sign up coming soon"
+          {/* Sign up CTA -- live link to the shipped /signup OAuth flow. */}
+          <Link
+            href="/signup"
+            className="hidden md:inline-block bg-brand-blue text-white rounded-full px-5 py-2 text-sm hover:bg-brand-blue/90 transition-colors"
           >
             Sign up
-          </span>
+          </Link>
         </div>
       </div>
     </nav>
