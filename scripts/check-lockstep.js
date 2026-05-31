@@ -1933,8 +1933,9 @@ function checkPromotionFeedbackVocabularyLockstep(rootDir) {
 // Severity-color regression guard (2026-05-30 cool-institutional palette
 // migration). The v5 block disposition must render in the red family (red-600
 // == #DC2626) and never reuse brand coral. Coral was double-duty (brand CTA +
-// danger) before the migration; on tool surfaces the danger role moved to red
-// and coral is now marketing-only. This guard fails if the block disposition
+// danger) before the migration; the danger role moved to red, and coral has
+// since been retired from every surface (tool and marketing alike) in favor of
+// the cool-institutional palette. This guard fails if the block disposition
 // regresses to coral or drops out of the red family, and if the disposition
 // config as a whole reintroduces coral.
 const EVALUATOR_PAGE = path.join(ROOT, 'src', 'app', 'evaluator', 'page.js');

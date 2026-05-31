@@ -1,10 +1,10 @@
-// Surface-type palette regression coverage (2026-05-30 cool-institutional
-// migration). The portfolio runs a hybrid palette: tool surfaces (evaluator,
-// /intelligence, /app/*, signup, login) use the cool set (bg-tool #F6F9FC,
-// brand-blue, slate neutrals, red danger); marketing surfaces (landing,
-// /product, /case-study) stay warm-editorial (cream/sage/coral). These source-
-// read assertions -- the node env cannot render the React surfaces -- lock the
-// boundary so a future edit can't silently repaint one register as the other.
+// Surface-type palette regression coverage. Originally (2026-05-30) the
+// portfolio ran a hybrid palette -- cool tool surfaces, warm-editorial
+// marketing surfaces. The hybrid was retired the same day: the whole site now
+// uses one cool-institutional register (bg-tool #F6F9FC, brand-blue accents,
+// slate neutrals, red reserved for danger). These source-read assertions -- the
+// node env cannot render the React surfaces -- lock that in so a future edit
+// can't reintroduce the warm cream/sage/coral register on any surface.
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -36,15 +36,46 @@ const TOOL_SURFACES = [
   'src/app/login/page.js',
 ];
 
+// Every marketing surface touched by the site-wide cool migration. The shared
+// chrome (landing Nav/Footer) and all three page trees -- landing, /product,
+// /case-study -- must carry no warm classes.
 const MARKETING_SURFACES = [
-  'src/components/landing/Hero.js',
+  'src/app/page.js',
+  'src/app/layout.js',
   'src/components/landing/Nav.js',
+  'src/components/landing/Hero.js',
+  'src/components/landing/Problem.js',
+  'src/components/landing/HowItWorks.js',
+  'src/components/landing/Features.js',
+  'src/components/landing/CaseStudy.js',
+  'src/components/landing/TrustSignals.js',
+  'src/components/landing/CTABanner.js',
   'src/components/landing/Footer.js',
   'src/app/product/page.js',
+  'src/components/product/ProductHero.js',
+  'src/components/product/FiveStages.js',
+  'src/components/product/AuditStory.js',
+  'src/components/product/FeedbackStory.js',
+  'src/components/product/ProductCTA.js',
   'src/app/case-study/page.js',
+  'src/components/case-study/CaseStudyHero.js',
+  'src/components/case-study/Setup.js',
+  'src/components/case-study/Findings.js',
+  'src/components/case-study/WhatChanged.js',
+  'src/components/case-study/CaseStudyCTA.js',
 ];
 
-describe('palette boundary: tool surfaces are cool-institutional', () => {
+// Marketing surfaces that own a primary call-to-action button.
+const MARKETING_CTA_SURFACES = [
+  'src/components/landing/Hero.js',
+  'src/components/landing/CaseStudy.js',
+  'src/components/landing/CTABanner.js',
+  'src/components/product/ProductHero.js',
+  'src/components/product/ProductCTA.js',
+  'src/components/case-study/CaseStudyCTA.js',
+];
+
+describe('palette: tool surfaces are cool-institutional', () => {
   for (const rel of TOOL_SURFACES) {
     it(`${rel} carries no warm cream/sage/coral classes`, () => {
       expect(read(rel)).not.toMatch(WARM_CLASS);
@@ -69,12 +100,43 @@ describe('palette boundary: tool surfaces are cool-institutional', () => {
   });
 });
 
-describe('palette boundary: marketing surfaces stay warm-editorial', () => {
+describe('palette: marketing surfaces are cool-institutional too (no warm/cool hybrid)', () => {
   for (const rel of MARKETING_SURFACES) {
-    it(`${rel} still uses the warm cream/sage/coral register`, () => {
-      expect(read(rel)).toMatch(WARM_CLASS);
+    it(`${rel} carries no warm cream/sage/coral classes`, () => {
+      expect(read(rel)).not.toMatch(WARM_CLASS);
     });
   }
+
+  it('landing, product, and case-study main containers sit on bg-tool', () => {
+    for (const rel of ['src/app/page.js', 'src/app/product/page.js', 'src/app/case-study/page.js']) {
+      expect(read(rel)).toContain('min-h-screen bg-tool');
+    }
+  });
+
+  it('the root layout and globals body background are cool, not cream', () => {
+    expect(read('src/app/layout.js')).toContain('bg-tool');
+    expect(read('src/app/layout.js')).not.toMatch(WARM_CLASS);
+    expect(read('src/app/globals.css')).toContain('bg-tool');
+    expect(read('src/app/globals.css')).not.toContain('bg-cream');
+  });
+
+  it('marketing primary CTAs are brand-blue, not coral', () => {
+    for (const rel of MARKETING_CTA_SURFACES) {
+      const src = read(rel);
+      expect(src).toContain('bg-brand-blue');
+      expect(src).not.toContain('coral');
+    }
+  });
+
+  it('the hero illustration uses cool fills (slate frame, brand-blue accent)', () => {
+    const src = read('src/components/landing/Hero.js');
+    expect(src).toContain('#E2E8F0'); // slate-200 frame
+    expect(src).toContain('#2962E0'); // brand-blue accent
+    // No warm hex fills survive (sage #DCEBDE family, coral #F46E54, cream #FBF8F3).
+    expect(src).not.toContain('#DCE8DE');
+    expect(src).not.toContain('#F46E54');
+    expect(src).not.toContain('#52835D');
+  });
 });
 
 describe('severity color regression: block disposition is red, not coral', () => {
