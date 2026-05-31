@@ -10,8 +10,15 @@ import {
   listCustomClassifiers,
   listPatterns,
 } from '@/lib/data/custom-patterns';
+import { listReports, scopeForOrg } from '@/lib/data';
 import ClassifierStatusBadge from '../classifiers/StatusBadge';
 import PatternStatusBadge from '../patterns/StatusBadge';
+import AudienceBadge from '../reports/AudienceBadge';
+import {
+  recentReports,
+  formatReportDate,
+  truncateEvaluationId,
+} from '../reports/model';
 import { buildDashboardModel } from './model';
 
 export const dynamic = 'force-dynamic';
@@ -27,15 +34,28 @@ async function loadList(fetcher, orgId) {
   }
 }
 
+// Reports load on the same fail-open contract. Scoped via the evaluation FK
+// (scopeForOrg): a real org scopes strictly, the synthesized portfolio org sees
+// every report. Without a provisioned data layer getClient() throws, so this
+// lands an empty list + unavailable flag rather than 500-ing the dashboard.
+async function loadReports(org) {
+  try {
+    return { items: await listReports(scopeForOrg(org)), unavailable: false };
+  } catch {
+    return { items: [], unavailable: true };
+  }
+}
+
 export default async function AppDashboardPage() {
   const org = await getOrganization();
   // Middleware guarantees a session, but if the organization cannot be resolved
   // there is nothing to scope to -- send the user back through signup.
   if (!org) redirect('/signup?redirect=/app/dashboard');
 
-  const [classifierResult, patternResult] = await Promise.all([
+  const [classifierResult, patternResult, reportResult] = await Promise.all([
     loadList(listCustomClassifiers, org.id),
     loadList(listPatterns, org.id),
+    loadReports(org),
   ]);
 
   const model = buildDashboardModel({
@@ -43,7 +63,11 @@ export default async function AppDashboardPage() {
     classifiers: classifierResult.items,
     patterns: patternResult.items,
   });
-  const unavailable = classifierResult.unavailable || patternResult.unavailable;
+  const recentReportRows = recentReports(reportResult.items);
+  const unavailable =
+    classifierResult.unavailable ||
+    patternResult.unavailable ||
+    reportResult.unavailable;
 
   return (
     <main className="min-h-screen bg-tool text-slate-800 px-6 py-12">
@@ -72,7 +96,7 @@ export default async function AppDashboardPage() {
           </div>
         )}
 
-        <div className="mt-6 grid gap-5 md:grid-cols-2">
+        <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           <DashboardCard
             title="Your custom classifiers"
             count={model.classifiers.count}
@@ -126,6 +150,41 @@ export default async function AppDashboardPage() {
                         {p.name}
                       </span>
                       <PatternStatusBadge status={p.status} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DashboardCard>
+
+          <DashboardCard
+            title="Your reports"
+            count={reportResult.items.length}
+            seeAllHref="/app/reports"
+          >
+            {recentReportRows.length === 0 ? (
+              <EmptyState
+                description="Reports turn evaluations into audience-tailored summaries. Run an evaluation in the Evaluator to generate your first."
+                cta="Open the evaluator"
+                href="/evaluator"
+              />
+            ) : (
+              <ul className="space-y-2">
+                {recentReportRows.map((r) => (
+                  <li key={r.id}>
+                    <Link
+                      href={`/app/reports/${r.id}`}
+                      className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 hover:border-slate-300"
+                    >
+                      <span className="flex min-w-0 flex-col">
+                        <span className="text-sm font-medium text-slate-900">
+                          {formatReportDate(r.generated_at)}
+                        </span>
+                        <span className="truncate font-mono text-xs text-slate-500">
+                          eval {truncateEvaluationId(r.evaluation_id)}
+                        </span>
+                      </span>
+                      <AudienceBadge audience={r.audience} />
                     </Link>
                   </li>
                 ))}
