@@ -12,14 +12,14 @@ Mechanically, each input runs through five stages: Stage 0 turn parser (normaliz
 
 Generative AI scales fraud — one of the clearest near-term harms, with the most legible victim arc. The interesting policy work here is not at the bright headlines but in deciding what counts as bright-line versus aggregate-scored evidence, how to keep ontology stable while disposition policy evolves, and which gaps a real adversarial corpus surfaces that a clean test set won't. The same evaluation motion I have run for five years in trust & safety and risk control, written here against an AI safety surface area — the analytical work is the same.
 
-SafeEval is built as a parallel-tracks framework: policy, design, engineering, QA, and architect each operate as separate sessions with their own briefs, handing off through inbox files and a global state document. The framework memo, the atomic amendments (seven shipped as numbered amendments within the framework memo itself), and the cross-cutting policy memos (PII zero-storage, OSINT monitoring, audience-tailored reports, synthetic media detection, classifier-edits feedback loop) are all in `docs/memos/`. The implementation work was done end-to-end with Claude and Cursor as the engineering surface, named here because this is an AI policy domain and fluency with that tooling is part of the work.
+SafeEval is built as a parallel-tracks framework: policy, design, engineering, QA, and architect each operate as separate sessions with their own briefs, handing off through inbox files and a global state document. The framework memo, the atomic amendments (seven shipped of eight numbered amendments within the framework memo itself), and the cross-cutting policy memos (PII zero-storage, OSINT monitoring, audience-tailored reports, synthetic media detection, classifier-edits feedback loop) are all in `docs/memos/`. The implementation work was done end-to-end with Claude and Cursor as the engineering surface, named here because this is an AI policy domain and fluency with that tooling is part of the work.
 
 ---
 
 ## Further reading
 
 1. [Policy review case study](./docs/policy-reviews/index.md) — eight real fraud cases run through the v5 ontology; the case-study-driven amendments that shipped as ontology 5.2 and the one structural follow-up the QA pass surfaced.
-2. [Parallel-tracks framework memo](./docs/memos/2026-05-24-parallel-cowork-tracks.md) — the coordination spec the project runs on. The seven shipped atomic amendments are recorded as numbered amendments within the memo itself; each amendment has an originating scoping memo cross-linked from the changelog.
+2. [Parallel-tracks framework memo](./docs/memos/2026-05-24-parallel-cowork-tracks.md) — the coordination spec the project runs on. The seven shipped atomic amendments (of eight numbered) are recorded as numbered amendments within the memo itself; each amendment has an originating scoping memo cross-linked from the changelog.
 3. [Four-dimension ontology-separation memo](./docs/memos/2026-05-27-four-dimension-ontology-separation.md) — splits the PROMPT_SUMMARY card into four orthogonal closed-set dimensions (typology, persona, pretext, contact context) with explicit IC3 / FTC / NIST alignment.
 4. [Policy spec](./docs/policy-spec-v5.0.md) and [per-typology threat models](./docs/threat-models/) — the authoritative v5 policy spec plus the nine typology-specific threat models that drive Stage 2 evidence extraction.
 5. [OSINT monitoring scoping memo](./docs/memos/2026-05-28-osint-monitoring-scoping.md) — the threat-intel watcher's scoping memo: where emerging-TTP signal comes from, what the retention posture is, how it feeds candidate L3 vocabulary.
@@ -37,7 +37,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The app listens on `http://localhost:3000` -- the home page is the marketing landing surface; the v5 evaluator UI is at `http://localhost:3000/evaluator`. The single API route is `POST /api/evaluate` and takes `{ prompt: string }`; see `src/app/api/evaluate/route.js` for the shape. The classifier engine is `src/lib/safeeval-v5.js`; the docs/code lockstep validator is `scripts/check-lockstep.js` and runs in CI.
+The app listens on `http://localhost:3000` -- the home page is the marketing landing surface; the v5 evaluator UI is at `http://localhost:3000/evaluator`. The primary API route is `POST /api/evaluate`, which branches on input shape: the legacy `{ prompt: string }`, an `{ input: { kind: "prompt" | "conversation", ... } }` envelope, and `multipart/form-data` for image/audio media uploads; see `src/app/api/evaluate/route.js` for the branching. A second route, `GET /api/evaluations`, returns paginated evaluation history (`src/app/api/evaluations/route.js`). The classifier engine is `src/lib/safeeval-v5.js`; the docs/code lockstep validator is `scripts/check-lockstep.js` and runs in CI.
 
 On Windows with OneDrive, run `git config core.filemode false` after cloning to suppress phantom executable-bit flips in `git status`.
 

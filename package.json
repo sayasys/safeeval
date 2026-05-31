@@ -2,6 +2,16 @@
   "name": "safeeval",
   "version": "1.0.0",
   "private": true,
+  "description": "An end-to-end fraud safeguard evaluation system: a versioned policy schema, a five-stage classifier, and an enforcement cascade.",
+  "keywords": [
+    "trust-and-safety",
+    "ai-safety",
+    "fraud",
+    "policy",
+    "classifier",
+    "content-moderation",
+    "nextjs"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
