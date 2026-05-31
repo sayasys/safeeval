@@ -4,7 +4,7 @@
 const SIGNALS = [
   {
     value: '908',
-    sub: 'Tests passing in CI',
+    sub: 'Tests passing on every commit',
   },
   {
     value: 'Zero',

@@ -121,7 +121,7 @@ describe('depth: text-heavy sections carry an illustrative glyph', () => {
     // strong fact leads at display scale.
     const src = read('src/components/landing/TrustSignals.js');
     expect(src).toContain('text-5xl md:text-6xl');
-    expect(src).toContain('177');
+    expect(src).toContain('908');
     expect(src).not.toContain('shadow-card');
   });
   it('the landing case-study preview shows a stat block', () => {
