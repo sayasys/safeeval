@@ -61,6 +61,9 @@ function makeMockClient(overrides: Partial<{
     }),
     incrementReportCacheHit: vi.fn(async () => {}),
     insertLegalAccessLog: vi.fn(async () => {}),
+    getReportById: vi.fn(async () => null),
+    listReportsByOrganization: vi.fn(async () => []),
+    listAllReports: vi.fn(async () => []),
     capturedRows,
     capturedOrganizationIds,
   };

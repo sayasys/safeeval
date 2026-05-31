@@ -40,8 +40,16 @@ export type {
   EvaluationRow,
   InsertReportRow,
   ReportRow,
+  ReportListRow,
   ReportAudienceColumn,
 } from './db-client';
+
+export {
+  listReports,
+  getReport,
+  scopeForOrg,
+} from './reports';
+export type { ReportScope } from './reports';
 
 export type {
   V5Envelope,

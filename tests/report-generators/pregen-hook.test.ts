@@ -47,6 +47,9 @@ function makeMockClient(insertId = 'eval_42'): DbClientSurface {
     insertReportRecord: vi.fn(),
     incrementReportCacheHit: vi.fn(),
     insertLegalAccessLog: vi.fn(),
+    getReportById: vi.fn(async () => null),
+    listReportsByOrganization: vi.fn(async () => []),
+    listAllReports: vi.fn(async () => []),
   };
   return surface;
 }

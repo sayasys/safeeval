@@ -105,6 +105,17 @@ export interface ReportRow {
   cache_hit_count: number;
 }
 
+// Lightweight row for the reports list view. Omits the markdown body (which can
+// be large and is only needed by the detail view) so the list query stays
+// cheap. The reports table carries no organization_id of its own; org scoping
+// is resolved through the evaluation FK (see listReportsByOrganization).
+export interface ReportListRow {
+  id: string;
+  evaluation_id: string;
+  audience: ReportAudienceColumn;
+  generated_at: string;
+}
+
 export interface EvaluationRow {
   id: string;
   // Owning organization (UUID FK). Surfaced so callers can org-scope access --
@@ -179,6 +190,20 @@ export interface DbClientSurface {
   ): Promise<ReportRow | null>;
   insertReportRecord(row: InsertReportRow): Promise<ReportRow>;
   incrementReportCacheHit(report_id: string): Promise<void>;
+
+  // Reports list/detail read surface (report-gen surfacing, 2026-05-30).
+  // The reports table has no organization_id; org-scoped listing joins through
+  // the evaluations FK. getReportById fetches a single full row (markdown
+  // included) for the detail view; the caller resolves org scoping via
+  // getEvaluation against the row's evaluation_id (see src/lib/data/reports.ts).
+  getReportById(report_id: string): Promise<ReportRow | null>;
+  listReportsByOrganization(
+    organization_id: string,
+    limit?: number,
+  ): Promise<ReportListRow[]>;
+  // Unscoped list for the single-tenant portfolio (the synthesized personal
+  // org carries no evaluation rows to scope against). Newest first.
+  listAllReports(limit?: number): Promise<ReportListRow[]>;
 
   // Legal-access audit log (report-gen Phase 3, migration M10).
   insertLegalAccessLog(row: InsertLegalAccessLogRow): Promise<void>;
@@ -410,6 +435,62 @@ export function makeClient(raw: SupabaseClient): DbClientSurface {
       }
     },
 
+    async getReportById(report_id: string): Promise<ReportRow | null> {
+      const { data, error } = await raw
+        .from('reports')
+        .select('id, evaluation_id, audience, report_prompt_hash, markdown, generated_at, cache_hit_count')
+        .eq('id', report_id)
+        .maybeSingle();
+      if (error) {
+        throw new DbClientError(`getReportById failed: ${error.message}`, { cause: error });
+      }
+      if (!data) return null;
+      return {
+        id: String(data.id),
+        evaluation_id: String(data.evaluation_id),
+        audience: data.audience as ReportAudienceColumn,
+        report_prompt_hash: data.report_prompt_hash,
+        markdown: data.markdown,
+        generated_at: data.generated_at,
+        cache_hit_count: data.cache_hit_count ?? 0,
+      };
+    },
+
+    async listReportsByOrganization(
+      organization_id: string,
+      limit = 200,
+    ): Promise<ReportListRow[]> {
+      // The reports table has no organization_id; scope via the evaluations FK
+      // with a PostgREST inner-join embed. `evaluations!inner(organization_id)`
+      // restricts to reports whose evaluation belongs to the org, and the
+      // embedded-column filter applies the org id.
+      const { data, error } = await raw
+        .from('reports')
+        .select('id, evaluation_id, audience, generated_at, evaluations!inner(organization_id)')
+        .eq('evaluations.organization_id', organization_id)
+        .order('generated_at', { ascending: false })
+        .limit(limit);
+      if (error) {
+        throw new DbClientError(
+          `listReportsByOrganization failed: ${error.message}`,
+          { cause: error },
+        );
+      }
+      return mapReportListRows(data);
+    },
+
+    async listAllReports(limit = 200): Promise<ReportListRow[]> {
+      const { data, error } = await raw
+        .from('reports')
+        .select('id, evaluation_id, audience, generated_at')
+        .order('generated_at', { ascending: false })
+        .limit(limit);
+      if (error) {
+        throw new DbClientError(`listAllReports failed: ${error.message}`, { cause: error });
+      }
+      return mapReportListRows(data);
+    },
+
     async insertLegalAccessLog(row: InsertLegalAccessLogRow): Promise<void> {
       const { error } = await raw.from('legal_access_log').insert({
         user_id: row.user_id,
@@ -448,6 +529,19 @@ export function makeClient(raw: SupabaseClient): DbClientSurface {
       }
     },
   };
+}
+
+// Map raw report list rows to the ReportListRow shape. Tolerates the embedded
+// `evaluations` join object PostgREST returns on the org-scoped query (it is
+// selected only to drive the inner join / filter and is discarded here).
+function mapReportListRows(data: unknown): ReportListRow[] {
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => ({
+    id: String(row.id),
+    evaluation_id: String(row.evaluation_id),
+    audience: row.audience as ReportAudienceColumn,
+    generated_at: row.generated_at,
+  }));
 }
 
 interface SupabaseLikeError {
