@@ -79,6 +79,18 @@ export async function detectAudio(
     });
 
     if (!res.ok) {
+      // Surface the real upstream failure to Vercel function logs (ERROR
+      // level). HF returns a JSON body explaining the status -- e.g.
+      // {"error":"Model ... is currently loading"} on 503 cold-start, or an
+      // auth message on 401/403. The body never contains the token (the
+      // Authorization header is request-side only), so it is safe to log.
+      const bodyText = await res.text().catch(() => '<unreadable body>');
+      console.error('[media-detection:audio] HF inference returned non-OK', {
+        model_id: modelId,
+        status: res.status,
+        status_text: res.statusText,
+        body: bodyText.slice(0, 1000),
+      });
       return {
         is_synthetic: 0,
         confidence: 0,
@@ -132,6 +144,24 @@ export async function detectAudio(
     const isAbort =
       (err instanceof Error && err.name === 'AbortError') ||
       message.includes('aborted');
+    // Surface the real failure to Vercel function logs (ERROR level). A bare
+    // "fetch failed" from undici hides the actual reason (DNS, TLS, connection
+    // reset, etc.) inside err.cause -- log it so a network-level failure is
+    // distinguishable from auth / cold-start. The Authorization header is
+    // never part of the error object, so nothing here leaks the token.
+    if (!isAbort) {
+      const cause = err instanceof Error ? err.cause : undefined;
+      console.error('[media-detection:audio] HF inference fetch threw', {
+        model_id: modelId,
+        name: err instanceof Error ? err.name : typeof err,
+        message,
+        cause:
+          cause instanceof Error
+            ? { name: cause.name, message: cause.message, code: (cause as { code?: unknown }).code }
+            : cause,
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+    }
     return {
       is_synthetic: 0,
       confidence: 0,

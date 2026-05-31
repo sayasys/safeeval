@@ -2,7 +2,7 @@
 // fetchImpl dependency-injection seam on DetectorOptions; no real HF call.
 // ascii-safe.
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {
   detectImage,
@@ -164,5 +164,69 @@ describe('detectImage -- error paths', () => {
     expect(result.error).toMatch(/timed out/i);
     expect(result.is_synthetic).toBe(0);
     expect(result.latency_ms).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('detectImage -- diagnostic logging (no token leak)', () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  it('logs the upstream status + body on a non-OK response', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response('{"error":"Model is currently loading"}', {
+        status: 503,
+        statusText: 'Service Unavailable',
+      });
+    await detectImage(URL_ARTIFACT, { fetchImpl });
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const [msg, detail] = errorSpy.mock.calls[0]!;
+    expect(String(msg)).toMatch(/non-OK/i);
+    expect(detail).toMatchObject({ status: 503 });
+    expect(JSON.stringify(detail)).toContain('currently loading');
+  });
+
+  it('logs the real cause when fetch rejects with a bare "fetch failed"', async () => {
+    const fetchImpl: typeof fetch = async () => {
+      const e = new Error('fetch failed');
+      (e as { cause?: unknown }).cause = Object.assign(
+        new Error('getaddrinfo ENOTFOUND api-inference.huggingface.co'),
+        { code: 'ENOTFOUND' }
+      );
+      throw e;
+    };
+    const result = await detectImage(URL_ARTIFACT, { fetchImpl });
+    expect(result.error).toBe('fetch failed');
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const [msg, detail] = errorSpy.mock.calls[0]!;
+    expect(String(msg)).toMatch(/threw/i);
+    expect(JSON.stringify(detail)).toContain('ENOTFOUND');
+  });
+
+  it('does not log the bearer token in any diagnostic output', async () => {
+    process.env.HF_API_TOKEN = 'hf_supersecret_should_never_appear';
+    const fetchImpl: typeof fetch = async () =>
+      new Response('upstream down', { status: 500, statusText: 'Internal Server Error' });
+    await detectImage(URL_ARTIFACT, { fetchImpl });
+    const logged = errorSpy.mock.calls.map((c) => JSON.stringify(c)).join(' ');
+    expect(logged).not.toContain('hf_supersecret_should_never_appear');
+  });
+
+  it('does not log on a timeout/abort (already-clear error)', async () => {
+    const fetchImpl: typeof fetch = async (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const e = new Error('The operation was aborted');
+          e.name = 'AbortError';
+          reject(e);
+        });
+      });
+    await detectImage(URL_ARTIFACT, { fetchImpl, timeoutMs: 25 });
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });
