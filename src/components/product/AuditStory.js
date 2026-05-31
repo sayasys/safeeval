@@ -17,7 +17,22 @@ export default function AuditStory() {
 
         <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="rounded-3xl bg-white p-8 shadow-card border border-slate-200 transition-shadow hover:shadow-lift">
-            <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-brand-blue">
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 8h.01M11 12h1v4h1" />
+              </svg>
+            </span>
+            <h3 className="mt-4 text-lg font-semibold text-slate-900 tracking-tight">
               Why it matters
             </h3>
             <p className="mt-3 text-base text-slate-700 leading-relaxed">
@@ -28,7 +43,22 @@ export default function AuditStory() {
             </p>
           </div>
           <div className="rounded-3xl bg-white p-8 shadow-card border border-slate-200 transition-shadow hover:shadow-lift">
-            <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-brand-blue">
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <path d="M8 9h8M8 13h8M8 17h5" />
+              </svg>
+            </span>
+            <h3 className="mt-4 text-lg font-semibold text-slate-900 tracking-tight">
               What gets logged
             </h3>
             <ul className="mt-3 space-y-2 text-base text-slate-700 leading-relaxed">

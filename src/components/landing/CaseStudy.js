@@ -19,6 +19,29 @@ export default function CaseStudy() {
             borderline case on a single example that surfaced a gap in what we
             were tracking, and the policy update closed it.
           </p>
+
+          <div className="mt-8 grid grid-cols-3 gap-4 border-t border-slate-200 pt-8">
+            <div>
+              <div className="text-3xl font-semibold tracking-tight text-brand-blue">
+                8
+              </div>
+              <div className="mt-1 text-sm text-slate-500">cases evaluated</div>
+            </div>
+            <div>
+              <div className="text-3xl font-semibold tracking-tight text-brand-blue">
+                2
+              </div>
+              <div className="mt-1 text-sm text-slate-500">updates shipped</div>
+            </div>
+            <div>
+              <div className="text-3xl font-semibold tracking-tight text-brand-blue">
+                1
+              </div>
+              <div className="mt-1 text-sm text-slate-500">
+                follow-up in progress
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="mt-10">

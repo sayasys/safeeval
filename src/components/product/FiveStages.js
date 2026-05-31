@@ -26,6 +26,42 @@ const STAGES = [
   },
 ];
 
+// One line glyph per stage, matched to its job: read, triage, analyze,
+// classify, decide. Inline SVG (currentColor) -- house style, cool palette,
+// no new dependency.
+function StageIcon({ index }) {
+  const props = {
+    className: 'h-5 w-5',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': true,
+  };
+  const paths = [
+    <g key="0">
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 8h6M9 12h6M9 16h4" />
+    </g>,
+    <path key="1" d="M4 5h16l-6 7v6l-4 2v-8z" />,
+    <g key="2">
+      <circle cx="11" cy="11" r="6" />
+      <path d="M20 20l-4-4" />
+    </g>,
+    <g key="3">
+      <path d="M4 13l7-7h7v7l-7 7z" />
+      <circle cx="14.5" cy="9.5" r="1.2" />
+    </g>,
+    <g key="4">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M9 12l2 2 4-4" />
+    </g>,
+  ];
+  return <svg {...props}>{paths[index] || paths[0]}</svg>;
+}
+
 export default function FiveStages() {
   return (
     <section className="py-24 bg-white">
@@ -41,17 +77,20 @@ export default function FiveStages() {
         </div>
 
         <div className="space-y-6">
-          {STAGES.map(stage => (
+          {STAGES.map((stage, i) => (
             <div
               key={stage.label}
               className="rounded-3xl bg-white p-8 shadow-card border border-slate-200 transition-shadow hover:shadow-lift"
             >
               <div className="md:flex md:items-start md:gap-8">
                 <div className="md:w-48 md:flex-shrink-0">
-                  <div className="text-xs font-semibold tracking-wide text-brand-blue uppercase">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-brand-blue">
+                    <StageIcon index={i} />
+                  </span>
+                  <div className="mt-3 text-xs font-semibold tracking-wide text-brand-blue uppercase">
                     {stage.label}
                   </div>
-                  <div className="mt-2 text-xl font-semibold text-slate-900 tracking-tight">
+                  <div className="mt-1 text-xl font-semibold text-slate-900 tracking-tight">
                     {stage.title}
                   </div>
                 </div>
