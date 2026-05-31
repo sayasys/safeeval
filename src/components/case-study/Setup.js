@@ -1,6 +1,6 @@
 export default function Setup() {
   return (
-    <section className="py-24 bg-cream-100">
+    <section className="py-24 bg-tool">
       <div className="max-w-5xl mx-auto px-6">
         <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
           What we did
@@ -38,7 +38,7 @@ export default function Setup() {
 
 function SetupCard({ title, body }) {
   return (
-    <div className="rounded-3xl bg-white p-8 shadow-soft border border-sage-100">
+    <div className="rounded-3xl bg-white p-8 shadow-soft border border-slate-200">
       <h3 className="text-xl font-semibold text-slate-900 tracking-tight">
         {title}
       </h3>

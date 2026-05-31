@@ -14,7 +14,7 @@ export const metadata = {
 
 export default function CaseStudyPage() {
   return (
-    <main className="min-h-screen bg-cream-50 text-slate-800">
+    <main className="min-h-screen bg-tool text-slate-800">
       <Nav />
       <CaseStudyHero />
       <Setup />

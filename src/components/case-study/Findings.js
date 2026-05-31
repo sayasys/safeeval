@@ -1,6 +1,6 @@
 export default function Findings() {
   return (
-    <section className="py-24 bg-cream-50">
+    <section className="py-24 bg-tool">
       <div className="max-w-5xl mx-auto px-6">
         <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
           What we found
@@ -58,7 +58,7 @@ function Finding({ number, title, body }) {
   return (
     <div className="md:flex md:items-start md:gap-8">
       <div className="md:w-24 md:flex-shrink-0">
-        <div className="text-3xl font-semibold tracking-tight text-sage-500">
+        <div className="text-3xl font-semibold tracking-tight text-brand-blue">
           {number}
         </div>
       </div>

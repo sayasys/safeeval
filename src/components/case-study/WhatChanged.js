@@ -1,7 +1,7 @@
 export default function WhatChanged() {
   return (
     <>
-      <section className="py-24 bg-cream-100">
+      <section className="py-24 bg-tool">
         <div className="max-w-5xl mx-auto px-6">
           <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
             What worked
@@ -25,7 +25,7 @@ export default function WhatChanged() {
         </div>
       </section>
 
-      <section className="py-24 bg-cream-50">
+      <section className="py-24 bg-tool">
         <div className="max-w-5xl mx-auto px-6">
           <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
             What didn&apos;t work
@@ -46,7 +46,7 @@ export default function WhatChanged() {
         </div>
       </section>
 
-      <section className="py-24 bg-cream-100">
+      <section className="py-24 bg-tool">
         <div className="max-w-5xl mx-auto px-6">
           <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
             What changed
@@ -80,7 +80,7 @@ export default function WhatChanged() {
 
 function Change({ title, body }) {
   return (
-    <div className="rounded-3xl bg-white p-8 md:p-10 shadow-soft border border-sage-100">
+    <div className="rounded-3xl bg-white p-8 md:p-10 shadow-soft border border-slate-200">
       <h3 className="text-2xl font-semibold text-slate-900 tracking-tight">
         {title}
       </h3>
@@ -91,8 +91,8 @@ function Change({ title, body }) {
 
 function Outcome({ label, children }) {
   return (
-    <div className="rounded-3xl bg-white p-8 md:p-10 shadow-soft border border-sage-100">
-      <span className="text-xs font-semibold tracking-widest text-sage-600">
+    <div className="rounded-3xl bg-white p-8 md:p-10 shadow-soft border border-slate-200">
+      <span className="text-xs font-semibold tracking-widest text-brand-blue">
         {label}
       </span>
       <p className="mt-4 text-base text-slate-700 leading-relaxed">{children}</p>
