@@ -66,13 +66,13 @@ export function parseInline(text: string): InlineToken[] {
     }
     const m = best.m;
     if (best.type === 'link') {
-      tokens.push({ type: 'link', value: m[1], href: m[2] });
+      tokens.push({ type: 'link', value: m[1] ?? '', href: m[2] ?? '' });
     } else if (best.type === 'italic') {
-      tokens.push({ type: 'italic', value: m[1] ?? m[2] });
+      tokens.push({ type: 'italic', value: m[1] ?? m[2] ?? '' });
     } else if (best.type === 'bold') {
-      tokens.push({ type: 'bold', value: m[1] });
+      tokens.push({ type: 'bold', value: m[1] ?? '' });
     } else {
-      tokens.push({ type: 'code', value: m[1] });
+      tokens.push({ type: 'code', value: m[1] ?? '' });
     }
     rest = rest.slice(best.index + m[0].length);
   }
@@ -89,10 +89,13 @@ const OL_RE = /^\s*\d+\.\s+(.*)$/;
 export function parseBlocks(markdown: string): Block[] {
   const lines = (markdown || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const blocks: Block[] = [];
+  // Bounds-checked accessor: every read is guarded by i < lines.length at the
+  // call site, but the strict-index flag needs the undefined coalesced away.
+  const lineAt = (n: number): string => lines[n] ?? '';
   let i = 0;
 
   while (i < lines.length) {
-    const line = lines[i];
+    const line = lineAt(i);
 
     if (line.trim() === '') {
       i++;
@@ -103,8 +106,8 @@ export function parseBlocks(markdown: string): Block[] {
     if (line.trim().startsWith('```')) {
       const body: string[] = [];
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith('```')) {
-        body.push(lines[i]);
+      while (i < lines.length && !lineAt(i).trim().startsWith('```')) {
+        body.push(lineAt(i));
         i++;
       }
       if (i < lines.length) i++; // consume closing fence
@@ -114,7 +117,11 @@ export function parseBlocks(markdown: string): Block[] {
 
     const heading = HEADING_RE.exec(line);
     if (heading) {
-      blocks.push({ type: 'heading', level: heading[1].length, text: heading[2].trim() });
+      blocks.push({
+        type: 'heading',
+        level: (heading[1] ?? '').length,
+        text: (heading[2] ?? '').trim(),
+      });
       i++;
       continue;
     }
@@ -127,8 +134,8 @@ export function parseBlocks(markdown: string): Block[] {
 
     if (line.trimStart().startsWith('>')) {
       const quote: string[] = [];
-      while (i < lines.length && lines[i].trimStart().startsWith('>')) {
-        quote.push(lines[i].replace(/^\s*>\s?/, ''));
+      while (i < lines.length && lineAt(i).trimStart().startsWith('>')) {
+        quote.push(lineAt(i).replace(/^\s*>\s?/, ''));
         i++;
       }
       blocks.push({ type: 'blockquote', text: quote.join('\n') });
@@ -137,8 +144,8 @@ export function parseBlocks(markdown: string): Block[] {
 
     if (UL_RE.test(line)) {
       const items: string[] = [];
-      while (i < lines.length && UL_RE.test(lines[i])) {
-        items.push(UL_RE.exec(lines[i])![1].trim());
+      while (i < lines.length && UL_RE.test(lineAt(i))) {
+        items.push((UL_RE.exec(lineAt(i))?.[1] ?? '').trim());
         i++;
       }
       blocks.push({ type: 'ul', items });
@@ -147,8 +154,8 @@ export function parseBlocks(markdown: string): Block[] {
 
     if (OL_RE.test(line)) {
       const items: string[] = [];
-      while (i < lines.length && OL_RE.test(lines[i])) {
-        items.push(OL_RE.exec(lines[i])![1].trim());
+      while (i < lines.length && OL_RE.test(lineAt(i))) {
+        items.push((OL_RE.exec(lineAt(i))?.[1] ?? '').trim());
         i++;
       }
       blocks.push({ type: 'ol', items });
@@ -158,7 +165,7 @@ export function parseBlocks(markdown: string): Block[] {
     // Paragraph: gather until a blank line or the start of another block.
     const para: string[] = [];
     while (i < lines.length) {
-      const l = lines[i];
+      const l = lineAt(i);
       if (
         l.trim() === '' ||
         l.trim().startsWith('```') ||
