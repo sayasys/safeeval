@@ -1,8 +1,8 @@
 export default function FeedbackStory() {
   return (
-    <section className="py-24 bg-cream-100">
+    <section className="py-24 bg-tool">
       <div className="max-w-5xl mx-auto px-6">
-        <div className="text-sm font-semibold tracking-wide text-sage-700 uppercase">
+        <div className="text-sm font-semibold tracking-wide text-slate-500 uppercase">
           Reviewer feedback
         </div>
         <h2 className="mt-6 text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
@@ -45,8 +45,8 @@ export default function FeedbackStory() {
 
 function FlowStep({ number, title, body }) {
   return (
-    <div className="rounded-3xl bg-white p-6 md:p-8 shadow-soft border border-sage-100 flex items-start gap-6">
-      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-sage-100 text-sage-700 font-semibold text-lg flex items-center justify-center">
+    <div className="rounded-3xl bg-white p-6 md:p-8 shadow-soft border border-slate-200 flex items-start gap-6">
+      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-50 text-brand-blue font-semibold text-lg flex items-center justify-center">
         {number}
       </div>
       <div>

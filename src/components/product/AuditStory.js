@@ -1,8 +1,8 @@
 export default function AuditStory() {
   return (
-    <section className="py-24 bg-cream-50">
+    <section className="py-24 bg-tool">
       <div className="max-w-5xl mx-auto px-6">
-        <div className="text-sm font-semibold tracking-wide text-sage-700 uppercase">
+        <div className="text-sm font-semibold tracking-wide text-slate-500 uppercase">
           Every decision is traceable
         </div>
         <h2 className="mt-6 text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
@@ -16,7 +16,7 @@ export default function AuditStory() {
         </p>
 
         <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="rounded-3xl bg-sage-50 p-8 border border-sage-100">
+          <div className="rounded-3xl bg-white p-8 border border-slate-200">
             <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
               Why it matters
             </h3>
@@ -27,7 +27,7 @@ export default function AuditStory() {
               decision and the audit.
             </p>
           </div>
-          <div className="rounded-3xl bg-sage-50 p-8 border border-sage-100">
+          <div className="rounded-3xl bg-white p-8 border border-slate-200">
             <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
               What gets logged
             </h3>

@@ -28,7 +28,7 @@ const STAGES = [
 
 export default function FiveStages() {
   return (
-    <section className="py-24 bg-cream-100">
+    <section className="py-24 bg-tool">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl mb-16">
           <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
@@ -44,11 +44,11 @@ export default function FiveStages() {
           {STAGES.map(stage => (
             <div
               key={stage.label}
-              className="rounded-3xl bg-white p-8 shadow-soft border border-sage-100"
+              className="rounded-3xl bg-white p-8 shadow-soft border border-slate-200"
             >
               <div className="md:flex md:items-start md:gap-8">
                 <div className="md:w-48 md:flex-shrink-0">
-                  <div className="text-xs font-semibold tracking-wide text-sage-700 uppercase">
+                  <div className="text-xs font-semibold tracking-wide text-brand-blue uppercase">
                     {stage.label}
                   </div>
                   <div className="mt-2 text-xl font-semibold text-slate-900 tracking-tight">
