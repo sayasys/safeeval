@@ -11,7 +11,7 @@
 // video stub, and unit tests.
 //
 // Phase 2 lands: Stage 0 routing wire-up in src/lib/safeeval-v5.js, the
-// Gemini 1.5 Flash reasoning fallback on the ambiguous detector-score band
+// Gemini 2.5 Flash reasoning fallback on the ambiguous detector-score band
 // (0.4-0.6), and Stage 3 reason-code emission of media_likely_synthetic when
 // the configurable threshold trips. Per Steven's Q1 adjudication the Stage 2
 // FAF prompt is NOT touched in Phase 2 (deferred out of Demo tier);

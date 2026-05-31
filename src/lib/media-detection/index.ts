@@ -2,7 +2,7 @@
 //
 // Phase 1 shipped the per-modality detectors (image, audio, video stub)
 // plus the routing dispatch detectMedia(). Phase 2 (this revision) wires
-// the Gemini 1.5 Flash reasoning fallback on the ambiguous-band detector
+// the Gemini 2.5 Flash reasoning fallback on the ambiguous-band detector
 // score (0.4-0.6) per Steven's Q3 adjudication and the implementation
 // spec section 6.
 //

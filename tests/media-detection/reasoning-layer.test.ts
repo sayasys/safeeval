@@ -1,4 +1,4 @@
-// Unit tests for the Gemini 1.5 Flash reasoning fallback (Phase 2).
+// Unit tests for the Gemini 2.5 Flash reasoning fallback (Phase 2).
 //
 // Mocks fetch via the fetchImpl DI seam on DetectorOptions; no real Gemini
 // call. Covers: happy path, ambiguous-band gating (delegated to index.ts but

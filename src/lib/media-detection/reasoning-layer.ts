@@ -1,4 +1,4 @@
-// Gemini 1.5 Flash reasoning fallback for ambiguous synthetic-media
+// Gemini 2.5 Flash reasoning fallback for ambiguous synthetic-media
 // detector scores (Phase 2).
 //
 // Implementation spec:
@@ -32,7 +32,7 @@ import type {
 } from './types';
 import { DEFAULT_DETECTOR_TIMEOUT_MS } from './types';
 
-export const REASONING_MODEL_ID = 'gemini-1.5-flash';
+export const REASONING_MODEL_ID = 'gemini-2.5-flash';
 
 const GEMINI_ENDPOINT = (apiKey: string): string =>
   `https://generativelanguage.googleapis.com/v1beta/models/${REASONING_MODEL_ID}:generateContent?key=${encodeURIComponent(apiKey)}`;

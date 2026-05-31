@@ -38,7 +38,7 @@ describe('deriveMediaVerdict -- reasoning verdict wins when present', () => {
   it('maps reasoning likely_synthetic -> likely_synthetic', () => {
     const v = deriveMediaVerdict(base({
       is_synthetic: 0.5,
-      reasoning: { verdict: 'likely_synthetic', confidence: 0.8, reasoning: 'glossy skin, no pores', model_id: 'gemini-1.5-flash' },
+      reasoning: { verdict: 'likely_synthetic', confidence: 0.8, reasoning: 'glossy skin, no pores', model_id: 'gemini-2.5-flash' },
     }));
     expect(v.verdict).toBe('likely_synthetic');
     expect(v.label).toBe('Likely AI-generated');
@@ -49,7 +49,7 @@ describe('deriveMediaVerdict -- reasoning verdict wins when present', () => {
   it('maps reasoning likely_real -> likely_human', () => {
     const v = deriveMediaVerdict(base({
       is_synthetic: 0.5,
-      reasoning: { verdict: 'likely_real', confidence: 0.7, reasoning: 'natural lens grain', model_id: 'gemini-1.5-flash' },
+      reasoning: { verdict: 'likely_real', confidence: 0.7, reasoning: 'natural lens grain', model_id: 'gemini-2.5-flash' },
     }));
     expect(v.verdict).toBe('likely_human');
     expect(v.label).toBe('Likely human-generated');
@@ -58,7 +58,7 @@ describe('deriveMediaVerdict -- reasoning verdict wins when present', () => {
   it('maps reasoning still_ambiguous -> uncertain', () => {
     const v = deriveMediaVerdict(base({
       is_synthetic: 0.5,
-      reasoning: { verdict: 'still_ambiguous', confidence: 0, reasoning: 'cannot decide', model_id: 'gemini-1.5-flash' },
+      reasoning: { verdict: 'still_ambiguous', confidence: 0, reasoning: 'cannot decide', model_id: 'gemini-2.5-flash' },
     }));
     expect(v.verdict).toBe('uncertain');
     expect(v.label).toBe('Uncertain -- see reasoning below');
