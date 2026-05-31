@@ -62,6 +62,18 @@ export interface ReasoningResult {
   model_id: string;
 }
 
+// A single raw label/score pair from the HF Inference API classification
+// response. The detectors compute the full sorted list internally to pick the
+// synthetic-class score + top-class confidence; surfacing the list (additive,
+// optional) lets the verdict layer describe "what the detector saw" -- the
+// runner-up labels beyond the top entry. Absent on the error path and on any
+// detector that does not produce a label list (the field is optional so a
+// detector-only envelope without it still validates). ascii-safe.
+export interface MediaClassification {
+  label: string;
+  score: number;
+}
+
 // Phase 1 + Phase 2 result shape. Mirrors the schema delta one-for-one. The
 // error field is set when the detector was unreachable, rejected the input,
 // or returned a malformed response -- downstream stages MUST treat a present
@@ -80,6 +92,12 @@ export interface MediaDetectionResult {
   error?: string;
   reasoning?: ReasoningResult;
   reason_codes_emitted?: string[];
+  // Additive (rich-media-card chain, brief 0089). The raw label/score list the
+  // upstream detector returned, sorted highest-score-first. The top entry is
+  // the detector's leading class; entries beyond it are the runner-up labels
+  // the verdict layer surfaces as detector_reasoning. Optional: absent on the
+  // error path and on detectors that do not emit a label list.
+  classifications?: readonly MediaClassification[];
 }
 
 // Detector options. timeoutMs is the hard cap on the upstream API call; the

@@ -31,6 +31,8 @@ const V5_PARSER = path.join(ROOT, 'src', 'lib', 'conversation-parser.js');
 const V5_SCHEMA = path.join(ROOT, 'tests', 'schema', 'v5-envelope.schema.json');
 const V5_SCHEMA_DOC = path.join(ROOT, 'docs', '07-v5-schema.md');
 const V5_ONTOLOGY_DOC = path.join(ROOT, 'docs', '08-v5-ontology.md');
+const POLICY_SPEC_DOC = path.join(ROOT, 'docs', 'policy-spec-v5.0.md');
+const MEDIA_VERDICT_TS = path.join(ROOT, 'src', 'lib', 'media-evaluator', 'verdict.ts');
 const V5_THREAT_MODEL = path.join(ROOT, 'docs', 'threat-models', '09-ai-enabled-abuse.md');
 const CLASSIFIER_DISPLAY_MEMO = path.join(ROOT, 'docs', 'memos', '2026-05-26-policy-v5-classifier-display-vocabulary.md');
 const CONVERSATION_EVAL_MEMO  = path.join(ROOT, 'docs', 'memos', '2026-05-28-policy-conversation-eval-vocabulary.md');
@@ -1975,6 +1977,189 @@ function checkSeverityBlockColorRegression() {
   return ok;
 }
 
+// --- Media-detection rich-verdict lockstep (brief 0089) ---------------------
+//
+// The rich synthetic-media result card carries a closed-set "what the detector
+// saw" tag stack (7 image + 5 audio per docs/08-v5-ontology.md section 3.18)
+// and a recommended_disposition derived from (verdict, band, tags) per
+// docs/policy-spec-v5.0.md section 13.2. The engine-side mirrors are
+// IMAGE_TAGS / AUDIO_TAGS / SYNTHESIS_INDICATOR_TAGS / EngineDisposition in
+// src/lib/media-evaluator/verdict.ts. These two checks assert the engine
+// constants match the canonical doc surfaces.
+//
+// Sequencing: the ontology section 3.18 + policy-spec section 13 content land
+// via a separate doc commit-bounce (briefs 0090a / 0091a) that can trail the
+// engine commit (brief 0089). To stay green across that ordering, the doc-side
+// parse is OPPORTUNISTIC -- when the section is absent the check logs a notice
+// and passes; when present it MUST agree (so a real drift still fails). The
+// engine-constant existence + verdict.ts-internal closed sets are checked
+// unconditionally. Mirrors the CLASSIFIER_DISPLAY_MEMO opportunistic pattern.
+
+// Extract a markdown table's first-column backticked tokens between a start
+// marker and an end marker. Handles the #### subsection boundaries in section
+// 3.18 that the shared ## / ### -aware extractor does not. Returns null when
+// the start marker is absent (doc section not landed yet).
+function extractTableLabelsBetween(docSrc, startMarker, endMarker) {
+  const startIdx = docSrc.indexOf(startMarker);
+  if (startIdx === -1) return null;
+  let endIdx = docSrc.indexOf(endMarker, startIdx + startMarker.length);
+  if (endIdx === -1) endIdx = docSrc.length;
+  const slice = docSrc.slice(startIdx, endIdx);
+  const labels = new Set();
+  const reRow = /^\s*\|\s*`([a-z_]+)`\s*\|/gm;
+  let rm;
+  while ((rm = reRow.exec(slice)) !== null) labels.add(rm[1]);
+  return Array.from(labels);
+}
+
+// Extract the string-literal members of a TS union type declaration:
+//   export type EngineDisposition = 'allow' | 'safe_completion' | ... ;
+function extractTsTypeUnionLiterals(src, typeName) {
+  const re = new RegExp('export\\s+type\\s+' + typeName + '\\s*=([\\s\\S]*?);');
+  const m = src.match(re);
+  if (!m) throw new Error('TS type union missing: ' + typeName);
+  const lits = [];
+  const reLit = /'([a-z_]+)'/g;
+  let lm;
+  while ((lm = reLit.exec(m[1])) !== null) lits.push(lm[1]);
+  return lits;
+}
+
+function checkMediaTagLockstep() {
+  let totalMisses = 0;
+  let verdictSrc;
+  try {
+    verdictSrc = fs.readFileSync(MEDIA_VERDICT_TS, 'utf-8');
+  } catch (e) {
+    console.error('FAIL media-tag: cannot read ' + MEDIA_VERDICT_TS + ': ' + e.message);
+    return false;
+  }
+
+  let engineImage = null;
+  let engineAudio = null;
+  try { engineImage = extractEngineLabelArray(verdictSrc, 'IMAGE_TAGS'); }
+  catch (e) { console.error('FAIL media-tag IMAGE_TAGS: ' + e.message); totalMisses++; }
+  try { engineAudio = extractEngineLabelArray(verdictSrc, 'AUDIO_TAGS'); }
+  catch (e) { console.error('FAIL media-tag AUDIO_TAGS: ' + e.message); totalMisses++; }
+  if (engineImage) console.log('Found ' + engineImage.length + ' IMAGE_TAGS in verdict.ts');
+  if (engineAudio) console.log('Found ' + engineAudio.length + ' AUDIO_TAGS in verdict.ts');
+
+  let ontologySrc = null;
+  if (fs.existsSync(V5_ONTOLOGY_DOC)) ontologySrc = fs.readFileSync(V5_ONTOLOGY_DOC, 'utf-8');
+  const ontologyImage = ontologySrc
+    ? extractTableLabelsBetween(ontologySrc, '#### 3.18.1 Image tags', '#### 3.18.2')
+    : null;
+  const ontologyAudio = ontologySrc
+    ? extractTableLabelsBetween(ontologySrc, '#### 3.18.2 Audio tags', '#### 3.18.3')
+    : null;
+
+  if (ontologyImage === null && ontologyAudio === null) {
+    console.log('media-tag lockstep: ontology section 3.18 absent (engine landed ahead of the doc commit-bounce; doc-side check deferred). Engine constants present.');
+  } else {
+    if (engineImage && ontologyImage && !setsEqual(engineImage, ontologyImage)) {
+      totalMisses++;
+      console.error('LOCKSTEP FAIL IMAGE_TAGS (verdict.ts vs ontology 3.18.1):');
+      const ex1 = setDiff(engineImage, ontologyImage);
+      const ex2 = setDiff(ontologyImage, engineImage);
+      if (ex1.length > 0) console.error('  verdict.ts has but ontology lacks: ' + ex1.join(', '));
+      if (ex2.length > 0) console.error('  ontology (canonical) has but verdict.ts lacks: ' + ex2.join(', '));
+    } else if (engineImage && ontologyImage) {
+      console.log('OK IMAGE_TAGS (' + engineImage.length + ' values; verdict.ts = ontology 3.18.1)');
+    }
+    if (engineAudio && ontologyAudio && !setsEqual(engineAudio, ontologyAudio)) {
+      totalMisses++;
+      console.error('LOCKSTEP FAIL AUDIO_TAGS (verdict.ts vs ontology 3.18.2):');
+      const ex1 = setDiff(engineAudio, ontologyAudio);
+      const ex2 = setDiff(ontologyAudio, engineAudio);
+      if (ex1.length > 0) console.error('  verdict.ts has but ontology lacks: ' + ex1.join(', '));
+      if (ex2.length > 0) console.error('  ontology (canonical) has but verdict.ts lacks: ' + ex2.join(', '));
+    } else if (engineAudio && ontologyAudio) {
+      console.log('OK AUDIO_TAGS (' + engineAudio.length + ' values; verdict.ts = ontology 3.18.2)');
+    }
+  }
+
+  if (totalMisses > 0) {
+    console.error('');
+    console.error('Media-detection tag lockstep failed with ' + totalMisses + ' miss(es).');
+    console.error('IMAGE_TAGS + AUDIO_TAGS in src/lib/media-evaluator/verdict.ts must mirror docs/08-v5-ontology.md section 3.18.1 / 3.18.2 (the doc is canonical).');
+    return false;
+  }
+  console.log('Media-detection tag lockstep passed.');
+  return true;
+}
+
+function checkMediaRecommendedDispositionLockstep() {
+  let totalMisses = 0;
+  let verdictSrc;
+  try {
+    verdictSrc = fs.readFileSync(MEDIA_VERDICT_TS, 'utf-8');
+  } catch (e) {
+    console.error('FAIL media-disposition: cannot read ' + MEDIA_VERDICT_TS + ': ' + e.message);
+    return false;
+  }
+
+  // (a) EngineDisposition union must equal the section-6 4-verb closed set.
+  // (The card derivation only reaches allow/human_review/block, but the field
+  // is typed to the full 4-verb set; section 13.2 rationale.)
+  const EXPECTED_VERBS = ['allow', 'safe_completion', 'human_review', 'block'];
+  let engineVerbs = null;
+  try { engineVerbs = extractTsTypeUnionLiterals(verdictSrc, 'EngineDisposition'); }
+  catch (e) { console.error('FAIL EngineDisposition: ' + e.message); totalMisses++; }
+  if (engineVerbs && !setsEqual(engineVerbs, EXPECTED_VERBS)) {
+    totalMisses++;
+    console.error('LOCKSTEP FAIL EngineDisposition: expected 4-verb set {' + EXPECTED_VERBS.join(', ') + '}; got {' + engineVerbs.join(', ') + '}');
+  } else if (engineVerbs) {
+    console.log('OK EngineDisposition (4-verb engine set)');
+  }
+
+  // (b) SYNTHESIS_INDICATOR_TAGS must mirror the policy-spec section 13.2
+  // "Synthesis-indicator tag set" list (opportunistic -- spec section 13
+  // content trails via the doc commit-bounce).
+  let engineSynth = null;
+  try { engineSynth = extractEngineLabelArray(verdictSrc, 'SYNTHESIS_INDICATOR_TAGS'); }
+  catch (e) { console.error('FAIL SYNTHESIS_INDICATOR_TAGS: ' + e.message); totalMisses++; }
+
+  let specSynth = null;
+  if (fs.existsSync(POLICY_SPEC_DOC)) {
+    const specSrc = fs.readFileSync(POLICY_SPEC_DOC, 'utf-8');
+    // The spec bolds the phrase with the word in quotes: **"Synthesis-indicator" tag set:**
+    const marker = 'Synthesis-indicator" tag set:**';
+    const mi = specSrc.indexOf(marker);
+    if (mi >= 0) {
+      const after = specSrc.slice(mi + marker.length);
+      const stop = after.indexOf('The remaining');
+      const sentence = stop >= 0 ? after.slice(0, stop) : after.slice(0, 500);
+      const tags = [];
+      const reLit = /`([a-z_]+)`/g;
+      let lm;
+      while ((lm = reLit.exec(sentence)) !== null) tags.push(lm[1]);
+      specSynth = tags;
+    }
+  }
+
+  if (specSynth === null) {
+    console.log('media-disposition lockstep: policy-spec section 13.2 synthesis-indicator list absent (doc commit-bounce trails the engine commit; doc-side check deferred). Engine constant present.');
+  } else if (engineSynth && !setsEqual(engineSynth, specSynth)) {
+    totalMisses++;
+    console.error('LOCKSTEP FAIL SYNTHESIS_INDICATOR_TAGS (verdict.ts vs policy-spec 13.2):');
+    const ex1 = setDiff(engineSynth, specSynth);
+    const ex2 = setDiff(specSynth, engineSynth);
+    if (ex1.length > 0) console.error('  verdict.ts has but spec lacks: ' + ex1.join(', '));
+    if (ex2.length > 0) console.error('  spec (canonical) has but verdict.ts lacks: ' + ex2.join(', '));
+  } else if (engineSynth && specSynth) {
+    console.log('OK SYNTHESIS_INDICATOR_TAGS (' + engineSynth.length + ' values; verdict.ts = policy-spec 13.2)');
+  }
+
+  if (totalMisses > 0) {
+    console.error('');
+    console.error('Media recommended_disposition lockstep failed with ' + totalMisses + ' miss(es).');
+    console.error('EngineDisposition + SYNTHESIS_INDICATOR_TAGS in src/lib/media-evaluator/verdict.ts must mirror docs/policy-spec-v5.0.md section 13.2 (the doc is canonical).');
+    return false;
+  }
+  console.log('Media recommended_disposition lockstep passed.');
+  return true;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -2005,7 +2190,11 @@ function main() {
   const promotionFeedbackVocabOk = checkPromotionFeedbackVocabularyLockstep();
   console.log('');
   const severityBlockColorOk = checkSeverityBlockColorRegression();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk || !orgRoleOk || !customPatternGroupsOk || !promotionFeedbackVocabOk || !severityBlockColorOk) {
+  console.log('');
+  const mediaTagOk = checkMediaTagLockstep();
+  console.log('');
+  const mediaDispositionOk = checkMediaRecommendedDispositionLockstep();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk || !orgRoleOk || !customPatternGroupsOk || !promotionFeedbackVocabOk || !severityBlockColorOk || !mediaTagOk || !mediaDispositionOk) {
     process.exit(1);
   }
   console.log('');
@@ -2029,6 +2218,8 @@ if (typeof module !== 'undefined' && module.exports) {
     checkCustomPatternGroupsLockstep: checkCustomPatternGroupsLockstep,
     checkPromotionFeedbackVocabularyLockstep: checkPromotionFeedbackVocabularyLockstep,
     checkSeverityBlockColorRegression: checkSeverityBlockColorRegression,
+    checkMediaTagLockstep: checkMediaTagLockstep,
+    checkMediaRecommendedDispositionLockstep: checkMediaRecommendedDispositionLockstep,
   };
 }
 

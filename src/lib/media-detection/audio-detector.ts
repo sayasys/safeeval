@@ -148,11 +148,17 @@ export async function detectAudio(
     const scores = items.map((d) => d.score);
     const confidence = scores.length > 0 ? Math.max(...scores) : 0;
 
+    // Surface the full label list (highest score first) so the verdict layer
+    // can describe the runner-up labels as detector_reasoning. Additive, brief
+    // 0089; downstream consumers treat the field as optional.
+    const classifications = [...items].sort((a, b) => b.score - a.score);
+
     return {
       is_synthetic,
       confidence,
       model_id: modelId,
       latency_ms: Date.now() - start,
+      classifications,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

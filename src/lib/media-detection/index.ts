@@ -47,6 +47,7 @@ import {
 export type {
   DetectorOptions,
   MediaArtifact,
+  MediaClassification,
   MediaDetectionResult,
   MediaType,
   ReasoningResult,
