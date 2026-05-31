@@ -22,22 +22,22 @@ export default function CaseStudy() {
 
           <div className="mt-8 grid grid-cols-3 gap-4 border-t border-slate-200 pt-8">
             <div>
-              <div className="text-3xl font-semibold tracking-tight text-brand-blue">
+              <div className="text-4xl md:text-5xl font-semibold tracking-tight text-brand-blue leading-none">
                 8
               </div>
-              <div className="mt-1 text-sm text-slate-500">cases evaluated</div>
+              <div className="mt-2 text-sm text-slate-500">cases evaluated</div>
             </div>
             <div>
-              <div className="text-3xl font-semibold tracking-tight text-brand-blue">
+              <div className="text-4xl md:text-5xl font-semibold tracking-tight text-brand-blue leading-none">
                 2
               </div>
-              <div className="mt-1 text-sm text-slate-500">updates shipped</div>
+              <div className="mt-2 text-sm text-slate-500">updates shipped</div>
             </div>
             <div>
-              <div className="text-3xl font-semibold tracking-tight text-brand-blue">
+              <div className="text-4xl md:text-5xl font-semibold tracking-tight text-brand-blue leading-none">
                 1
               </div>
-              <div className="mt-1 text-sm text-slate-500">
+              <div className="mt-2 text-sm text-slate-500">
                 follow-up in progress
               </div>
             </div>

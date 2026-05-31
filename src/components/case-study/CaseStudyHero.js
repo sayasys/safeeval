@@ -15,6 +15,32 @@ export default function CaseStudyHero() {
             cleanly. Six pushed against the edges and motivated a concrete
             change to the policy.
           </p>
+
+          {/* Anchor data point for the page: the three numbers that frame the
+              whole study, at hero scale. */}
+          <dl className="mt-12 grid grid-cols-3 gap-6 sm:gap-10 max-w-2xl border-t border-slate-200 pt-10">
+            <div>
+              <dt className="sr-only">Cases evaluated</dt>
+              <dd className="text-6xl font-semibold tracking-tight text-brand-blue leading-none">
+                8
+              </dd>
+              <p className="mt-3 text-sm text-slate-500">cases evaluated</p>
+            </div>
+            <div>
+              <dt className="sr-only">Updates shipped</dt>
+              <dd className="text-6xl font-semibold tracking-tight text-brand-blue leading-none">
+                2
+              </dd>
+              <p className="mt-3 text-sm text-slate-500">updates shipped</p>
+            </div>
+            <div>
+              <dt className="sr-only">Follow-up in progress</dt>
+              <dd className="text-6xl font-semibold tracking-tight text-brand-blue leading-none">
+                1
+              </dd>
+              <p className="mt-3 text-sm text-slate-500">follow-up in progress</p>
+            </div>
+          </dl>
         </div>
       </div>
     </section>
