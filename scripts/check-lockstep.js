@@ -1930,6 +1930,50 @@ function checkPromotionFeedbackVocabularyLockstep(rootDir) {
   return true;
 }
 
+// Severity-color regression guard (2026-05-30 cool-institutional palette
+// migration). The v5 block disposition must render in the red family (red-600
+// == #DC2626) and never reuse brand coral. Coral was double-duty (brand CTA +
+// danger) before the migration; on tool surfaces the danger role moved to red
+// and coral is now marketing-only. This guard fails if the block disposition
+// regresses to coral or drops out of the red family, and if the disposition
+// config as a whole reintroduces coral.
+const EVALUATOR_PAGE = path.join(ROOT, 'src', 'app', 'evaluator', 'page.js');
+
+function checkSeverityBlockColorRegression() {
+  const src = fs.readFileSync(EVALUATOR_PAGE, 'utf-8');
+  let ok = true;
+
+  const cfgIdx = src.indexOf('V5_ACTION_CONFIG');
+  if (cfgIdx === -1) {
+    console.error('FAIL severity-block color guard: V5_ACTION_CONFIG not found in evaluator page');
+    return false;
+  }
+  const blockIdx = src.indexOf('block:', cfgIdx);
+  if (blockIdx === -1) {
+    console.error('FAIL severity-block color guard: block disposition entry not found');
+    return false;
+  }
+  const blockEntry = src.slice(blockIdx, blockIdx + 240);
+
+  if (blockEntry.includes('coral')) {
+    console.error('LOCKSTEP FAIL: block disposition uses coral; it must render in the red family (#DC2626).');
+    ok = false;
+  }
+  if (!/bg-red-/.test(blockEntry) || !/border-red-/.test(blockEntry) || !/text-red-/.test(blockEntry)) {
+    console.error('LOCKSTEP FAIL: block disposition must use the red family (bg-red-/border-red-/text-red-).');
+    ok = false;
+  }
+  if (/coral/.test(src.slice(cfgIdx, cfgIdx + 1200))) {
+    console.error('LOCKSTEP FAIL: V5_ACTION_CONFIG references coral; disposition tiers must stay in the semantic green/amber/yellow/red set.');
+    ok = false;
+  }
+
+  if (ok) {
+    console.log('OK severity-block color guard (block disposition is red-family, coral-free).');
+  }
+  return ok;
+}
+
 function main() {
   const docCodeOk = checkDocCodeLockstep();
   console.log('');
@@ -1958,7 +2002,9 @@ function main() {
   const customPatternGroupsOk = checkCustomPatternGroupsLockstep();
   console.log('');
   const promotionFeedbackVocabOk = checkPromotionFeedbackVocabularyLockstep();
-  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk || !orgRoleOk || !customPatternGroupsOk || !promotionFeedbackVocabOk) {
+  console.log('');
+  const severityBlockColorOk = checkSeverityBlockColorRegression();
+  if (!docCodeOk || !schemaEngineOk || !classifierDisplayOk || !conversationEvalOk || !caseStudyOk || !discriminatorOk || !conditionalForcedL2Ok || !audienceOk || !editableFieldsOk || !rationaleTagOk || !editorRoleOk || !orgRoleOk || !customPatternGroupsOk || !promotionFeedbackVocabOk || !severityBlockColorOk) {
     process.exit(1);
   }
   console.log('');
@@ -1981,6 +2027,7 @@ if (typeof module !== 'undefined' && module.exports) {
     checkOrgRoleLockstep: checkOrgRoleLockstep,
     checkCustomPatternGroupsLockstep: checkCustomPatternGroupsLockstep,
     checkPromotionFeedbackVocabularyLockstep: checkPromotionFeedbackVocabularyLockstep,
+    checkSeverityBlockColorRegression: checkSeverityBlockColorRegression,
   };
 }
 

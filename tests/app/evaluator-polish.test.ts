@@ -5,7 +5,7 @@
 //   - the layout swaps nav by auth state and frames the page with the shared Footer
 //   - the landing Nav carries an optional current-tab highlight
 //   - the page leads with a hero H1 + plain-language copy, free of the old jargon
-//   - the example chips are labelled and the CTA is the coral "Run evaluation"
+//   - the example chips are labelled and the CTA is the brand-blue "Run evaluation"
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
