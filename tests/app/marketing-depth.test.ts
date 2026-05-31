@@ -28,11 +28,12 @@ describe('depth: the cool elevation ramp is defined', () => {
 });
 
 // Cards that should read as lifted surfaces, not painted-on flat blocks.
+// TrustSignals is intentionally absent: the 2026-05-30 polish converted it from
+// four icon-cards into a chrome-free, number-led proof strip (guarded below).
 const ELEVATED_CARD_SURFACES = [
   'src/components/landing/HowItWorks.js',
   'src/components/landing/Features.js',
   'src/components/landing/CaseStudy.js',
-  'src/components/landing/TrustSignals.js',
   'src/components/product/FiveStages.js',
   'src/components/product/AuditStory.js',
   'src/components/product/FeedbackStory.js',
@@ -111,9 +112,17 @@ describe('depth: text-heavy sections carry an illustrative glyph', () => {
     expect(read('src/components/landing/HowItWorks.js')).toContain('StageIcon');
     expect(read('src/components/product/FiveStages.js')).toContain('StageIcon');
   });
-  it('trust signals and setup cards render a per-card icon', () => {
-    expect(read('src/components/landing/TrustSignals.js')).toContain('SignalIcon');
+  it('the setup cards render a per-card icon', () => {
     expect(read('src/components/case-study/Setup.js')).toContain('SetupIcon');
+  });
+  it('the trust signals read as a number-led proof strip', () => {
+    // The 2026-05-30 polish replaced the four labelled icon-cards with
+    // number-led proof statements: no card chrome, no per-card glyph, the
+    // strong fact leads at display scale.
+    const src = read('src/components/landing/TrustSignals.js');
+    expect(src).toContain('text-5xl md:text-6xl');
+    expect(src).toContain('177');
+    expect(src).not.toContain('shadow-card');
   });
   it('the landing case-study preview shows a stat block', () => {
     expect(read('src/components/landing/CaseStudy.js')).toContain('cases evaluated');
