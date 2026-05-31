@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ShieldCheck, UserRound, Ban, TriangleAlert, X, Plus, MoreVertical, Upload, Sparkles, HelpCircle } from 'lucide-react';
+import { Check, ShieldCheck, UserRound, Ban, TriangleAlert, X, Plus, MoreVertical, Upload, Sparkles, HelpCircle, Music, Image as ImageIcon } from 'lucide-react';
 import { deriveMediaVerdict } from '@/lib/media-evaluator/verdict';
 import {
   validateMediaFile,
@@ -12,7 +12,7 @@ import {
   AUDIO_FORMATS_LABEL,
   maxLabelFor,
 } from '@/lib/media-evaluator/upload';
-import { samplesForMode } from '@/lib/media-evaluator/samples';
+import { samplesForMode, SAMPLE_MEDIA } from '@/lib/media-evaluator/samples';
 import GenerateReportPanel from '../app/reports/GenerateReportPanel';
 
 // Bright-line descriptions. MUST stay in sync with BRIGHT_LINE_FEATURES in
@@ -673,13 +673,19 @@ export default function Home() {
   // confirmDialog: 4-scenario switch confirmation (null=closed).
   // tipsOpen: "Show formatting tips" disclosure.
   // sonnetEscalating: flag to render the right Stage 0 status line.
-  // mode: 'prompt' | 'conversation' | 'image' | 'audio'. The media modes
-  // (image/audio) drive the synthetic-media detection tabs.
+  // mode: 'prompt' | 'conversation' | 'media'. The 'media' mode drives the
+  // unified Synthetic media detection tab (image + audio in one drop zone).
+  // Legacy ?mode=image / ?mode=audio map to 'media' so old bookmarks keep
+  // working after the image/audio tab convergence; ?tab= is accepted as an
+  // alias for ?mode= for the same reason.
   const [mode, setMode] = useState(() => {
     if (typeof window === 'undefined') return 'prompt';
     try {
-      const m = new URLSearchParams(window.location.search).get('mode');
-      return (m === 'conversation' || m === 'image' || m === 'audio') ? m : 'prompt';
+      const params = new URLSearchParams(window.location.search);
+      const raw = (params.get('mode') || params.get('tab') || '').toLowerCase();
+      if (raw === 'conversation') return 'conversation';
+      if (raw === 'media' || raw === 'image' || raw === 'audio') return 'media';
+      return 'prompt';
     } catch (e) {
       return 'prompt';
     }
@@ -808,11 +814,27 @@ export default function Home() {
     setMediaDragHover(false);
   }
 
-  // Adopt a picked / fetched media blob: validate, build a fresh preview URL,
-  // and clear any prior result. forMode is the tab the file is being loaded
-  // into ('image' | 'audio').
-  function setMediaSelection(blob, name, mime, forMode) {
-    const v = validateMediaFile({ name: name || '', type: mime || (blob && blob.type) || '', size: (blob && blob.size) || 0 }, forMode);
+  // Classify a picked / fetched file into the detector kind ('image' | 'audio')
+  // from its MIME type, falling back to the filename extension when the blob
+  // reports an empty type. This is what makes the unified drop zone auto-route:
+  // the user drops any file and the kind is derived here, not from a tab choice.
+  function detectMediaKind(mime, name) {
+    const t = (mime || '').toLowerCase();
+    if (t.indexOf('image/') === 0) return 'image';
+    if (t.indexOf('audio/') === 0) return 'audio';
+    const lower = (name || '').toLowerCase();
+    if (/\.(png|jpe?g|webp|gif)$/.test(lower)) return 'image';
+    if (/\.(mp3|wav|m4a|ogg)$/.test(lower)) return 'audio';
+    return 'image';
+  }
+
+  // Adopt a picked / fetched media blob: derive its kind from the MIME type,
+  // validate against that kind's caps, build a fresh preview URL, and clear any
+  // prior result. No tab hint -- the kind is inferred from the file itself.
+  function setMediaSelection(blob, name, mime) {
+    const resolvedMime = mime || (blob && blob.type) || '';
+    const kind = detectMediaKind(resolvedMime, name);
+    const v = validateMediaFile({ name: name || '', type: resolvedMime, size: (blob && blob.size) || 0 }, kind);
     if (!v.ok) {
       setMediaError(v.error);
       return;
@@ -823,8 +845,8 @@ export default function Home() {
     let urlObj = '';
     try { urlObj = URL.createObjectURL(blob); } catch (e) { urlObj = ''; }
     setMediaBlob(blob);
-    setMediaName(name || (forMode === 'audio' ? 'audio-clip' : 'image'));
-    setMediaMimeType(mime || (blob && blob.type) || '');
+    setMediaName(name || (kind === 'audio' ? 'audio-clip' : 'image'));
+    setMediaMimeType(resolvedMime);
     setMediaPreviewUrl(urlObj);
     setMediaResult(null);
     setMediaError('');
@@ -832,7 +854,7 @@ export default function Home() {
 
   function handleMediaFile(file) {
     if (!file) return;
-    setMediaSelection(file, file.name, file.type, mode);
+    setMediaSelection(file, file.name, file.type);
   }
 
   async function loadSampleMedia(sample) {
@@ -841,20 +863,21 @@ export default function Home() {
       const res = await fetch(sample.src);
       if (!res.ok) throw new Error('fetch failed');
       const blob = await res.blob();
-      setMediaSelection(blob, sample.filename, blob.type || sample.mime, sample.mode);
+      setMediaSelection(blob, sample.filename, blob.type || sample.mime);
     } catch (e) {
       setMediaError('Could not load the sample file. Try uploading your own.');
     }
   }
 
   async function handleEvaluateMedia() {
-    if (!mediaBlob || (mode !== 'image' && mode !== 'audio')) return;
+    if (!mediaBlob || mode !== 'media') return;
+    const kind = detectMediaKind(mediaMimeType, mediaName);
     setMediaLoading(true);
     setMediaError('');
     setMediaResult(null);
     try {
       const form = new FormData();
-      form.append('media_type', mode);
+      form.append('media_type', kind);
       form.append('file', mediaBlob, mediaName || 'upload');
       const res = await fetch('/api/evaluate', { method: 'POST', body: form });
       const data = await res.json().catch(() => ({}));
@@ -875,15 +898,14 @@ export default function Home() {
   // section 19.3; the media tabs add their own discard messages.
   function modeLabel(target) {
     if (target === 'conversation') return 'conversation evaluation';
-    if (target === 'image') return 'image evaluation';
-    if (target === 'audio') return 'audio evaluation';
+    if (target === 'media') return 'synthetic media detection';
     return 'prompt evaluation';
   }
 
   function clearModeInput(sourceMode) {
     if (sourceMode === 'prompt') { setPrompt(''); return; }
     if (sourceMode === 'conversation') { resetConversationInputState(); return; }
-    if (sourceMode === 'image' || sourceMode === 'audio') { resetMediaInputState(); return; }
+    if (sourceMode === 'media') { resetMediaInputState(); return; }
   }
 
   // Returns a discard-confirm message for the current mode, or null when there
@@ -904,11 +926,11 @@ export default function Home() {
       if (convText.trim().length > 0) return 'Switching modes will discard the text you typed. Switch anyway?';
       return null;
     }
-    if (mode === 'image' || mode === 'audio') {
+    if (mode === 'media') {
       if (mediaBlob) {
-        return mode === 'audio'
+        return detectMediaKind(mediaMimeType, mediaName) === 'audio'
           ? 'Switching modes will discard the audio you selected. Switch anyway?'
-          : 'Switching modes will discard the image you selected. Switch anyway?';
+          : 'Switching modes will discard the file you selected. Switch anyway?';
       }
       return null;
     }
@@ -1295,9 +1317,11 @@ export default function Home() {
   const v5ModelsRun = v5 && Array.isArray(v5.model_pipeline) ? v5.model_pipeline.length : 0;
   const v5StagesRun = Math.min(v5ModelsRun || STAGE_LABELS.length, Object.keys(stageConfidences).length || STAGE_LABELS.length);
 
-  // Media modes (image / audio) render their own input panel and result card,
-  // independent of the v5 fraud-disposition pipeline above.
-  const isMediaMode = mode === 'image' || mode === 'audio';
+  // The unified media mode renders its own input panel and result card,
+  // independent of the v5 fraud-disposition pipeline above. mediaKind is the
+  // detector kind derived from the selected file's MIME ('image' | 'audio').
+  const isMediaMode = mode === 'media';
+  const mediaKind = detectMediaKind(mediaMimeType, mediaName);
   const regionBusy = isMediaMode ? mediaLoading : loading;
 
   return (
@@ -1306,7 +1330,7 @@ export default function Home() {
           <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-slate-900 leading-[1.1]">
             Evaluate a prompt
           </h1>
-          {mode !== 'image' && mode !== 'audio' && (
+          {mode !== 'media' && (
             <>
               <p className="mt-5 text-lg text-slate-700 leading-relaxed">
                 Paste a prompt to see how SafeEval classifies it. It reads the prompt,
@@ -1344,9 +1368,9 @@ export default function Home() {
               onEvaluate={handleEvaluate}
               error={error}
             />
-          ) : mode === 'image' || mode === 'audio' ? (
+          ) : mode === 'media' ? (
             <MediaInput
-              mode={mode}
+              mediaKind={mediaKind}
               mediaBlob={mediaBlob}
               mediaName={mediaName}
               mediaPreviewUrl={mediaPreviewUrl}
@@ -1445,13 +1469,13 @@ export default function Home() {
               <path strokeLinecap="round" d="M12 3v3M12 18v3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M3 12h3M18 12h3M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
             </svg>
             <span className="text-sm text-slate-700">
-              Running detection on your {mode === 'audio' ? 'audio clip' : 'image'}...
+              Running detection on your {mediaKind === 'audio' ? 'audio clip' : 'image'}...
             </span>
           </div>
         )}
 
         {isMediaMode && !mediaLoading && mediaResult && (
-          <MediaResult result={mediaResult} mediaType={mode} />
+          <MediaResult result={mediaResult} mediaType={mediaKind} />
         )}
 
         {isMediaMode && !mediaLoading && !mediaResult && (
@@ -2691,8 +2715,7 @@ function TriggerRow({ label, items, chipClass, descriptions }) {
 const MODE_TABS = [
   { mode: 'prompt', id: 'mode-tab-prompt', panel: 'mode-panel-prompt', long: 'Evaluate a prompt', short: 'Prompt' },
   { mode: 'conversation', id: 'mode-tab-conv', panel: 'mode-panel-conv', long: 'Evaluate a conversation', short: 'Conversation' },
-  { mode: 'image', id: 'mode-tab-image', panel: 'mode-panel-image', long: 'Evaluate an image', short: 'Image' },
-  { mode: 'audio', id: 'mode-tab-audio', panel: 'mode-panel-audio', long: 'Evaluate audio', short: 'Audio' },
+  { mode: 'media', id: 'mode-tab-media', panel: 'mode-panel-media', long: 'Synthetic media', short: 'Media' },
 ];
 
 function ModeSwitch({ mode, onRequestSwitch }) {
@@ -3556,39 +3579,37 @@ function SenderAttribution({ arcSignals, perTurn, classification, modalityHint }
   );
 }
 
-// --- Synthetic-media tabs (image / audio) ----------------------------------
+// --- Synthetic-media tab (unified image + audio) ---------------------------
 
-const MEDIA_TAB_COPY = {
-  image: {
-    subheading: 'Upload an image to check whether it was AI-generated. SafeEval runs it through sdxl-detector and falls back to a reasoning model when the confidence is ambiguous.',
-    dropPrompt: 'Drop an image here, or click to choose a file',
-    pickAria: 'Upload an image to evaluate',
-    accept: IMAGE_ACCEPT,
-    formats: IMAGE_FORMATS_LABEL,
-    panelId: 'mode-panel-image',
-    tabId: 'mode-tab-image',
-  },
-  audio: {
-    subheading: 'Upload an audio file to check for synthetic speech. SafeEval runs it through Deepfake-audio-V2 with the same ambiguous-band reasoning fallback.',
-    dropPrompt: 'Drop an audio file here, or click to choose a file',
-    pickAria: 'Upload an audio file to evaluate',
-    accept: AUDIO_ACCEPT,
-    formats: AUDIO_FORMATS_LABEL,
-    panelId: 'mode-panel-audio',
-    tabId: 'mode-tab-audio',
-  },
+// One accept list spanning both image and audio so the single drop zone takes
+// either; the kind is auto-detected from the dropped file's MIME type.
+const MEDIA_ACCEPT_ATTR = IMAGE_ACCEPT + ',' + AUDIO_ACCEPT;
+
+// Copy for the unified Synthetic media tab. No per-mode table any more -- the
+// kind is detected from the file, not chosen by a tab. ascii-safe.
+const MEDIA_COPY = {
+  subheading: 'Upload an image or audio clip to check whether it was likely AI-generated or captured by a human. The file type is detected automatically -- both run an open-source detector and, in ambiguous cases, a reasoning-model second opinion.',
+  dropPrompt: 'Drop an image or audio file here, or click to choose',
+  pickAria: 'Upload an image or audio file for synthetic-media detection',
+  accept: MEDIA_ACCEPT_ATTR,
+  formats: 'Images: PNG, JPG, WebP. Audio: MP3, WAV, M4A, OGG',
+  panelId: 'mode-panel-media',
+  tabId: 'mode-tab-media',
 };
 
-// Media upload + preview + run-evaluation panel. One component serves both the
-// image and audio tabs; `mode` selects the copy, accept list, and preview
-// element. State lives in the page; this is a presentational panel.
+// Unified Synthetic media upload + preview + run-evaluation panel. One drop
+// zone accepts BOTH image and audio; mediaKind (derived in the page from the
+// selected file's MIME) drives the preview element and the "<kind> detected"
+// indicator. Copy and accept list are shared. Presentational; state lives in
+// the page.
 function MediaInput({
-  mode, mediaBlob, mediaName, mediaPreviewUrl, mediaMimeType,
+  mediaKind, mediaBlob, mediaName, mediaPreviewUrl, mediaMimeType,
   loading, error, onPickFile, onClear, onEvaluate, onLoadSample,
   dragHover, setDragHover, fileInputRef,
 }) {
-  const copy = MEDIA_TAB_COPY[mode] || MEDIA_TAB_COPY.image;
-  const samples = samplesForMode(mode);
+  const copy = MEDIA_COPY;
+  const samples = SAMPLE_MEDIA;
+  const KindIcon = mediaKind === 'audio' ? Music : ImageIcon;
   const hasFile = !!mediaBlob;
   function pick() { if (fileInputRef.current) fileInputRef.current.click(); }
   function onDrop(e) {
@@ -3619,7 +3640,8 @@ function MediaInput({
       >
         <Upload className="w-8 h-8 text-slate-400" aria-hidden="true" />
         <p className="text-sm text-slate-700">{copy.dropPrompt}</p>
-        <p className="text-xs text-slate-500">{copy.formats}. Max {maxLabelFor(mode)}.</p>
+        <p className="text-xs text-slate-500">Images up to {maxLabelFor('image')}, audio up to {maxLabelFor('audio')}.</p>
+        <p className="text-[11px] text-slate-400">{copy.formats}</p>
         <input
           ref={fileInputRef}
           type="file"
@@ -3635,8 +3657,13 @@ function MediaInput({
 
       {hasFile && (
         <div className="space-y-3">
-          {/* Preview: image element for image mode, audio player for audio. */}
-          {mode === 'image' && mediaPreviewUrl && (
+          {/* Auto-detected kind indicator -- feedback that MIME routing worked. */}
+          <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-slate-100 rounded-full px-3 py-1">
+            <KindIcon className="w-3.5 h-3.5" aria-hidden="true" />
+            {mediaKind === 'audio' ? 'Audio detected' : 'Image detected'}
+          </div>
+          {/* Preview: image element for images, audio player for audio. */}
+          {mediaKind === 'image' && mediaPreviewUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={mediaPreviewUrl}
@@ -3644,7 +3671,7 @@ function MediaInput({
               className="max-h-64 rounded-md border border-slate-200 mx-auto"
             />
           )}
-          {mode === 'audio' && mediaPreviewUrl && (
+          {mediaKind === 'audio' && mediaPreviewUrl && (
             <audio src={mediaPreviewUrl} controls className="w-full" aria-label={'Audio preview: ' + (mediaName || 'audio clip')} />
           )}
           <div className="text-xs text-slate-600 flex items-center gap-2">
@@ -3667,16 +3694,20 @@ function MediaInput({
             Try one of these
           </p>
           <div className="flex flex-wrap gap-2">
-            {samples.map(s => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => onLoadSample(s)}
-                className="text-xs border border-slate-200 bg-slate-50 hover:bg-slate-50 text-slate-700 rounded-full px-3 py-1.5 transition-colors"
-              >
-                {s.label}
-              </button>
-            ))}
+            {samples.map(s => {
+              const SIcon = s.mode === 'audio' ? Music : ImageIcon;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => onLoadSample(s)}
+                  className="inline-flex items-center gap-1.5 text-xs border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-full px-3 py-1.5 transition-colors"
+                >
+                  <SIcon className="w-3 h-3 text-slate-400" aria-hidden="true" />
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
