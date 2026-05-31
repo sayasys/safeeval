@@ -31,10 +31,13 @@ describe('M12 migration: discovery + apply order', () => {
     expect(m13Index).toBeGreaterThan(files.indexOf(M12));
     const m14Index = files.findIndex((f) => f.startsWith('M14_'));
     expect(m14Index).toBeGreaterThan(m13Index);
-    // M15 (promotion-lifecycle persistence) is the new numeric tail.
+    // M15 (promotion-lifecycle persistence) sorts after M14.
     const m15Index = files.findIndex((f) => f.startsWith('M15_'));
     expect(m15Index).toBeGreaterThan(m14Index);
-    expect(files[files.length - 1]).toBe('M15_promotion_lifecycle_persistence.sql');
+    // M16 (reports + org RLS policies) is the new numeric tail.
+    const m16Index = files.findIndex((f) => f.startsWith('M16_'));
+    expect(m16Index).toBeGreaterThan(m15Index);
+    expect(files[files.length - 1]).toBe('M16_reports_rls_and_org_policies.sql');
   });
 });
 
