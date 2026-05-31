@@ -52,7 +52,7 @@ export type DetectorResult = {
 export type ReasoningResult = {
   verdict: 'likely_synthetic' | 'likely_authentic' | 'inconclusive';
   rationale: string;             // 1-3 sentence Gemini-emitted prose
-  model_id: string;              // 'gemini-1.5-flash'
+  model_id: string;              // 'gemini-2.5-flash'
 };
 
 export type MediaDetectionResult = {
@@ -154,7 +154,7 @@ Add to the v5-envelope schema a new optional top-level field `media_detection_re
       "properties": {
         "verdict":   { "type": "string", "enum": ["likely_synthetic", "likely_authentic", "inconclusive"] },
         "rationale": { "type": "string", "minLength": 1, "maxLength": 500 },
-        "model_id":  { "type": "string", "const": "gemini-1.5-flash" }
+        "model_id":  { "type": "string", "const": "gemini-2.5-flash" }
       }
     }
   }
@@ -308,7 +308,7 @@ export async function interpretAmbiguous(
 
   // Gemini 1.5 Flash multimodal call -- see https://ai.google.dev/api/generate-content
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -333,7 +333,7 @@ export async function interpretAmbiguous(
   return {
     verdict: parsed.verdict as ReasoningResult['verdict'],
     rationale: parsed.rationale.slice(0, 500),
-    model_id: 'gemini-1.5-flash',
+    model_id: 'gemini-2.5-flash',
   };
 }
 ```
@@ -453,7 +453,7 @@ The existing result card renders `classification`, `disposition`, `evidence`, `p
 | Type: image (image/png, 1.2 MB)                          |
 | Detector: Organika/sdxl-detector                         |
 | Synthetic confidence: 0.92                               |
-| [Reasoning: gemini-1.5-flash -- likely_synthetic         |
+| [Reasoning: gemini-2.5-flash -- likely_synthetic         |
 |  "Visible smearing around eyes and facial asymmetry      |
 |  consistent with diffusion-model artifacts."]            |
 +-----------------------------------------------------------+
