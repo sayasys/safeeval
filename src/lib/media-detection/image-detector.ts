@@ -24,8 +24,13 @@ import { DEFAULT_DETECTOR_TIMEOUT_MS } from './types';
 
 export const PRIMARY_IMAGE_MODEL = 'Organika/sdxl-detector';
 
+// Inference Providers router (hf-inference). The legacy host
+// api-inference.huggingface.co was retired by HF and no longer resolves in
+// DNS; the router preserves the same image-classification response contract
+// ([{ label, score }, ...]) and is the host the "Make calls to Inference
+// Providers" fine-grained token scope authorizes.
 const HF_INFERENCE_ENDPOINT = (modelId: string): string =>
-  `https://api-inference.huggingface.co/models/${modelId}`;
+  `https://router.huggingface.co/hf-inference/models/${modelId}`;
 
 const SYNTHETIC_IMAGE_LABEL_PATTERN = /art|fake|ai|generated|synth/i;
 

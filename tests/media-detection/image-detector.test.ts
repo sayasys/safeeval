@@ -144,7 +144,7 @@ describe('detectImage -- error paths', () => {
 
   it('returns an error result when fetch rejects (network failure)', async () => {
     const fetchImpl: typeof fetch = async () => {
-      throw new Error('ENOTFOUND api-inference.huggingface.co');
+      throw new Error('ENOTFOUND router.huggingface.co');
     };
     const result = await detectImage(URL_ARTIFACT, { fetchImpl });
     expect(result.error).toMatch(/ENOTFOUND/);
@@ -197,7 +197,7 @@ describe('detectImage -- diagnostic logging (no token leak)', () => {
     const fetchImpl: typeof fetch = async () => {
       const e = new Error('fetch failed');
       (e as { cause?: unknown }).cause = Object.assign(
-        new Error('getaddrinfo ENOTFOUND api-inference.huggingface.co'),
+        new Error('getaddrinfo ENOTFOUND router.huggingface.co'),
         { code: 'ENOTFOUND' }
       );
       throw e;
