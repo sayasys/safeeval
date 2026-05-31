@@ -137,18 +137,3 @@ The corpus selection and analysis documents are the analytical heart. This wrapp
 ---
 
 *This case study is part of the SafeEval portfolio. SafeEval is an AI trust and safety policy framework, demonstrated through the fraud-and-scams subdomain. The live app is at https://safeeval.vercel.app.*
-over-claims if it presents the corpus as exhaustive.
-
----
-
-## Documents in this case study
-
-- [`2026-06-corpus-selection.md`](2026-06-corpus-selection.md) -- corpus selection. Eight cases with full source attribution, factual summary per case, "why this case" rationale tied to selection criteria. ~4,000 words.
-- [`2026-06-case-study-analysis.md`](2026-06-case-study-analysis.md) -- per-case analysis. Each case across six subsections: scenario, evaluable input, predicted classification, verdict, gap surfaced, recommended improvement. ~9,100 words; seam-tester cases (4, 5, 7) each >1,000 words.
-- This document (`index.md`) -- portfolio wrapper. ~2,400 words.
-
-The corpus selection and analysis documents are the analytical heart. This wrapper is the navigation surface; it does not duplicate the analytical density.
-
----
-
-*This case study is part of the SafeEval portfolio. SafeEval is an AI trust and safety policy framework, demonstrated through the fraud-and-scams subdomain. The live app is at https://safeeval.vercel.app.*
