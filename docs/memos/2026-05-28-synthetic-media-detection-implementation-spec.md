@@ -212,7 +212,7 @@ Recommended model: `Organika/sdxl-detector` (primary). Fallback if unavailable: 
 ```ts
 // image-detector.ts
 const HF_INFERENCE_ENDPOINT = (modelId: string) =>
-  `https://api-inference.huggingface.co/models/${modelId}`;
+  `https://router.huggingface.co/hf-inference/models/${modelId}`;
 
 const PRIMARY_IMAGE_MODEL = 'Organika/sdxl-detector';
 
