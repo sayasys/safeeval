@@ -6,6 +6,7 @@
 
 import { getCurrentUser } from '@/lib/auth';
 import AppNav from './_components/AppNav';
+import PolicySubNav from './_components/PolicySubNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,7 @@ export default async function AppLayout({ children }) {
   return (
     <>
       <AppNav email={user?.email ?? null} />
+      <PolicySubNav />
       {children}
     </>
   );

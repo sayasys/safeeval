@@ -10,14 +10,22 @@ import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signOut } from '@/lib/auth';
-import { APP_NAV_LINKS } from './app-nav-links';
+import { APP_NAV_LINKS, isPolicySectionPath } from './app-nav-links';
 
 // A link is "current" when the path is exactly it or sits underneath it, so
-// /app/classifiers/new still highlights the Classifiers tab. The dashboard tab
-// only lights up on an exact match -- every /app/* page is technically under
-// the app root, but the dashboard is its own destination, not a parent.
+// /app/classifiers/new still highlights the Classifiers tab. Three special
+// cases:
+//   - Dashboard only lights up on an exact match -- every /app/* page is
+//     technically under the app root, but the dashboard is its own
+//     destination, not a parent.
+//   - Policy is the IA parent for the customization surfaces, so it lights up
+//     for /app/policy, /app/classifiers/*, and /app/patterns/* (the sub-pages
+//     keep their own URLs but belong to the Policy bucket).
+//   - /app/reports/* highlights nothing: reports are a secondary surface
+//     reached from result cards and the dashboard, not a top-nav destination.
 function isCurrent(pathname, href) {
   if (href === '/app/dashboard') return pathname === href;
+  if (href === '/app/policy') return isPolicySectionPath(pathname);
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

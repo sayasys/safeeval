@@ -6,21 +6,29 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { APP_NAV_LINKS } from '../../src/app/app/_components/app-nav-links';
+import {
+  APP_NAV_LINKS,
+  isPolicySectionPath,
+} from '../../src/app/app/_components/app-nav-links';
 
 const NAV_SRC = readFileSync(
   join(process.cwd(), 'src/app/app/_components/AppNav.js'),
   'utf8',
 );
 
+const SUBNAV_SRC = readFileSync(
+  join(process.cwd(), 'src/app/app/_components/PolicySubNav.js'),
+  'utf8',
+);
+
 describe('app nav links', () => {
-  it('exposes exactly the four primary destinations', () => {
+  it('exposes exactly the four primary destinations (post-IA reorg)', () => {
     expect(APP_NAV_LINKS).toHaveLength(4);
     expect(APP_NAV_LINKS.map((l) => l.label)).toEqual([
       'Dashboard',
-      'Classifiers',
-      'Patterns',
+      'Policy',
       'Evaluator',
+      'Intelligence',
     ]);
   });
 
@@ -29,9 +37,66 @@ describe('app nav links', () => {
       APP_NAV_LINKS.map((l) => [l.label, l.href]),
     );
     expect(byLabel.Dashboard).toBe('/app/dashboard');
-    expect(byLabel.Classifiers).toBe('/app/classifiers');
-    expect(byLabel.Patterns).toBe('/app/patterns');
+    expect(byLabel.Policy).toBe('/app/policy');
     expect(byLabel.Evaluator).toBe('/evaluator');
+    expect(byLabel.Intelligence).toBe('/intelligence');
+  });
+
+  it('no longer exposes Classifiers or Patterns as top-level tabs', () => {
+    const labels = APP_NAV_LINKS.map((l) => l.label);
+    expect(labels).not.toContain('Classifiers');
+    expect(labels).not.toContain('Patterns');
+  });
+});
+
+describe('isPolicySectionPath', () => {
+  it('matches the policy landing page and both sub-pages (incl. nested)', () => {
+    for (const p of [
+      '/app/policy',
+      '/app/classifiers',
+      '/app/classifiers/new',
+      '/app/classifiers/abc-123',
+      '/app/patterns',
+      '/app/patterns/new',
+      '/app/patterns/xyz',
+    ]) {
+      expect(isPolicySectionPath(p)).toBe(true);
+    }
+  });
+
+  it('does not match other app routes (dashboard, reports, evaluator)', () => {
+    for (const p of [
+      '/app/dashboard',
+      '/app/reports',
+      '/app/reports/42',
+      '/evaluator',
+      '/intelligence',
+      '/app/policyx', // prefix guard: a sibling that merely shares the string must not match
+    ]) {
+      expect(isPolicySectionPath(p)).toBe(false);
+    }
+  });
+});
+
+describe('AppNav Policy-bucket highlight', () => {
+  it('routes the Policy tab through isPolicySectionPath', () => {
+    expect(NAV_SRC).toContain('isPolicySectionPath');
+    expect(NAV_SRC).toContain(
+      "if (href === '/app/policy') return isPolicySectionPath(pathname)",
+    );
+  });
+});
+
+describe('PolicySubNav', () => {
+  it('is a client component that hides off the policy section', () => {
+    expect(SUBNAV_SRC).toContain("'use client'");
+    expect(SUBNAV_SRC).toContain('isPolicySectionPath');
+    expect(SUBNAV_SRC).toContain('return null');
+  });
+
+  it('renders Classifiers and Patterns sub-tabs', () => {
+    expect(SUBNAV_SRC).toContain("href: '/app/classifiers'");
+    expect(SUBNAV_SRC).toContain("href: '/app/patterns'");
   });
 });
 
