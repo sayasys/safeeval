@@ -2,7 +2,7 @@
 
 **Status:** v5.1 patch (extended 2026-05-28 for conversation evaluation). Schema additions (additive, dual-emit): (a) classifier-display closed-set labels on `evidence.process_flags[]` (`label` / `labels`) and `prompt_summary` (`topic_label`, `target_label`, `objective_label`, `pretext_label`, `topic_explanation`, `pretext_explanation`, `target_attributes`); (b) conversation-input discriminator on a new top-level `input` field (`input.kind: "prompt" | "conversation"`), conversation envelope at `input.conversation`, per-turn evidence container `evidence.per_turn`, and Stage 0 trace slot -- additive per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md`. Existing prose fields retained as backward-compat aliases per `docs/memos/2026-05-26-policy-v5-classifier-display-vocabulary.md` section 4.3. Prior v5.0.1 additions: `disposition.narrative_summary`, `disposition.confidence_path`, `disposition.triggered_by.policy_note`; Stage 5 trace slot removed.
 **Schema version:** 5.1
-**Ontology version:** 5.1 (bumped 2026-05-28; new L3 categories `arc:` and `cadence:` per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 5)
+**Ontology version:** 5.2 (current; the case-study Tier 1 amendments bump 2026-05-27 per `docs/08-v5-ontology.md`. The `arc:` and `cadence:` L3 categories were added in the earlier 5.1 bump 2026-05-28 per `docs/memos/2026-05-28-policy-conversation-eval-vocabulary.md` section 5; sequence numbers are content-keyed, not strictly chronological)
 **Predecessor:** FAF v4.0 (`src/lib/safeeval.js`)
 **Companion docs:** `docs/policy-spec-v5.0.md` (authoritative spec), `docs/08-v5-ontology.md` (vocabulary reference).
 
