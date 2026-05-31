@@ -28,7 +28,7 @@ const STAGES = [
 
 export default function HowItWorks() {
   return (
-    <section className="py-24 bg-cream-100">
+    <section className="py-24 bg-tool">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl mb-16">
           <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
@@ -47,8 +47,8 @@ export default function HowItWorks() {
               key={stage.label}
               className="relative flex md:flex-1 flex-col md:flex-row items-stretch"
             >
-              <div className="flex-1 rounded-2xl bg-white p-6 shadow-soft border border-sage-100">
-                <div className="text-xs font-semibold tracking-wide text-sage-700 uppercase">
+              <div className="flex-1 rounded-2xl bg-white p-6 shadow-soft border border-slate-200">
+                <div className="text-xs font-semibold tracking-wide text-brand-blue uppercase">
                   {stage.label}
                 </div>
                 <div className="mt-2 text-lg font-semibold text-slate-900 tracking-tight">
@@ -61,13 +61,13 @@ export default function HowItWorks() {
               {i < STAGES.length - 1 && (
                 <>
                   <div
-                    className="hidden md:flex items-center justify-center px-1 text-sage-400 text-2xl select-none"
+                    className="hidden md:flex items-center justify-center px-1 text-slate-400 text-2xl select-none"
                     aria-hidden="true"
                   >
                     &rarr;
                   </div>
                   <div
-                    className="md:hidden flex items-center justify-center py-2 text-sage-400 text-2xl select-none"
+                    className="md:hidden flex items-center justify-center py-2 text-slate-400 text-2xl select-none"
                     aria-hidden="true"
                   >
                     &darr;

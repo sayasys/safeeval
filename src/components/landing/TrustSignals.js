@@ -23,7 +23,7 @@ const SIGNALS = [
 
 export default function TrustSignals() {
   return (
-    <section className="py-16 bg-cream-50">
+    <section className="py-16 bg-tool">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl mb-12">
           <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
@@ -39,12 +39,12 @@ export default function TrustSignals() {
           {SIGNALS.map(signal => (
             <div
               key={signal.label}
-              className="rounded-2xl bg-white p-6 shadow-soft border border-sage-100"
+              className="rounded-2xl bg-white p-6 shadow-soft border border-slate-200"
             >
-              <div className="text-xs font-semibold tracking-wide text-sage-700 uppercase">
+              <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 {signal.label}
               </div>
-              <div className="mt-2 text-xl font-semibold text-sage-700 tracking-tight">
+              <div className="mt-2 text-xl font-semibold text-brand-blue tracking-tight">
                 {signal.value}
               </div>
               <p className="mt-2 text-sm text-slate-600 leading-relaxed">

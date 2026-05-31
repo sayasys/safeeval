@@ -13,7 +13,7 @@ const NAV_LINKS = [
 
 export default function Nav({ current }) {
   return (
-    <nav className="sticky top-0 z-50 bg-cream-50/80 backdrop-blur-md border-b border-sage-100">
+    <nav className="sticky top-0 z-50 bg-tool/80 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link
           href="/"

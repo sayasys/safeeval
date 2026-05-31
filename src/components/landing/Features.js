@@ -28,29 +28,29 @@ function FeatureIcon({ name }) {
   if (name === 'shield') {
     return (
       <svg viewBox="0 0 64 64" className="w-12 h-12" aria-hidden="true">
-        <rect x="4" y="4" width="56" height="56" rx="20" fill="#DCE8DE" />
+        <rect x="4" y="4" width="56" height="56" rx="20" fill="#E2E8F0" />
         <path
           d="M32 18 L46 24 V34 C46 42 32 48 32 48 C32 48 18 42 18 34 V24 Z"
-          fill="#52835D"
+          fill="#2962E0"
         />
-        <circle cx="32" cy="32" r="5" fill="#F46E54" />
+        <circle cx="32" cy="32" r="5" fill="#FFFFFF" />
       </svg>
     );
   }
   if (name === 'loop') {
     return (
       <svg viewBox="0 0 64 64" className="w-12 h-12" aria-hidden="true">
-        <rect x="4" y="4" width="56" height="56" rx="20" fill="#DCE8DE" />
+        <rect x="4" y="4" width="56" height="56" rx="20" fill="#E2E8F0" />
         <path
           d="M22 32 A10 10 0 1 1 32 42"
-          stroke="#52835D"
+          stroke="#2962E0"
           strokeWidth="4"
           fill="none"
           strokeLinecap="round"
         />
         <path
           d="M42 32 A10 10 0 1 1 32 22"
-          stroke="#F46E54"
+          stroke="#94A3B8"
           strokeWidth="4"
           fill="none"
           strokeLinecap="round"
@@ -61,19 +61,19 @@ function FeatureIcon({ name }) {
   // spark
   return (
     <svg viewBox="0 0 64 64" className="w-12 h-12" aria-hidden="true">
-      <rect x="4" y="4" width="56" height="56" rx="20" fill="#DCE8DE" />
-      <circle cx="32" cy="32" r="10" fill="#52835D" />
-      <circle cx="20" cy="20" r="4" fill="#F46E54" />
-      <circle cx="44" cy="44" r="4" fill="#F46E54" />
-      <circle cx="44" cy="20" r="3" fill="#8AB592" />
-      <circle cx="20" cy="44" r="3" fill="#8AB592" />
+      <rect x="4" y="4" width="56" height="56" rx="20" fill="#E2E8F0" />
+      <circle cx="32" cy="32" r="10" fill="#2962E0" />
+      <circle cx="20" cy="20" r="4" fill="#94A3B8" />
+      <circle cx="44" cy="44" r="4" fill="#94A3B8" />
+      <circle cx="44" cy="20" r="3" fill="#94A3B8" />
+      <circle cx="20" cy="44" r="3" fill="#94A3B8" />
     </svg>
   );
 }
 
 export default function Features() {
   return (
-    <section className="py-24 bg-cream-50">
+    <section className="py-24 bg-tool">
       <div className="max-w-7xl mx-auto px-6">
         <div className="max-w-3xl mb-16">
           <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
@@ -88,7 +88,7 @@ export default function Features() {
           {FEATURES.map(feature => (
             <div
               key={feature.title}
-              className="rounded-3xl bg-white p-8 shadow-soft border border-sage-100 flex flex-col"
+              className="rounded-3xl bg-white p-8 shadow-soft border border-slate-200 flex flex-col"
             >
               <FeatureIcon name={feature.icon} />
               <h3 className="mt-6 text-2xl font-semibold tracking-tight text-slate-900 mb-3">
@@ -99,7 +99,7 @@ export default function Features() {
               </p>
               <Link
                 href={feature.href}
-                className="mt-6 text-sm font-medium text-sage-600 hover:text-sage-700 transition-colors"
+                className="mt-6 text-sm font-medium text-brand-blue hover:text-blue-700 transition-colors"
               >
                 {feature.linkLabel} &rarr;
               </Link>
