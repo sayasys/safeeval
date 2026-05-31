@@ -1,6 +1,6 @@
 export default function Setup() {
   return (
-    <section className="py-24 bg-tool">
+    <section className="py-24 bg-white">
       <div className="max-w-5xl mx-auto px-6">
         <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
           What we did

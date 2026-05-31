@@ -1,6 +1,6 @@
 export default function FeedbackStory() {
   return (
-    <section className="py-24 bg-tool">
+    <section className="py-24 bg-white">
       <div className="max-w-5xl mx-auto px-6">
         <div className="text-sm font-semibold tracking-wide text-slate-500 uppercase">
           Reviewer feedback
