@@ -68,8 +68,11 @@ export async function detectImage(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  // Hoisted so the catch block can log which URL failed -- a network-level
+  // "fetch failed" (e.g. the host no longer resolves) is otherwise opaque.
+  const url = HF_INFERENCE_ENDPOINT(modelId);
+
   try {
-    const url = HF_INFERENCE_ENDPOINT(modelId);
     const useUrl = isUrl(input.url_or_base64);
     const body: string | Buffer = useUrl
       ? JSON.stringify({ inputs: input.url_or_base64 })
@@ -93,12 +96,19 @@ export async function detectImage(
       // auth message on 401/403. The body never contains the token (the
       // Authorization header is request-side only), so it is safe to log.
       const bodyText = await res.text().catch(() => '<unreadable body>');
-      console.error('[media-detection:image] HF inference returned non-OK', {
-        model_id: modelId,
-        status: res.status,
-        status_text: res.statusText,
-        body: bodyText.slice(0, 1000),
-      });
+      // Single JSON line: Vercel's log table truncates multi-arg / multi-line
+      // entries, which previously hid the real reason. Stringify keeps the
+      // status, statusText, the (token-free) HF body, and the URL on one line.
+      console.error(
+        JSON.stringify({
+          msg: '[media-detection:image] HF inference returned non-OK',
+          model_id: modelId,
+          url,
+          status: res.status,
+          statusText: res.statusText,
+          body: bodyText.slice(0, 1000),
+        })
+      );
       return {
         is_synthetic: 0,
         confidence: 0,
@@ -159,16 +169,24 @@ export async function detectImage(
     // never part of the error object, so nothing here leaks the token.
     if (!isAbort) {
       const cause = err instanceof Error ? err.cause : undefined;
-      console.error('[media-detection:image] HF inference fetch threw', {
-        model_id: modelId,
-        name: err instanceof Error ? err.name : typeof err,
-        message,
-        cause:
-          cause instanceof Error
-            ? { name: cause.name, message: cause.message, code: (cause as { code?: unknown }).code }
-            : cause,
-        stack: err instanceof Error ? err.stack : undefined,
-      });
+      // Single JSON line (see non-OK path above). The url field is the key
+      // signal for a network-level failure: a "fetch failed" whose cause is
+      // ENOTFOUND/getaddrinfo against this host means the host is unreachable
+      // or no longer resolves, not an auth/scope problem.
+      console.error(
+        JSON.stringify({
+          msg: '[media-detection:image] HF inference fetch threw',
+          model_id: modelId,
+          url,
+          name: err instanceof Error ? err.name : typeof err,
+          message,
+          cause:
+            cause instanceof Error
+              ? { name: cause.name, message: cause.message, code: (cause as { code?: unknown }).code }
+              : cause,
+          stack: err instanceof Error ? err.stack : undefined,
+        })
+      );
     }
     return {
       is_synthetic: 0,

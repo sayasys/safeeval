@@ -185,9 +185,11 @@ describe('detectImage -- diagnostic logging (no token leak)', () => {
       });
     await detectImage(URL_ARTIFACT, { fetchImpl });
     expect(errorSpy).toHaveBeenCalledTimes(1);
-    const [msg, detail] = errorSpy.mock.calls[0]!;
-    expect(String(msg)).toMatch(/non-OK/i);
+    // Logged as a single JSON line so Vercel's table view cannot truncate it.
+    const detail = JSON.parse(String(errorSpy.mock.calls[0]![0]));
+    expect(detail.msg).toMatch(/non-OK/i);
     expect(detail).toMatchObject({ status: 503 });
+    expect(detail.url).toContain('huggingface.co');
     expect(JSON.stringify(detail)).toContain('currently loading');
   });
 
@@ -203,8 +205,9 @@ describe('detectImage -- diagnostic logging (no token leak)', () => {
     const result = await detectImage(URL_ARTIFACT, { fetchImpl });
     expect(result.error).toBe('fetch failed');
     expect(errorSpy).toHaveBeenCalledTimes(1);
-    const [msg, detail] = errorSpy.mock.calls[0]!;
-    expect(String(msg)).toMatch(/threw/i);
+    const detail = JSON.parse(String(errorSpy.mock.calls[0]![0]));
+    expect(detail.msg).toMatch(/threw/i);
+    expect(detail.url).toContain('huggingface.co');
     expect(JSON.stringify(detail)).toContain('ENOTFOUND');
   });
 
