@@ -44,7 +44,7 @@ export default function FiveStages() {
           {STAGES.map(stage => (
             <div
               key={stage.label}
-              className="rounded-3xl bg-white p-8 shadow-soft border border-slate-200"
+              className="rounded-3xl bg-white p-8 shadow-card border border-slate-200 transition-shadow hover:shadow-lift"
             >
               <div className="md:flex md:items-start md:gap-8">
                 <div className="md:w-48 md:flex-shrink-0">

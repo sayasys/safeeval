@@ -27,11 +27,13 @@ module.exports = {
           500: '#F46E54',
           600: '#E25439',
         },
-        // Cool institutional palette -- tool surfaces only (evaluator, /app/*,
-        // /intelligence, signup, login). Marketing surfaces keep cream/sage/coral.
+        // Cool institutional palette -- the whole site (tool AND marketing
+        // surfaces; the warm cream/sage/coral hybrid was retired 2026-05-30).
         // The neutral-cool ramp maps directly onto Tailwind's built-in slate
         // scale (slate-50 #F8FAFC, slate-200 #E2E8F0, slate-700 #334155), so
         // only the brand accent and the tool page background need custom tokens.
+        // The cream/sage/coral tokens above are retained for the regression
+        // guard in tests/app/palette-surfaces.test.ts but are no longer applied.
         brand: {
           blue: '#2962E0', // primary brand, CTAs, links on tool surfaces
         },
@@ -42,6 +44,13 @@ module.exports = {
       },
       boxShadow: {
         soft: '0 10px 30px -10px rgba(45, 79, 53, 0.08)',
+        // Cool-institutional elevation ramp (slate-900 #0F172A tint). Additive
+        // tokens for the marketing-surface depth pass -- tool surfaces keep
+        // their existing shadow-soft. card = resting card, lift = hover state,
+        // float = prominent elements (hero illustration, CTA banner).
+        card: '0 1px 2px 0 rgba(15, 23, 42, 0.04), 0 4px 16px -4px rgba(15, 23, 42, 0.10)',
+        lift: '0 4px 10px -2px rgba(15, 23, 42, 0.08), 0 18px 36px -8px rgba(15, 23, 42, 0.16)',
+        float: '0 16px 32px -8px rgba(15, 23, 42, 0.14), 0 36px 64px -16px rgba(15, 23, 42, 0.22)',
       },
     },
   },

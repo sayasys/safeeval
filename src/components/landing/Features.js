@@ -88,7 +88,7 @@ export default function Features() {
           {FEATURES.map(feature => (
             <div
               key={feature.title}
-              className="rounded-3xl bg-white p-8 shadow-soft border border-slate-200 flex flex-col"
+              className="rounded-3xl bg-white p-8 shadow-card border border-slate-200 transition-shadow hover:shadow-lift flex flex-col"
             >
               <FeatureIcon name={feature.icon} />
               <h3 className="mt-6 text-2xl font-semibold tracking-tight text-slate-900 mb-3">

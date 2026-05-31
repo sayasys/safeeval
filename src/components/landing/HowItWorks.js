@@ -47,7 +47,7 @@ export default function HowItWorks() {
               key={stage.label}
               className="relative flex md:flex-1 flex-col md:flex-row items-stretch"
             >
-              <div className="flex-1 rounded-2xl bg-white p-6 shadow-soft border border-slate-200">
+              <div className="flex-1 rounded-2xl bg-white p-6 shadow-card border border-slate-200 transition-shadow hover:shadow-lift">
                 <div className="text-xs font-semibold tracking-wide text-brand-blue uppercase">
                   {stage.label}
                 </div>

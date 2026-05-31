@@ -39,7 +39,7 @@ export default function TrustSignals() {
           {SIGNALS.map(signal => (
             <div
               key={signal.label}
-              className="rounded-2xl bg-white p-6 shadow-soft border border-slate-200"
+              className="rounded-2xl bg-white p-6 shadow-card border border-slate-200 transition-shadow hover:shadow-lift"
             >
               <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 {signal.label}

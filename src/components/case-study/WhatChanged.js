@@ -80,7 +80,7 @@ export default function WhatChanged() {
 
 function Change({ title, body }) {
   return (
-    <div className="rounded-3xl bg-white p-8 md:p-10 shadow-soft border border-slate-200">
+    <div className="rounded-3xl bg-white p-8 md:p-10 shadow-card border border-slate-200 transition-shadow hover:shadow-lift">
       <h3 className="text-2xl font-semibold text-slate-900 tracking-tight">
         {title}
       </h3>
@@ -91,7 +91,7 @@ function Change({ title, body }) {
 
 function Outcome({ label, children }) {
   return (
-    <div className="rounded-3xl bg-white p-8 md:p-10 shadow-soft border border-slate-200">
+    <div className="rounded-3xl bg-white p-8 md:p-10 shadow-card border border-slate-200 transition-shadow hover:shadow-lift">
       <span className="text-xs font-semibold tracking-widest text-brand-blue">
         {label}
       </span>

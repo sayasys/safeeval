@@ -8,7 +8,7 @@ export default function CaseStudy() {
           Case study
         </div>
 
-        <div className="mt-8 rounded-3xl bg-white p-10 md:p-14 border border-slate-200">
+        <div className="mt-8 rounded-3xl bg-white p-10 md:p-14 shadow-card border border-slate-200">
           <p className="text-2xl md:text-3xl font-medium tracking-tight text-slate-800 leading-snug">
             We ran eight real fraud cases through it. The review surfaced three
             things worth fixing. Two updates went live; one harder follow-up is
@@ -24,7 +24,7 @@ export default function CaseStudy() {
         <div className="mt-10">
           <Link
             href="/case-study"
-            className="inline-flex items-center justify-center rounded-full bg-brand-blue hover:bg-blue-700 px-8 py-3.5 text-base font-medium text-white transition-colors"
+            className="inline-flex items-center justify-center rounded-full bg-brand-blue hover:bg-blue-700 px-8 py-3.5 text-base font-medium text-white shadow-sm hover:shadow-md transition-all"
           >
             Read the case study
           </Link>

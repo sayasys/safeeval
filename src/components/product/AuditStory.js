@@ -16,7 +16,7 @@ export default function AuditStory() {
         </p>
 
         <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="rounded-3xl bg-white p-8 border border-slate-200">
+          <div className="rounded-3xl bg-white p-8 shadow-card border border-slate-200 transition-shadow hover:shadow-lift">
             <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
               Why it matters
             </h3>
@@ -27,7 +27,7 @@ export default function AuditStory() {
               decision and the audit.
             </p>
           </div>
-          <div className="rounded-3xl bg-white p-8 border border-slate-200">
+          <div className="rounded-3xl bg-white p-8 shadow-card border border-slate-200 transition-shadow hover:shadow-lift">
             <h3 className="text-lg font-semibold text-slate-900 tracking-tight">
               What gets logged
             </h3>

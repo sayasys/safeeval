@@ -38,7 +38,7 @@ export default function Setup() {
 
 function SetupCard({ title, body }) {
   return (
-    <div className="rounded-3xl bg-white p-8 shadow-soft border border-slate-200">
+    <div className="rounded-3xl bg-white p-8 shadow-card border border-slate-200 transition-shadow hover:shadow-lift">
       <h3 className="text-xl font-semibold text-slate-900 tracking-tight">
         {title}
       </h3>

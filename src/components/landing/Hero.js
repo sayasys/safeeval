@@ -18,7 +18,7 @@ export default function Hero() {
             <div className="mt-10 flex flex-col sm:flex-row gap-4">
               <Link
                 href="/evaluator"
-                className="inline-flex items-center justify-center rounded-full bg-brand-blue hover:bg-blue-700 px-8 py-3.5 text-base font-medium text-white transition-colors"
+                className="inline-flex items-center justify-center rounded-full bg-brand-blue hover:bg-blue-700 px-8 py-3.5 text-base font-medium text-white shadow-sm hover:shadow-md transition-all"
               >
                 Try a demo
               </Link>

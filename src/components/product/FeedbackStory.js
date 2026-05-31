@@ -45,7 +45,7 @@ export default function FeedbackStory() {
 
 function FlowStep({ number, title, body }) {
   return (
-    <div className="rounded-3xl bg-white p-6 md:p-8 shadow-soft border border-slate-200 flex items-start gap-6">
+    <div className="rounded-3xl bg-white p-6 md:p-8 shadow-card border border-slate-200 transition-shadow hover:shadow-lift flex items-start gap-6">
       <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-50 text-brand-blue font-semibold text-lg flex items-center justify-center">
         {number}
       </div>
