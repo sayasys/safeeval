@@ -53,14 +53,14 @@ export default function WhatChanged() {
           </h2>
 
           <div className="mt-12 space-y-8">
-            <Outcome label="shipped">
+            <Outcome label="Shipped">
               Two changes landed. The deepfake rule now separates a live
               synthetic-media impersonation from a forged email. The
               chain-of-fraud vocabulary now marks when an attacker knows their
               target was already defrauded, and when one attack builds on another
               against the same person.
             </Outcome>
-            <Outcome label="deferred">
+            <Outcome label="Deferred">
               The structural change &mdash; classifying a case as a whole, not
               just the prompts inside it &mdash; did not ship, and that was a
               deliberate call. A partial case-spanning classifier would have
@@ -92,10 +92,10 @@ function Change({ title, body }) {
 function Outcome({ label, children }) {
   return (
     <div className="rounded-3xl bg-white p-8 md:p-10 shadow-card border border-slate-200 transition-shadow hover:shadow-lift">
-      <span className="text-xs font-semibold tracking-widest text-brand-blue">
+      <h3 className="text-base font-semibold text-brand-blue tracking-tight">
         {label}
-      </span>
-      <p className="mt-4 text-base text-slate-700 leading-relaxed">{children}</p>
+      </h3>
+      <p className="mt-3 text-base text-slate-700 leading-relaxed">{children}</p>
     </div>
   );
 }
